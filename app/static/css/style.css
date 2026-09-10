@@ -159,6 +159,48 @@ a:hover {
     display: flex;
     gap: 8px;
     position: relative;
+    align-items: center;
+}
+
+/* === Language Switcher === */
+.lang-switch {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: var(--bg-surface);
+}
+
+.lang-option {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 6px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lang-option:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+}
+
+.lang-option[aria-pressed="true"] {
+    background: var(--accent, #00b3a4);
+    color: #fff;
+}
+
+.lang-option:focus-visible {
+    outline: 2px solid var(--accent, #00b3a4);
+    outline-offset: 2px;
 }
 
 /* === Notifications === */

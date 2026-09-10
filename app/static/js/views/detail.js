@@ -1,6 +1,6 @@
 // === Job Detail View ===
 async function renderJobDetail(container, jobId) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading job details...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('detail.loading')}</span></div>`;
 
     try {
         const [job, profile, resumesData] = await Promise.all([
@@ -16,11 +16,11 @@ async function renderJobDetail(container, jobId) {
         }
         renderJobDetailContent(container, job, profile, companyInfo, resumesData.resumes || []);
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(apiErrorMessage(err), 'error');
         container.innerHTML = `
             <div class="empty-state">
-                <div class="empty-state-title">Job not found</div>
-                <div class="empty-state-desc">${escapeHtml(err.message)}</div>
+                <div class="empty-state-title">${t('errors.jobNotFound')}</div>
+                <div class="empty-state-desc">${escapeHtml(apiErrorMessage(err))}</div>
             </div>
         `;
     }
@@ -40,14 +40,14 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
     if (hasSalary) {
         salaryHtml = `<span>${formatSalary(job.salary_min, job.salary_max)}</span>`;
     } else if (hasEstimate) {
-        const conf = job.salary_confidence || 'low';
-        const confColor = conf === 'high' ? '#22c55e' : conf === 'medium' ? '#f59e0b' : '#94a3b8';
+        const conf = job.salary_confidence || t('detail.salary.level.low');
+        const confColor = conf === t('detail.salary.level.high') ? '#22c55e' : conf === t('detail.salary.level.medium') ? '#f59e0b' : '#94a3b8';
         salaryHtml = `
             <span style="opacity:0.8">~${formatSalary(job.salary_estimate_min, job.salary_estimate_max)}</span>
             <span style="font-size:0.75rem;color:${confColor};margin-left:4px">(${conf} confidence)</span>
         `;
     } else {
-        salaryHtml = `<button class="btn btn-ghost btn-sm" id="estimate-salary-btn" style="font-size:0.8125rem">Estimate Salary</button>`;
+        salaryHtml = `<button class="btn btn-ghost btn-sm" id="estimate-salary-btn" style="font-size:0.8125rem">${t('detail.actions.estimateSalary')}</button>`;
     }
 
     const reasonsHtml = (score?.match_reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join('');
@@ -55,17 +55,17 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
 
     const freshness = getFreshness(job);
     const freshnessHtml = freshness ? `<span class="freshness-badge ${freshness.class}">${freshness.label}</span>` : '';
-    const staleWarning = freshness && freshness.class === 'freshness-stale' ? '<span style="font-size:0.8125rem;color:#ef4444;">This listing may be expired.</span>' : '';
+    const staleWarning = freshness && freshness.class === 'freshness-stale' ? `<span style="font-size:0.8125rem;color:#ef4444;">${t('detail.staleWarning')}</span>` : '';
 
     const descriptionContent = job.description
         ? (job.description.includes('<') && job.description.includes('>') ? sanitizeHtml(job.description) : `<p>${escapeHtml(job.description).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
-        : '<p class="text-tertiary">No description available.</p>';
+        : `<p class="text-tertiary">${t('detail.descriptionEmpty')}</p>`;
 
-    const appStatus = application?.status || 'interested';
+    const appStatus = application?.status || t('detail.status.interested');
 
     container.innerHTML = `
         <div class="detail-header">
-            <a class="detail-back" id="back-btn">&larr; Back to jobs</a>
+            <a class="detail-back" id="back-btn">&larr; ${t('detail.backToJobs')}</a>
             <h1 class="detail-title">${escapeHtml(job.title)}</h1>
             <div class="detail-company">${escapeHtml(job.company)}</div>
             <div class="detail-meta">
@@ -80,11 +80,11 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         <div class="detail-layout">
             <div class="detail-main-col">
                 <div class="card detail-description">
-                    <h2>Job Description</h2>
+                    <h2>${t('detail.jobDescription')}</h2>
                     <div class="detail-description-content">${descriptionContent}</div>
                 </div>
                 ${application ? `<div id="interview-timeline-container"></div>` : ''}
-                ${['interviewing', 'applied', 'offered'].includes(application?.status) ? `<div id="comp-snapshot-container"></div>` : ''}
+                ${[t('detail.status.interviewing'), t('detail.status.applied'), 'offered'].includes(application?.status) ? `<div id="comp-snapshot-container"></div>` : ''}
             </div>
             <div class="detail-sidebar">
                 ${score ? `
@@ -95,7 +95,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                         <div id="prediction-badge-container"></div>
                     </div>
                     ${reasonsHtml ? `<ul class="score-reasons">${reasonsHtml}</ul>` : ''}
-                    ${concernsHtml ? `<div class="concerns-label">Concerns</div><ul class="score-concerns">${concernsHtml}</ul>` : ''}
+                    ${concernsHtml ? `<div class="concerns-label">${t('detail.concerns')}</div><ul class="score-concerns">${concernsHtml}</ul>` : ''}
                     <button class="btn btn-ghost btn-sm" id="predict-success-btn" style="margin-top:8px;font-size:0.75rem">Predict Success</button>
                     <div id="prediction-detail" style="display:none;margin-top:8px;font-size:0.8125rem;color:var(--text-secondary)"></div>
                 </div>
@@ -115,17 +115,17 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                             Prepare Application
                         </button>
                         ${job.apply_url
-                            ? `<button class="btn btn-success" id="apply-now-btn" style="width:100%;background:#22c55e;color:white;font-weight:600">Apply Now →</button>`
-                            : `<button class="btn btn-secondary btn-sm" id="find-apply-btn" style="width:100%">Find Apply Link</button>`
+                            ? `<button class="btn btn-success" id="apply-now-btn" style="width:100%;background:#22c55e;color:white;font-weight:600">${t('detail.actions.applyNow')}</button>`
+                            : `<button class="btn btn-secondary btn-sm" id="find-apply-btn" style="width:100%">${t('detail.actions.findApplyLink')}</button>`
                         }
                         <a href="${sanitizeUrl(job.url)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
                             Open Job Listing
                         </a>
-                        <button class="btn btn-secondary" id="copy-listing-link-btn">Copy Listing Link</button>
-                        <button class="btn btn-secondary" id="add-to-queue-btn">Add to Queue</button>
-                        ${(job.hiring_manager_email || job.contact_email) ? `<button class="btn btn-secondary" id="email-btn">Draft Email</button>` : ''}
+                        <button class="btn btn-secondary" id="copy-listing-link-btn">${t('detail.actions.copyListingLink')}</button>
+                        <button class="btn btn-secondary" id="add-to-queue-btn">${t('detail.actions.addToQueue')}</button>
+                        ${(job.hiring_manager_email || job.contact_email) ? `<button class="btn btn-secondary" id="email-btn">${t('detail.actions.draftEmail')}</button>` : ''}
                     </div>
-                    ${application?.status !== 'applied' ? `
+                    ${application?.status !== t('detail.status.applied') ? `
                         <button class="btn" id="mark-applied-btn" style="width:100%;background:#22c55e;color:white;font-weight:600;margin-top:8px">
                             Mark as Applied
                         </button>
@@ -137,15 +137,15 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                     <div class="mt-16">
                         <label class="mb-8" style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary)">Status</label>
                         <select class="status-select" id="status-select">
-                            ${['interested', 'prepared', 'applied', 'interviewing', 'rejected'].map(s =>
+                            ${[t('detail.status.interested'), t('detail.status.prepared'), t('detail.status.applied'), t('detail.status.interviewing'), t('detail.status.rejected')].map(s =>
                                 `<option value="${s}" ${s === appStatus ? 'selected' : ''}>${s}</option>`
                             ).join('')}
                         </select>
                     </div>
                     <div class="mt-16">
-                        <button class="btn btn-secondary btn-sm" id="save-status-btn">Save Status</button>
+                        <button class="btn btn-secondary btn-sm" id="save-status-btn">${t('detail.actions.saveStatus')}</button>
                     </div>
-                    ${appStatus === 'applied' || appStatus === 'interviewing' ? `
+                    ${appStatus === t('detail.status.applied') || appStatus === t('detail.status.interviewing') ? `
                     <div class="mt-16" style="padding-top:12px;border-top:1px solid var(--border)">
                         <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Log Response</label>
                         ${application?.response_type ? `
@@ -156,8 +156,8 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                         ` : `
                             <div style="display:flex;gap:6px">
                                 <select class="filter-select" id="response-type-select" style="flex:1">
-                                    <option value="">Select type...</option>
-                                    <option value="interview_invite">Interview Invite</option>
+                                    <option value="">${t('detail.response.selectType')}</option>
+                                    <option value="interview_invite">${t('detail.response.type.interview_invite')}</option>
                                     <option value="rejection">Rejection</option>
                                     <option value="callback">Callback</option>
                                     <option value="ghosted">Ghosted</option>
@@ -180,14 +180,14 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                                 ${contactName ? `<div style="font-weight:600;font-size:0.875rem">${escapeHtml(contactName)}</div>` : ''}
                                 <div style="display:flex;align-items:center;gap:8px">
                                     <span style="font-size:0.875rem;color:var(--text-secondary)">${escapeHtml(contactEmail)}</span>
-                                    <button class="btn btn-ghost btn-sm copy-btn" data-copy="${escapeHtml(contactEmail)}" title="Copy email">&#128203;</button>
+                                    <button class="btn btn-ghost btn-sm copy-btn" data-copy="${escapeHtml(contactEmail)}" title="${t('detail.copyEmailTitle')}">&#128203;</button>
                                 </div>
                             </div>
                         ` : lookupDone ? `
-                            <div style="font-size:0.8125rem;color:var(--text-tertiary);margin-bottom:8px">No contact found</div>
-                            <button class="btn btn-secondary btn-sm" id="find-contact-btn">Retry Search</button>
+                            <div style="font-size:0.8125rem;color:var(--text-tertiary);margin-bottom:8px">${t('detail.noContactFound')}</div>
+                            <button class="btn btn-secondary btn-sm" id="find-contact-btn">${t('detail.retrySearch')}</button>
                         ` : `
-                            <button class="btn btn-secondary btn-sm" id="find-contact-btn">Find Contact</button>
+                            <button class="btn btn-secondary btn-sm" id="find-contact-btn">${t('detail.findContact')}</button>
                         `}
                     </div>`;
                 })()}
@@ -199,7 +199,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                         {label: 'Location', key: 'location'},
                         {label: 'LinkedIn', key: 'linkedin_url'},
                         {label: 'GitHub', key: 'github_url'},
-                        {label: 'Portfolio', key: 'portfolio_url'},
+                        {label: t('detail.portfolioLabel'), key: 'portfolio_url'},
                     ];
                     const hasProfile = profile && Object.values(profile).some(v => v && v !== '');
                     if (!hasProfile) return '';
@@ -254,7 +254,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                             <span style="font-size:0.75rem;color:var(--text-tertiary)">Glassdoor</span>
                         </div>
                     ` : ''}
-                    ${companyInfo.website ? `<a href="${sanitizeUrl(companyInfo.website)}" target="_blank" rel="noopener noreferrer" style="font-size:0.8125rem;color:var(--accent)">Company Website →</a>` : ''}
+                    ${companyInfo.website ? `<a href="${sanitizeUrl(companyInfo.website)}" target="_blank" rel="noopener noreferrer" style="font-size:0.8125rem;color:var(--accent)">${t('detail.companyWebsite')}</a>` : ''}
                 </div>
                 ` : ''}
                 <div id="prepared-container">
@@ -263,7 +263,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                 <div id="cover-letter-container">
                     ${application?.cover_letter ? renderCoverLetterSection(application.cover_letter, job.id) : `
                     <div class="card sidebar-section">
-                        <h3>Cover Letter</h3>
+                        <h3>${t('detail.coverLetterTitle')}</h3>
                         <button class="btn btn-secondary" id="generate-cover-letter-btn" style="width:100%">Generate Cover Letter</button>
                     </div>
                     `}
@@ -272,9 +272,9 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                     ${application?.email_draft ? renderEmailPreview(JSON.parse(application.email_draft)) : ''}
                 </div>
                 <div id="interview-prep-container">
-                    ${job.interview_prep ? renderInterviewPrep(job.interview_prep) : (appStatus === 'interviewing' ? `
+                    ${job.interview_prep ? renderInterviewPrep(job.interview_prep) : (appStatus === t('detail.status.interviewing') ? `
                     <div class="card sidebar-section">
-                        <h3>Interview Prep</h3>
+                        <h3>${t('detail.interviewPrepTitle')}</h3>
                         <button class="btn btn-primary" id="generate-interview-prep-btn" style="width:100%">Generate Interview Prep</button>
                     </div>
                     ` : '')}
@@ -300,7 +300,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         predictBtn.addEventListener('click', async () => {
             if (!await requireAI()) return;
             predictBtn.disabled = true;
-            predictBtn.innerHTML = '<span class="spinner"></span> Predicting...';
+            predictBtn.innerHTML = `<span class="spinner"></span> ${t('detail.predicting')}`;
             try {
                 const pred = await api.request('GET', `/api/jobs/${job.id}/predict-success`);
                 const raw = pred.probability || 0;
@@ -320,9 +320,9 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                 }
                 predictBtn.style.display = 'none';
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 predictBtn.disabled = false;
-                predictBtn.textContent = 'Predict Success';
+                predictBtn.textContent = t('detail.actions.predictSuccess');
             }
         });
     }
@@ -336,18 +336,18 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
             try {
                 const result = await api.request('POST', `/api/jobs/${job.id}/estimate-salary`);
                 if (result.min && result.min > 0) {
-                    showToast(`Estimated: ${formatSalary(result.min, result.max)} (${result.confidence})`, 'success');
+                    showToast(t('detail.estimatedSalary', { salary: formatSalary(result.min, result.max), confidence: result.confidence }), 'success');
                     const updated = await api.getJob(job.id);
                     renderJobDetailContent(container, updated, profile, companyInfo, resumes);
                 } else {
-                    showToast('Could not estimate salary', 'info');
+                    showToast(t('detail.couldNotEstimateSalary'), 'info');
                     estSalaryBtn.disabled = false;
-                    estSalaryBtn.textContent = 'Estimate Salary';
+                    estSalaryBtn.textContent = t('detail.actions.estimateSalary');
                 }
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 estSalaryBtn.disabled = false;
-                estSalaryBtn.textContent = 'Estimate Salary';
+                estSalaryBtn.textContent = t('detail.actions.estimateSalary');
             }
         });
     }
@@ -357,18 +357,18 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         logResponseBtn.addEventListener('click', async () => {
             const typeSelect = document.getElementById('response-type-select');
             const responseType = typeSelect?.value;
-            if (!responseType) { showToast('Select a response type', 'error'); return; }
+            if (!responseType) { showToast(t('detail.selectResponseType'), 'error'); return; }
             logResponseBtn.disabled = true;
             logResponseBtn.innerHTML = '<span class="spinner"></span>';
             try {
                 await api.request('POST', `/api/jobs/${job.id}/response`, { response_type: responseType });
-                showToast('Response logged', 'success');
+                showToast(t('detail.responseLogged'), 'success');
                 const updated = await api.getJob(job.id);
                 renderJobDetailContent(container, updated, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 logResponseBtn.disabled = false;
-                logResponseBtn.textContent = 'Log';
+                logResponseBtn.textContent = t('detail.actions.log');
             }
         });
     }
@@ -379,17 +379,17 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         const resumeSelect = document.getElementById('resume-select');
         const resumeId = resumeSelect ? parseInt(resumeSelect.value) : null;
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Preparing...';
+        btn.innerHTML = `<span class="spinner"></span> ${t('detail.preparing')}`;
         try {
             const result = await api.prepareApplication(job.id, resumeId);
             document.getElementById('prepared-container').innerHTML = renderPreparedSection(result, job.id);
             attachPreparedListeners();
-            showToast('Application prepared!', 'success');
+            showToast(t('detail.applicationPrepared'), 'success');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(apiErrorMessage(err), 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Prepare Application';
+            btn.textContent = t('detail.actions.prepareApplication');
         }
     });
 
@@ -397,22 +397,22 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
     if (findApplyBtn) {
         findApplyBtn.addEventListener('click', async () => {
             findApplyBtn.disabled = true;
-            findApplyBtn.innerHTML = '<span class="spinner"></span> Searching...';
+            findApplyBtn.innerHTML = `<span class="spinner"></span> ${t('detail.searching')}`;
             try {
                 const result = await api.request('POST', `/api/jobs/${job.id}/find-apply-link`);
                 if (result.apply_url) {
-                    showToast('Apply link found!', 'success');
+                    showToast(t('detail.applyLinkFound'), 'success');
                     const updated = await api.getJob(job.id);
                     renderJobDetailContent(container, updated, profile, companyInfo, resumes);
                 } else {
-                    showToast('No apply link found on the page', 'info');
+                    showToast(t('detail.noApplyLinkFound'), 'info');
                     findApplyBtn.disabled = false;
-                    findApplyBtn.textContent = 'Find Apply Link';
+                    findApplyBtn.textContent = t('detail.actions.findApplyLink');
                 }
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 findApplyBtn.disabled = false;
-                findApplyBtn.textContent = 'Find Apply Link';
+                findApplyBtn.textContent = t('detail.actions.findApplyLink');
             }
         });
     }
@@ -421,17 +421,17 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
     if (applyNowBtn) {
         applyNowBtn.addEventListener('click', async () => {
             applyNowBtn.disabled = true;
-            applyNowBtn.innerHTML = '<span class="spinner"></span> Applying...';
+            applyNowBtn.innerHTML = `<span class="spinner"></span> ${t('detail.applying')}`;
             try {
                 const result = await api.request('POST', `/api/jobs/${job.id}/apply`);
                 window.open(result.url, '_blank');
-                showToast('Marked as applied!', 'success');
+                showToast(t('detail.markedApplied'), 'success');
                 const updated = await api.getJob(job.id);
                 renderJobDetailContent(container, updated, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 applyNowBtn.disabled = false;
-                applyNowBtn.textContent = 'Apply Now →';
+                applyNowBtn.textContent = t('detail.actions.applyNow');
             }
         });
     }
@@ -440,9 +440,9 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         const status = document.getElementById('status-select').value;
         try {
             await api.updateApplication(job.id, status);
-            showToast('Status updated', 'success');
+            showToast(t('detail.statusUpdated'), 'success');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(apiErrorMessage(err), 'error');
         }
     });
 
@@ -451,9 +451,9 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         copyLinkBtn.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(job.url);
-                showToast('Link copied!', 'success');
+                showToast(t('detail.linkCopied'), 'success');
             } catch {
-                showToast('Failed to copy link', 'error');
+                showToast(t('detail.copyLinkFailed'), 'error');
             }
         });
     }
@@ -466,12 +466,12 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         btn.innerHTML = '<span class="spinner"></span>';
         try {
             await api.request('POST', '/api/queue/add', { job_id: job.id, resume_id: resumeId });
-            showToast('Added to queue', 'success');
-            btn.textContent = 'In Queue';
+            showToast(t('detail.addedToQueue'), 'success');
+            btn.textContent = t('detail.inQueue');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(apiErrorMessage(err), 'error');
             btn.disabled = false;
-            btn.textContent = 'Add to Queue';
+            btn.textContent = t('detail.actions.addToQueue');
         }
     });
 
@@ -481,11 +481,11 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
             markAppliedBtn.disabled = true;
             try {
                 await api.updateApplication(job.id, 'applied');
-                showToast('Marked as applied!', 'success');
+                showToast(t('detail.markedApplied'), 'success');
                 const updated = await api.getJob(job.id);
                 renderJobDetailContent(container, updated, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 markAppliedBtn.disabled = false;
             }
         });
@@ -498,17 +498,17 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         emailBtn.addEventListener('click', async () => {
             if (!await requireAI()) return;
             emailBtn.disabled = true;
-            emailBtn.innerHTML = '<span class="spinner"></span> Drafting...';
+            emailBtn.innerHTML = `<span class="spinner"></span> ${t('detail.drafting')}`;
             try {
                 const result = await api.draftEmail(job.id);
                 document.getElementById('email-container').innerHTML = renderEmailPreview(result.email);
                 wireSendEmailBtn(job.id);
-                showToast('Email drafted', 'success');
+                showToast(t('detail.emailDrafted'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             } finally {
                 emailBtn.disabled = false;
-                emailBtn.textContent = 'Draft Email';
+                emailBtn.textContent = t('detail.actions.draftEmail');
             }
         });
     }
@@ -525,11 +525,11 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                 const result = await api.generateCoverLetter(job.id);
                 document.getElementById('cover-letter-container').innerHTML = renderCoverLetterSection(result.cover_letter, job.id);
                 attachCoverLetterListeners(job.id);
-                showToast('Cover letter generated!', 'success');
+                showToast(t('detail.coverLetterGenerated'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 genCoverLetterBtn.disabled = false;
-                genCoverLetterBtn.textContent = 'Generate Cover Letter';
+                genCoverLetterBtn.textContent = t('detail.generateCoverLetter');
             }
         });
     }
@@ -547,21 +547,21 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
         findContactBtn.addEventListener('click', async () => {
             if (!await requireAI()) return;
             findContactBtn.disabled = true;
-            findContactBtn.innerHTML = '<span class="spinner"></span> Searching...';
+            findContactBtn.innerHTML = `<span class="spinner"></span> ${t('detail.searching')}`;
             try {
                 const result = await api.request('POST', `/api/jobs/${job.id}/find-contact`);
                 if (result.contact && result.contact.email) {
-                    showToast(`Found: ${result.contact.email}`, 'success');
+                    showToast(t('detail.contactFound', { email: result.contact.email }), 'success');
                 } else {
-                    showToast('No contact found', 'info');
+                    showToast(t('detail.noContactFound'), 'info');
                 }
                 // Refresh the job detail
                 const updated = await api.getJob(job.id);
                 renderJobDetailContent(container, updated, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 findContactBtn.disabled = false;
-                findContactBtn.textContent = 'Find Contact';
+                findContactBtn.textContent = t('detail.findContact');
             }
         });
     }
@@ -582,8 +582,8 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
     if (dismissDupesBtn) {
         dismissDupesBtn.addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Dismiss Similar Listings',
-                message: 'Dismiss all similar listings? This keeps only the current job.',
+                title: t('detail.dismissSimilarTitle'),
+                message: t('detail.dismissSimilarMessage'),
                 confirmText: 'Dismiss',
                 danger: true,
             });
@@ -591,7 +591,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
             for (const s of job.similar) {
                 await api.dismissJob(s.id);
             }
-            showToast(`Dismissed ${job.similar.length} similar listings`, 'success');
+            showToast(t('detail.dismissedSimilar', { count: job.similar.length }), 'success');
             await renderJobDetail(container, job.id);
         });
     }
@@ -605,11 +605,11 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
             try {
                 const result = await api.request('POST', `/api/jobs/${job.id}/interview-prep`);
                 document.getElementById('interview-prep-container').innerHTML = renderInterviewPrep(result.prep);
-                showToast('Interview prep generated', 'success');
+                showToast(t('detail.interviewPrepGenerated'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 genPrepBtn.disabled = false;
-                genPrepBtn.textContent = 'Generate Interview Prep';
+                genPrepBtn.textContent = t('detail.generateInterviewPrep');
             }
         });
     }
@@ -630,11 +630,11 @@ function renderInterviewPrep(prep) {
     };
     return `
         <div class="card sidebar-section">
-            <h3>Interview Prep</h3>
-            ${section('Behavioral Questions', prep.behavioral_questions)}
-            ${section('Technical Questions', prep.technical_questions)}
-            ${section('STAR Stories', prep.star_stories)}
-            ${section('Talking Points', prep.talking_points)}
+            <h3>${t('detail.interviewPrepTitle')}</h3>
+            ${section(t('detail.prep.behavioral'), prep.behavioral_questions)}
+            ${section(t('detail.prep.technical'), prep.technical_questions)}
+            ${section(t('detail.prep.star'), prep.star_stories)}
+            ${section(t('detail.prep.talkingPoints'), prep.talking_points)}
             <button class="btn btn-secondary btn-sm" id="generate-interview-prep-btn" style="width:100%;margin-top:8px">Regenerate</button>
         </div>
     `;
@@ -658,7 +658,7 @@ function linkifyDetail(escaped) {
 
 function renderTimeline(events) {
     if (!events || events.length === 0) {
-        return '<div class="empty-state empty-state-compact"><div class="empty-state-title">No events yet</div><div class="empty-state-desc">Add a note or take an action to start the timeline.</div></div>';
+        return `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('detail.timelineEmptyTitle')}</div><div class="empty-state-desc">${t('detail.timelineEmptyDesc')}</div></div>`;
     }
     const icons = {
         note: '\u{1F4DD}',
@@ -678,7 +678,7 @@ function renderTimeline(events) {
                 if (e.event_type === 'call') {
                     detail = `<div class="timeline-structured">
                         <span class="timeline-tag">Call</span>
-                        ${d.who ? `<span class="timeline-meta">with ${escapeHtml(d.who)}</span>` : ''}
+                        ${d.who ? `<span class="timeline-meta">${t('detail.timeline.withWho', { who: escapeHtml(d.who) })}</span>` : ''}
                         ${d.duration ? `<span class="timeline-meta">${escapeHtml(d.duration)}</span>` : ''}
                         ${d.notes ? `<div class="timeline-notes">${escapeHtml(d.notes)}</div>` : ''}
                     </div>`;
@@ -710,25 +710,25 @@ function renderTimeline(events) {
 
 function renderQuickActions(job) {
     const status = job.application?.status || '';
-    const isInterviewing = ['interviewing', 'applied', 'offered'].includes(status);
+    const isInterviewing = [t('detail.status.interviewing'), t('detail.status.applied'), 'offered'].includes(status);
     return `
         <div class="crm-quick-actions">
             ${isInterviewing ? `
             <div class="crm-action-bar">
-                <button class="crm-action-btn" data-action="call" title="Log a call">
+                <button class="crm-action-btn" data-action="call" title="${t('detail.crm.logCallTitle')}">
                     <span class="crm-action-icon">\u{1F4DE}</span> Call
                 </button>
-                <button class="crm-action-btn" data-action="email" title="Log an email">
+                <button class="crm-action-btn" data-action="email" title="${t('detail.crm.logEmailTitle')}">
                     <span class="crm-action-icon">\u{1F4E7}</span> Email
                 </button>
-                <button class="crm-action-btn crm-action-btn-active" data-action="note" title="Add a note">
+                <button class="crm-action-btn crm-action-btn-active" data-action="note" title="${t('detail.crm.addNoteTitle')}">
                     <span class="crm-action-icon">\u{1F4DD}</span> Note
                 </button>
             </div>
             ` : ''}
             <div id="crm-form-area">
                 <div class="flex gap-8 mb-16">
-                    <input type="text" class="search-input" id="add-note-input" placeholder="Add a note..." style="flex:1">
+                    <input type="text" class="search-input" id="add-note-input" placeholder="${t('detail.crm.addNotePlaceholder')}" style="flex:1">
                     <button class="btn btn-primary btn-sm" id="add-note-btn">Add</button>
                 </div>
             </div>
@@ -741,18 +741,18 @@ function getCrmFormHtml(action) {
         return `
             <div class="crm-inline-form" data-type="call">
                 <div class="crm-form-row">
-                    <input type="text" class="search-input crm-field" name="who" placeholder="Who did you talk to?">
+                    <input type="text" class="search-input crm-field" name="who" placeholder="${t('detail.crm.callWhoPlaceholder')}">
                     <select class="filter-select crm-field" name="duration" style="width:auto;min-width:90px">
                         <option value="">Duration</option>
-                        <option value="5 min">5 min</option>
-                        <option value="10 min">10 min</option>
-                        <option value="15 min">15 min</option>
-                        <option value="30 min">30 min</option>
-                        <option value="45 min">45 min</option>
-                        <option value="1 hr">1 hr</option>
+                        <option value="5 min">${t('detail.crm.durationMin', { n: 5 })}</option>
+                        <option value="10 min">${t('detail.crm.durationMin', { n: 10 })}</option>
+                        <option value="15 min">${t('detail.crm.durationMin', { n: 15 })}</option>
+                        <option value="30 min">${t('detail.crm.durationMin', { n: 30 })}</option>
+                        <option value="45 min">${t('detail.crm.durationMin', { n: 45 })}</option>
+                        <option value="1 hr">${t('detail.crm.durationHour')}</option>
                     </select>
                 </div>
-                <textarea class="search-input crm-field" name="notes" placeholder="Call notes..." rows="2" style="resize:vertical"></textarea>
+                <textarea class="search-input crm-field" name="notes" placeholder="${t('detail.crm.callNotesPlaceholder')}" rows="2" style="resize:vertical"></textarea>
                 <div class="crm-form-footer">
                     <button class="btn btn-primary btn-sm crm-submit-btn">Log Call</button>
                     <button class="btn btn-secondary btn-sm crm-cancel-btn">Cancel</button>
@@ -768,11 +768,11 @@ function getCrmFormHtml(action) {
                         <option value="Sent">Sent</option>
                         <option value="Received">Received</option>
                     </select>
-                    <input type="text" class="search-input crm-field" name="subject" placeholder="Subject" style="flex:1">
+                    <input type="text" class="search-input crm-field" name="subject" placeholder="${t('detail.crm.subjectPlaceholder')}" style="flex:1">
                 </div>
-                <textarea class="search-input crm-field" name="notes" placeholder="Email notes..." rows="2" style="resize:vertical"></textarea>
+                <textarea class="search-input crm-field" name="notes" placeholder="${t('detail.crm.emailNotesPlaceholder')}" rows="2" style="resize:vertical"></textarea>
                 <div class="crm-form-footer">
-                    <button class="btn btn-primary btn-sm crm-submit-btn">Log Email</button>
+                    <button class="btn btn-primary btn-sm crm-submit-btn">${t('detail.crm.logEmail')}</button>
                     <button class="btn btn-secondary btn-sm crm-cancel-btn">Cancel</button>
                 </div>
             </div>
@@ -781,7 +781,7 @@ function getCrmFormHtml(action) {
     // note (default)
     return `
         <div class="flex gap-8 mb-16">
-            <input type="text" class="search-input" id="add-note-input" placeholder="Add a note..." style="flex:1">
+            <input type="text" class="search-input" id="add-note-input" placeholder="${t('detail.crm.addNotePlaceholder')}" style="flex:1">
             <button class="btn btn-primary btn-sm" id="add-note-btn">Add</button>
         </div>
     `;
@@ -809,9 +809,9 @@ function wireCrmQuickActions(job, container, profile, companyInfo, resumes) {
                 await api.addEvent(job.id, detail, 'note');
                 addNoteInput.value = '';
                 await refreshTimeline();
-                showToast('Note added', 'success');
+                showToast(t('detail.noteAdded'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             } finally {
                 addNoteBtn.disabled = false;
             }
@@ -840,11 +840,11 @@ function wireCrmQuickActions(job, container, profile, companyInfo, resumes) {
                 if (f.value.trim()) data[f.name] = f.value.trim();
             });
             if (type === 'call' && !data.who && !data.notes) {
-                showToast('Add who you talked to or notes', 'error');
+                showToast(t('detail.callRequired'), 'error');
                 return;
             }
             if (type === 'email_log' && !data.subject && !data.notes) {
-                showToast('Add a subject or notes', 'error');
+                showToast(t('detail.emailRequired'), 'error');
                 return;
             }
             submitBtn.disabled = true;
@@ -852,14 +852,14 @@ function wireCrmQuickActions(job, container, profile, companyInfo, resumes) {
             try {
                 await api.addEvent(job.id, JSON.stringify(data), type);
                 await refreshTimeline();
-                showToast(type === 'call' ? 'Call logged' : 'Email logged', 'success');
+                showToast(type === 'call' ? t('detail.callLogged') : t('detail.emailLogged'), 'success');
                 formArea.innerHTML = getCrmFormHtml('note');
                 wireNoteForm();
                 actionBtns.forEach(b => b.classList.toggle('crm-action-btn-active', b.dataset.action === 'note'));
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 submitBtn.disabled = false;
-                submitBtn.textContent = type === 'call' ? 'Log Call' : 'Log Email';
+                submitBtn.textContent = type === 'call' ? t('detail.crm.logCall') : t('detail.crm.logEmail');
             }
         });
 
@@ -943,11 +943,11 @@ function renderCompSnapshot(job) {
         <div class="card comp-snapshot-card">
             <div class="comp-snapshot-header">
                 <h3>Compensation Snapshot</h3>
-                <span class="comp-edit-hint">Adjust to compare</span>
+                <span class="comp-edit-hint">${t('detail.comp.adjustHint')}</span>
             </div>
             <div class="comp-controls">
                 <div class="comp-control-group">
-                    <label>${isHourly ? 'Hourly Rate ($)' : 'Annual Salary ($)'}</label>
+                    <label>${isHourly ? t('detail.comp.hourlyRate') : t('detail.comp.annualSalary')}</label>
                     <input type="number" class="search-input" id="comp-gross" value="${isHourly ? gross : annualGross}" min="0" step="${isHourly ? '1' : '1000'}">
                 </div>
                 <div class="comp-control-group">
@@ -1014,13 +1014,13 @@ function renderCompDonut(result) {
         seTax: '#8b5cf6', takeHome: '#22c55e', surface: '#fff', text: '#64748b'
     };
     const segments = [
-        { label: 'Federal', value: result.federal, color: colors.federal },
-        { label: 'State', value: result.state, color: colors.state },
-        { label: 'SS', value: result.ss, color: colors.ss },
-        { label: 'Medicare', value: result.medicare, color: colors.medicare }
+        { label: t('detail.comp.federal'), value: result.federal, color: colors.federal },
+        { label: t('detail.comp.state'), value: result.state, color: colors.state },
+        { label: t('detail.comp.ss'), value: result.ss, color: colors.ss },
+        { label: t('detail.comp.medicare'), value: result.medicare, color: colors.medicare }
     ];
-    if (result.seTax > 0) segments.push({ label: 'SE Tax', value: result.seTax, color: colors.seTax });
-    segments.push({ label: 'Take-Home', value: Math.max(0, result.takeHome), color: colors.takeHome });
+    if (result.seTax > 0) segments.push({ label: t('detail.comp.seTax'), value: result.seTax, color: colors.seTax });
+    segments.push({ label: t('detail.comp.takeHome'), value: Math.max(0, result.takeHome), color: colors.takeHome });
     const filtered = segments.filter(s => s.value > 0);
 
     compSnapshotChart = new Chart(canvas, {
@@ -1034,7 +1034,7 @@ function renderCompDonut(result) {
             animation: { animateRotate: true, duration: 600, easing: 'easeOutQuart' },
             plugins: {
                 legend: { position: 'bottom', labels: { color: colors.text, padding: 8, usePointStyle: true, pointStyleWidth: 8, font: { size: 11 } } },
-                tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatCurrency(ctx.raw)} (${((ctx.raw / result.gross) * 100).toFixed(1)}%)` } }
+                tooltip: { callbacks: { label: ctx => t('detail.comp.tooltip', { label: ctx.label, amount: formatCurrency(ctx.raw), pct: ((ctx.raw / result.gross) * 100).toFixed(1) }) } }
             }
         }
     });
@@ -1088,7 +1088,7 @@ function wireCompSnapshotEvents(container, defaults) {
 function renderPreparedSection(data, jobId) {
     return `
         <div class="card sidebar-section">
-            <h3>Tailored Resume</h3>
+            <h3>${t('detail.tailoredResume')}</h3>
             <div class="doc-download-row">
                 <div class="pdf-download-card">
                     <a href="/api/jobs/${jobId}/resume.pdf" download class="pdf-file-link" draggable="true">
@@ -1106,30 +1106,30 @@ function renderPreparedSection(data, jobId) {
             <div class="prepared-section">
                 <textarea class="textarea-styled" id="resume-textarea">${escapeHtml(data.tailored_resume || '')}</textarea>
                 <div class="prepared-actions">
-                    <button class="btn btn-secondary btn-sm" id="copy-resume-btn">Copy Resume</button>
+                    <button class="btn btn-secondary btn-sm" id="copy-resume-btn">${t('detail.copyResume')}</button>
                 </div>
             </div>
         </div>
         <div class="card sidebar-section">
-            <h3>Cover Letter</h3>
+            <h3>${t('detail.coverLetterTitle')}</h3>
             <div class="doc-download-row">
                 <div class="pdf-download-card">
                     <a href="/api/jobs/${jobId}/cover-letter.pdf" download class="pdf-file-link" draggable="true">
                         <span class="pdf-icon">PDF</span>
-                        <span class="pdf-label">Cover Letter</span>
+                        <span class="pdf-label">${t('detail.coverLetterTitle')}</span>
                     </a>
                 </div>
                 <div class="pdf-download-card">
                     <a href="/api/jobs/${jobId}/cover-letter.docx" download class="pdf-file-link docx-file-link" draggable="true">
                         <span class="pdf-icon docx-icon">DOCX</span>
-                        <span class="pdf-label">Cover Letter</span>
+                        <span class="pdf-label">${t('detail.coverLetterTitle')}</span>
                     </a>
                 </div>
             </div>
             <div class="prepared-section">
                 <textarea class="textarea-styled" id="cover-textarea">${escapeHtml(data.cover_letter || '')}</textarea>
                 <div class="prepared-actions">
-                    <button class="btn btn-secondary btn-sm" id="copy-cover-btn">Copy Cover Letter</button>
+                    <button class="btn btn-secondary btn-sm" id="copy-cover-btn">${t('detail.copyCoverLetter')}</button>
                 </div>
             </div>
         </div>
@@ -1155,11 +1155,11 @@ function renderCoverLetterSection(coverLetterText, jobId) {
     if (!coverLetterText) return '';
     return `
         <div class="card sidebar-section">
-            <h3>Cover Letter</h3>
+            <h3>${t('detail.coverLetterTitle')}</h3>
             <div class="prepared-section">
                 <textarea class="textarea-styled" id="standalone-cover-textarea" rows="12">${escapeHtml(coverLetterText)}</textarea>
                 <div class="prepared-actions" style="display:flex;gap:8px;margin-top:8px">
-                    <button class="btn btn-primary btn-sm" id="save-cover-letter-btn">Save Edits</button>
+                    <button class="btn btn-primary btn-sm" id="save-cover-letter-btn">${t('detail.saveEdits')}</button>
                     <button class="btn btn-secondary btn-sm" id="copy-cover-letter-btn">Copy</button>
                     <button class="btn btn-secondary btn-sm" id="regenerate-cover-letter-btn">Regenerate</button>
                 </div>
@@ -1177,12 +1177,12 @@ function attachCoverLetterListeners(jobId) {
             saveBtn.innerHTML = '<span class="spinner"></span>';
             try {
                 await api.request('PUT', `/api/jobs/${jobId}/cover-letter`, { cover_letter: text });
-                showToast('Cover letter saved', 'success');
+                showToast(t('detail.coverLetterSaved'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             } finally {
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Save Edits';
+                saveBtn.textContent = t('detail.saveEdits');
             }
         });
     }
@@ -1199,14 +1199,14 @@ function attachCoverLetterListeners(jobId) {
         regenBtn.addEventListener('click', async () => {
             if (!await requireAIAndResume()) return;
             regenBtn.disabled = true;
-            regenBtn.innerHTML = '<span class="spinner"></span> Regenerating...';
+            regenBtn.innerHTML = `<span class="spinner"></span> ${t('detail.regenerating')}`;
             try {
                 const result = await api.generateCoverLetter(jobId);
                 document.getElementById('cover-letter-container').innerHTML = renderCoverLetterSection(result.cover_letter, jobId);
                 attachCoverLetterListeners(jobId);
-                showToast('Cover letter regenerated!', 'success');
+                showToast(t('detail.coverLetterRegenerated'), 'success');
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 regenBtn.disabled = false;
                 regenBtn.textContent = 'Regenerate';
             }
@@ -1219,15 +1219,15 @@ function wireSendEmailBtn(jobId) {
     if (!sendBtn) return;
     sendBtn.addEventListener('click', async () => {
         sendBtn.disabled = true;
-        sendBtn.innerHTML = '<span class="spinner"></span> Sending...';
+        sendBtn.innerHTML = `<span class="spinner"></span> ${t('detail.sending')}`;
         try {
             await api.request('POST', `/api/jobs/${jobId}/send-email`);
-            showToast('Email sent', 'success');
-            sendBtn.textContent = 'Sent!';
+            showToast(t('detail.emailSent'), 'success');
+            sendBtn.textContent = t('detail.sent');
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(apiErrorMessage(err), 'error');
             sendBtn.disabled = false;
-            sendBtn.textContent = 'Send Email';
+            sendBtn.textContent = t('detail.sendEmail');
         }
     });
 }
@@ -1236,14 +1236,14 @@ function renderEmailPreview(email) {
     if (!email) return '';
     return `
         <div class="card sidebar-section">
-            <h3>Email Draft</h3>
+            <h3>${t('detail.emailDraft')}</h3>
             <div class="email-preview">
                 <div class="email-field"><span class="email-label">To:</span> ${escapeHtml(email.to || '')}</div>
                 <div class="email-field"><span class="email-label">Subject:</span> ${escapeHtml(email.subject || '')}</div>
                 <div class="email-body">${escapeHtml(email.body || '')}</div>
             </div>
             <div class="prepared-actions">
-                <button class="btn btn-primary btn-sm" id="send-email-btn">Send Email</button>
+                <button class="btn btn-primary btn-sm" id="send-email-btn">${t('detail.sendEmail')}</button>
                 <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(document.querySelector('.email-body')?.textContent || '')">Copy Email</button>
             </div>
         </div>
@@ -1284,7 +1284,7 @@ function renderInterviewTimeline(rounds, jobId) {
         <div class="card" style="padding:20px;margin-top:16px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                 <h2 style="font-size:1.125rem;font-weight:700;margin:0">Interviews</h2>
-                <button class="btn btn-primary btn-sm" id="add-interview-btn">+ Add Round</button>
+                <button class="btn btn-primary btn-sm" id="add-interview-btn">${t('detail.addRound')}</button>
             </div>
             <div id="interview-add-form-container" style="display:none"></div>
             ${rounds.length === 0 ? `
@@ -1306,21 +1306,21 @@ function renderInterviewTimeline(rounds, jobId) {
                                         </div>
                                         ${round.scheduled_at ? `
                                             <div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:4px">
-                                                ${new Date(round.scheduled_at).toLocaleString('default', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                                ${round.duration_min ? ` (${round.duration_min} min)` : ''}
+                                                ${i18n.formatDateTime(round.scheduled_at)}
+                                                ${round.duration_min ? t('detail.minutesSuffix', { n: round.duration_min }) : ''}
                                             </div>
                                         ` : ''}
                                         ${round.interviewer_name ? `
                                             <div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:2px">
                                                 ${escapeHtml(round.interviewer_name)}${round.interviewer_title ? ` — ${escapeHtml(round.interviewer_title)}` : ''}
-                                                ${!round.contact_id ? `<button class="btn btn-ghost btn-sm interview-save-contact-btn" data-round-id="${round.id}" style="font-size:0.7rem;padding:1px 6px;margin-left:4px">Save to Network</button>` : `<span style="font-size:0.7rem;color:var(--score-green);margin-left:4px">In Network</span>`}
+                                                ${!round.contact_id ? `<button class="btn btn-ghost btn-sm interview-save-contact-btn" data-round-id="${round.id}" style="font-size:0.7rem;padding:1px 6px;margin-left:4px">${t('detail.saveToNetwork')}</button>` : `<span style="font-size:0.7rem;color:var(--score-green);margin-left:4px">In Network</span>`}
                                             </div>
                                         ` : ''}
                                         ${round.location ? `<div style="font-size:0.8125rem;color:var(--text-tertiary);margin-top:2px">${escapeHtml(round.location)}</div>` : ''}
                                         ${round.notes ? `<div style="font-size:0.8125rem;color:var(--text-tertiary);margin-top:4px;white-space:pre-line">${escapeHtml(round.notes)}</div>` : ''}
                                     </div>
                                     <div style="display:flex;gap:4px;flex-shrink:0">
-                                        <button class="btn btn-ghost btn-sm interview-view-btn" data-round-id="${round.id}" data-job-id="${jobId}" title="View Details + Salary" style="padding:4px 8px">View</button>
+                                        <button class="btn btn-ghost btn-sm interview-view-btn" data-round-id="${round.id}" data-job-id="${jobId}" title="${t('detail.viewDetailsTitle')}" style="padding:4px 8px">View</button>
                                         <button class="btn btn-ghost btn-sm interview-edit-btn" data-round-id="${round.id}" title="Edit" style="padding:4px 8px">Edit</button>
                                         <button class="btn btn-ghost btn-sm interview-delete-btn" data-round-id="${round.id}" title="Delete" style="padding:4px 8px;color:var(--danger)">Del</button>
                                     </div>
@@ -1360,7 +1360,7 @@ function wireInterviewTimelineEvents(timelineContainer, jobId, container, profil
                 const round = (data.rounds || []).find(r => r.id === roundId);
                 if (round) showInterviewForm(timelineContainer, jobId, round, container, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             }
         });
     });
@@ -1369,18 +1369,18 @@ function wireInterviewTimelineEvents(timelineContainer, jobId, container, profil
         btn.addEventListener('click', async () => {
             const roundId = parseInt(btn.dataset.roundId);
             const ok = await showModal({
-                title: 'Delete Interview Round',
-                message: 'Are you sure you want to delete this interview round?',
+                title: t('detail.deleteRoundTitle'),
+                message: t('detail.deleteRoundMessage'),
                 confirmText: 'Delete',
                 danger: true,
             });
             if (!ok) return;
             try {
                 await api.deleteInterview(roundId);
-                showToast('Interview round deleted', 'success');
+                showToast(t('detail.roundDeleted'), 'success');
                 await loadInterviewTimeline(jobId, container, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(`Failed to delete: ${err.message}`, 'error');
+                showToast(t('detail.deleteFailed', { error: err.message }), 'error');
             }
         });
     });
@@ -1392,12 +1392,12 @@ function wireInterviewTimelineEvents(timelineContainer, jobId, container, profil
             btn.innerHTML = '<span class="spinner"></span>';
             try {
                 await api.promoteInterviewer(roundId);
-                showToast('Interviewer saved to network', 'success');
+                showToast(t('detail.interviewerSaved'), 'success');
                 await loadInterviewTimeline(jobId, container, profile, companyInfo, resumes);
             } catch (err) {
-                showToast(`Failed: ${err.message}`, 'error');
+                showToast(t('detail.failed', { error: err.message }), 'error');
                 btn.disabled = false;
-                btn.textContent = 'Save to Network';
+                btn.textContent = t('detail.saveToNetwork');
             }
         });
     });
@@ -1408,7 +1408,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
     if (!formContainer) return;
 
     const isEdit = !!existingRound;
-    const labelSuggestions = ['Phone Screen', 'Technical', 'System Design', 'Behavioral', 'Hiring Manager', 'Culture Fit', 'Panel', 'Final Round', 'Take Home'];
+    const labelSuggestions = [t('detail.interview.label.phoneScreen'), t('detail.interview.label.technical'), t('detail.interview.label.systemDesign'), t('detail.interview.label.behavioral'), t('detail.interview.label.hiringManager'), t('detail.interview.label.cultureFit'), t('detail.interview.label.panel'), t('detail.interview.label.finalRound'), t('detail.interview.label.takeHome')];
 
     const scheduledVal = existingRound?.scheduled_at
         ? existingRound.scheduled_at.slice(0, 16)
@@ -1420,7 +1420,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
     ).join('');
 
     const durationOptions = [15, 30, 45, 60, 90, 120, 180].map(m => {
-        const label = m >= 60 ? `${m / 60}h${m % 60 ? ` ${m % 60}m` : ''}` : `${m}m`;
+        const label = m >= 60 ? `${m / 60}h${m % 60 ? ` ${m % 60}m` : ''}` : t('detail.interview.durationMin', { n: m });
         const selected = (existingRound?.duration_min || 60) === m;
         return `<button type="button" class="iv-duration-pill${selected ? ' active' : ''}" data-duration="${m}">${label}</button>`;
     }).join('');
@@ -1436,7 +1436,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                 <div class="iv-form-section">
                     <label class="iv-form-label">Round Type</label>
                     <div class="iv-label-pills">${labelPills}</div>
-                    <input type="text" name="label" class="search-input" id="interview-label-input" value="${escapeHtml(currentLabel)}" placeholder="Or type a custom label..." style="margin-top:8px">
+                    <input type="text" name="label" class="search-input" id="interview-label-input" value="${escapeHtml(currentLabel)}" placeholder="${t('detail.interview.customLabelPlaceholder')}" style="margin-top:8px">
                 </div>
 
                 <div class="iv-form-row">
@@ -1449,7 +1449,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                         <label class="iv-form-label">Status</label>
                         <select name="status" class="filter-select" style="width:100%">
                             ${['scheduled', 'completed', 'cancelled', 'no_show'].map(s =>
-                                `<option value="${s}" ${(existingRound?.status || 'scheduled') === s ? 'selected' : ''}>${s.replace('_', ' ')}</option>`
+                                `<option value="${s}" ${(existingRound?.status || 'scheduled') === s ? 'selected' : ''}>${t('detail.interview.status.' + s)}</option>`
                             ).join('')}
                         </select>
                     </div>
@@ -1469,14 +1469,14 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                             <input type="text" name="interviewer_name" class="search-input" value="${escapeHtml(existingRound?.interviewer_name || '')}" placeholder="Name">
                         </div>
                         <div style="flex:1">
-                            <input type="text" name="interviewer_title" class="search-input" value="${escapeHtml(existingRound?.interviewer_title || '')}" placeholder="Title or role">
+                            <input type="text" name="interviewer_title" class="search-input" value="${escapeHtml(existingRound?.interviewer_title || '')}" placeholder="${t('detail.interview.titlePlaceholder')}">
                         </div>
                     </div>
                 </div>
 
                 <div class="iv-form-section">
-                    <label class="iv-form-label">Location / Meeting Link</label>
-                    <input type="text" name="location" class="search-input" value="${escapeHtml(existingRound?.location || '')}" placeholder="Office address or https://zoom.us/j/...">
+                    <label class="iv-form-label">${t('detail.interview.locationLabel')}</label>
+                    <input type="text" name="location" class="search-input" value="${escapeHtml(existingRound?.location || '')}" placeholder="${t('detail.interview.locationPlaceholder')}">
                 </div>
 
                 <div class="iv-form-section">
@@ -1485,7 +1485,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                 </div>
 
                 <div class="iv-form-actions">
-                    <button type="submit" class="btn btn-primary btn-sm" id="iv-form-submit">${isEdit ? 'Save Changes' : 'Add Round'}</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="iv-form-submit">${isEdit ? t('detail.interview.submitSave') : t('detail.interview.submitAdd')}</button>
                     <button type="button" class="btn btn-ghost btn-sm" id="cancel-interview-form-bottom">Cancel</button>
                 </div>
             </form>
@@ -1549,18 +1549,18 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
         try {
             if (isEdit) {
                 await api.updateInterview(existingRound.id, data);
-                showToast('Interview round updated', 'success');
+                showToast(t('detail.roundUpdated'), 'success');
             } else {
                 await api.createInterview(jobId, data);
-                showToast('Interview round added', 'success');
+                showToast(t('detail.roundAdded'), 'success');
             }
             formContainer.style.display = 'none';
             formContainer.innerHTML = '';
             await loadInterviewTimeline(jobId, container, profile, companyInfo, resumes);
         } catch (err) {
-            showToast(`Failed: ${err.message}`, 'error');
+            showToast(t('detail.failed', { error: err.message }), 'error');
             submitBtn.disabled = false;
-            submitBtn.textContent = isEdit ? 'Save Changes' : 'Add Round';
+            submitBtn.textContent = isEdit ? t('detail.interview.submitSave') : t('detail.interview.submitAdd');
         }
     });
 

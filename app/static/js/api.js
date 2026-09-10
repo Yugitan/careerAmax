@@ -1,3 +1,75 @@
+// === Error Localization ===
+//
+// The backend returns stable, non-localized errors:
+//     { "code": "resume.not_found", "params": {}, "detail": "Resume not found" }
+// `code` is the contract; `detail` is an English fallback for logs and for
+// clients that do not translate. Dynamic text coming from AI providers, job
+// boards or other third parties is never translated: it is shown with a
+// localized prefix instead.
+
+/** `resume.not_found` -> `errors.resumeNotFound` */
+function errorKeyFromCode(code) {
+    if (!code || typeof code !== 'string') return null;
+    const camel = code
+        .split(/[.\-_]/)
+        .filter(Boolean)
+        .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+        .join('');
+    return `errors.${camel}`;
+}
+
+function hasTranslation(key) {
+    return typeof i18n !== 'undefined' && i18n.has(key);
+}
+
+function t18n(key, params) {
+    return typeof t === 'function' ? t(key, params) : key;
+}
+
+/**
+ * Build a user-facing message for a failed API call.
+ * Returns a localized message whenever the backend supplied a known code.
+ */
+function localizeApiError(payload, status) {
+    const code = payload && payload.code;
+    const params = (payload && payload.params) || {};
+    const detail = (payload && (payload.detail || payload.error)) || '';
+    const key = errorKeyFromCode(code);
+    if (key && hasTranslation(key)) return t18n(key, params);
+    if (code && detail) return t18n('errors.dynamic', { detail });
+    if (detail) return detail;
+    return t18n('errors.requestFailed', { status: status || '' });
+}
+
+/** Turn a failed response into an Error carrying code/params/detail. */
+function createApiError(payload, status) {
+    const error = new Error(localizeApiError(payload, status));
+    error.code = (payload && payload.code) || null;
+    error.params = (payload && payload.params) || {};
+    error.detail = (payload && (payload.detail || payload.error)) || '';
+    error.status = status || 0;
+    error.localized = true;
+    return error;
+}
+
+/**
+ * Message for any error thrown from a view. API errors are already localized;
+ * transport failures get a localized network message.
+ */
+function apiErrorMessage(err) {
+    if (!err) return t18n('errors.unknownError');
+    if (err.localized && err.message) return err.message;
+    const raw = err.message || String(err);
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(raw)) {
+        return t18n('errors.network');
+    }
+    if (err.code) {
+        const key = errorKeyFromCode(err.code);
+        if (hasTranslation(key)) return t18n(key, err.params || {});
+    }
+    return raw || t18n('errors.unknownError');
+}
+
 // === API Client ===
 const api = {
     async request(method, path, body = null) {
@@ -8,8 +80,10 @@ const api = {
         }
         const res = await fetch(path, opts);
         if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: res.statusText }));
-            throw new Error(err.detail || `Request failed: ${res.status}`);
+            // Non-JSON error bodies fall back to the HTTP status text, which is
+            // raw server text and intentionally not translated.
+            const payload = await res.json().catch(() => ({ detail: res.statusText }));
+            throw createApiError(payload, res.status);
         }
         return res.json();
     },
@@ -65,7 +139,7 @@ const api = {
                 status: res.status === 409 ? 'already_running' : (body.status || 'started'),
             };
         }
-        throw new Error(body.error || body.detail || `Scrape failed: ${res.status}`);
+        throw createApiError(body, res.status);
     },
 
     getScrapeProgress() {
@@ -101,8 +175,8 @@ const api = {
         formData.append('file', file);
         const res = await fetch('/api/resume/upload', { method: 'POST', body: formData });
         if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: res.statusText }));
-            throw new Error(err.detail || `Upload failed: ${res.status}`);
+            const payload = await res.json().catch(() => ({ detail: res.statusText }));
+            throw createApiError(payload, res.status);
         }
         return res.json();
     },

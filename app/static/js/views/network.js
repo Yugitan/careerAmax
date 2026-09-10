@@ -1,6 +1,6 @@
 // === Network View ===
 async function renderNetwork(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading contacts...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('network.loading')}</span></div>`;
 
     try {
         const data = await api.request('GET', '/api/contacts');
@@ -9,10 +9,10 @@ async function renderNetwork(container) {
         container.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
                 <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">Network</h1>
-                <button class="btn btn-primary btn-sm" id="add-contact-btn">Add Contact</button>
+                <button class="btn btn-primary btn-sm" id="add-contact-btn">${t('network.addContact')}</button>
             </div>
             <div style="margin-bottom:16px">
-                <input type="text" class="search-input" id="contact-search" placeholder="Search contacts..." style="width:100%;max-width:400px">
+                <input type="text" class="search-input" id="contact-search" placeholder="${t('network.searchPlaceholder')}" style="width:100%;max-width:400px">
             </div>
             <div id="contacts-list">
                 ${contacts.length === 0 ? `
@@ -30,7 +30,7 @@ async function renderNetwork(container) {
                                 ${c.company ? `<div style="font-size:0.8125rem;color:var(--text-tertiary)">${escapeHtml(c.company)}</div>` : ''}
                                 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                                     ${c.email ? `<span style="font-size:0.75rem;color:var(--accent)">${escapeHtml(c.email)}</span>` : ''}
-                                    ${c.linkedin_url ? `<a href="${sanitizeUrl(c.linkedin_url)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem">LinkedIn</a>` : ''}
+                                    ${c.linkedin_url ? `<a href="${sanitizeUrl(c.linkedin_url)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem">${t('network.linkedin')}</a>` : ''}
                                 </div>
                             </div>
                         `).join('')}
@@ -40,16 +40,16 @@ async function renderNetwork(container) {
             <div id="contact-detail-panel" style="display:none"></div>
             <div id="contact-form-panel" style="display:none">
                 <div class="card" style="padding:24px;margin-top:16px">
-                    <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="contact-form-title">Add Contact</h3>
+                    <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="contact-form-title">${t('network.addContact')}</h3>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Name *</label><input type="text" class="search-input" id="contact-name" style="width:100%"></div>
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Email</label><input type="email" class="search-input" id="contact-email" style="width:100%"></div>
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Company</label><input type="text" class="search-input" id="contact-company" style="width:100%"></div>
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Role</label><input type="text" class="search-input" id="contact-role" style="width:100%"></div>
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Phone</label><input type="text" class="search-input" id="contact-phone" style="width:100%"></div>
-                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">LinkedIn URL</label><input type="text" class="search-input" id="contact-linkedin" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.nameRequiredLabel')}</label><input type="text" class="search-input" id="contact-name" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.email')}</label><input type="email" class="search-input" id="contact-email" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.company')}</label><input type="text" class="search-input" id="contact-company" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.role')}</label><input type="text" class="search-input" id="contact-role" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.phone')}</label><input type="text" class="search-input" id="contact-phone" style="width:100%"></div>
+                        <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.linkedinUrl')}</label><input type="text" class="search-input" id="contact-linkedin" style="width:100%"></div>
                     </div>
-                    <div style="margin-top:12px"><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Notes</label><textarea class="textarea-styled textarea-notes" id="contact-notes"></textarea></div>
+                    <div style="margin-top:12px"><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.notes')}</label><textarea class="textarea-styled textarea-notes" id="contact-notes"></textarea></div>
                     <div style="display:flex;gap:8px;margin-top:12px">
                         <button class="btn btn-primary btn-sm" id="contact-save-btn">Save</button>
                         <button class="btn btn-secondary btn-sm" id="contact-cancel-btn">Cancel</button>
@@ -85,18 +85,18 @@ async function renderNetwork(container) {
 
         document.getElementById('contact-save-btn').addEventListener('click', async () => {
             const name = document.getElementById('contact-name').value.trim();
-            if (!name) { showToast('Name is required', 'error'); return; }
+            if (!name) { showToast(t('network.nameRequired'), 'error'); return; }
             const body = { name, email: document.getElementById('contact-email').value.trim(), company: document.getElementById('contact-company').value.trim(), role: document.getElementById('contact-role').value.trim(), phone: document.getElementById('contact-phone').value.trim(), linkedin_url: document.getElementById('contact-linkedin').value.trim(), notes: document.getElementById('contact-notes').value };
             try {
                 if (editingContactId) {
                     await api.request('PUT', `/api/contacts/${editingContactId}`, body);
-                    showToast('Contact updated', 'success');
+                    showToast(t('network.updated'), 'success');
                 } else {
                     await api.request('POST', '/api/contacts', body);
-                    showToast('Contact added', 'success');
+                    showToast(t('network.added'), 'success');
                 }
                 await renderNetwork(container);
-            } catch (err) { showToast(err.message, 'error'); }
+            } catch (err) { showToast(apiErrorMessage(err), 'error'); }
         });
 
         // Click contact card to see detail + interactions
@@ -122,7 +122,7 @@ async function renderNetwork(container) {
                                     <div style="display:flex;gap:12px;margin-top:8px;font-size:0.8125rem">
                                         ${contact.email ? `<span>${escapeHtml(contact.email)}</span>` : ''}
                                         ${contact.phone ? `<span>${escapeHtml(contact.phone)}</span>` : ''}
-                                        ${contact.linkedin_url ? `<a href="${sanitizeUrl(contact.linkedin_url)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : ''}
+                                        ${contact.linkedin_url ? `<a href="${sanitizeUrl(contact.linkedin_url)}" target="_blank" rel="noopener noreferrer">${t('network.linkedin')}</a>` : ''}
                                     </div>
                                     ${contact.notes ? `<div style="margin-top:8px;font-size:0.8125rem;color:var(--text-secondary)">${escapeHtml(contact.notes)}</div>` : ''}
                                 </div>
@@ -133,18 +133,18 @@ async function renderNetwork(container) {
                             </div>
                             <h3 style="font-size:0.875rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Interactions</h3>
                             <div style="display:flex;gap:6px;margin-bottom:12px">
-                                <input type="text" class="search-input" id="interaction-notes" placeholder="Add interaction note..." style="flex:1">
+                                <input type="text" class="search-input" id="interaction-notes" placeholder="${t('network.interactionPlaceholder')}" style="flex:1">
                                 <select class="filter-select" id="interaction-type" style="width:auto">
                                     <option value="note">Note</option>
                                     <option value="email">Email</option>
-                                    <option value="call">Call</option>
-                                    <option value="meeting">Meeting</option>
-                                    <option value="linkedin">LinkedIn</option>
+                                    <option value="call">${t('network.interactionType.call')}</option>
+                                    <option value="meeting">${t('network.interactionType.meeting')}</option>
+                                    <option value="linkedin">${t('network.linkedin')}</option>
                                 </select>
                                 <button class="btn btn-primary btn-sm" id="add-interaction-btn">Add</button>
                             </div>
                             <div class="timeline">
-                                ${interactions.length === 0 ? '<div style="font-size:0.875rem;color:var(--text-tertiary);padding:8px 0">No interactions yet.</div>' :
+                                ${interactions.length === 0 ? `<div style="font-size:0.875rem;color:var(--text-tertiary);padding:8px 0">${t('network.noInteractions')}</div>` :
                                 interactions.map(i => `
                                     <div class="timeline-event">
                                         <div>
@@ -173,7 +173,7 @@ async function renderNetwork(container) {
 
                     document.getElementById('delete-contact-btn').addEventListener('click', async () => {
                         const ok = await showModal({
-                            title: 'Delete Contact',
+                            title: t('network.deleteTitle'),
                             message: `Delete ${contact.name}?`,
                             confirmText: 'Delete',
                             danger: true,
@@ -181,9 +181,9 @@ async function renderNetwork(container) {
                         if (!ok) return;
                         try {
                             await api.request('DELETE', `/api/contacts/${contactId}`);
-                            showToast('Contact deleted', 'success');
+                            showToast(t('network.deleted'), 'success');
                             await renderNetwork(container);
-                        } catch (err) { showToast(err.message, 'error'); }
+                        } catch (err) { showToast(apiErrorMessage(err), 'error'); }
                     });
 
                     document.getElementById('add-interaction-btn').addEventListener('click', async () => {
@@ -194,17 +194,17 @@ async function renderNetwork(container) {
                                 type: document.getElementById('interaction-type').value,
                                 notes,
                             });
-                            showToast('Interaction added', 'success');
+                            showToast(t('network.interactionAdded'), 'success');
                             card.click(); // refresh detail
-                        } catch (err) { showToast(err.message, 'error'); }
+                        } catch (err) { showToast(apiErrorMessage(err), 'error'); }
                     });
                 } catch (err) {
-                    detailPanel.innerHTML = `<div style="color:var(--danger);padding:16px">${escapeHtml(err.message)}</div>`;
+                    detailPanel.innerHTML = `<div style="color:var(--danger);padding:16px">${escapeHtml(apiErrorMessage(err))}</div>`;
                 }
             });
         });
     } catch (err) {
-        showToast(err.message, 'error');
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">Could not load contacts</div></div>`;
+        showToast(apiErrorMessage(err), 'error');
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('network.loadFailed')}</div></div>`;
     }
 }

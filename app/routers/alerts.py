@@ -1,7 +1,8 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api")
@@ -18,7 +19,7 @@ async def create_alert(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
     if not name:
-        raise HTTPException(400, "Alert name is required")
+        raise AppError("alert.name_required", status_code=400)
     db = request.app.state.db
     alert_id = await db.create_job_alert(
         name=name,
@@ -38,10 +39,10 @@ async def update_alert(request: Request, alert_id: int):
         if key in body:
             fields[key] = body[key]
     if not fields:
-        raise HTTPException(400, "No fields to update")
+        raise AppError("validation.no_fields_to_update", status_code=400)
     updated = await request.app.state.db.update_job_alert(alert_id, **fields)
     if not updated:
-        raise HTTPException(404, "Alert not found")
+        raise AppError("alert.not_found", status_code=404)
     alert = await request.app.state.db.get_job_alert(alert_id)
     return {"ok": True, "alert": alert}
 
@@ -50,7 +51,7 @@ async def update_alert(request: Request, alert_id: int):
 async def delete_alert(request: Request, alert_id: int):
     deleted = await request.app.state.db.delete_job_alert(alert_id)
     if not deleted:
-        raise HTTPException(404, "Alert not found")
+        raise AppError("alert.not_found", status_code=404)
     return {"ok": True}
 
 

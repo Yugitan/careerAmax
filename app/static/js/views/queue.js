@@ -2,7 +2,7 @@
 let queueEventSource = null;
 
 async function renderQueue(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading queue...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('queue.loading')}</span></div>`;
 
     // Clean up any existing SSE connection
     if (queueEventSource) { queueEventSource.close(); queueEventSource = null; }
@@ -16,10 +16,10 @@ async function renderQueue(container) {
         const resumes = resumesData.resumes || [];
 
         const statusLabels = {
-            queued: 'Queued', preparing: 'Preparing', ready: 'Ready',
-            review: 'In Review', approved: 'Approved', filling: 'Filling',
-            submitted: 'Submitted', rejected: 'Rejected',
-            done: 'Done', failed: 'Failed'
+            queued: t('queue.status.queued'), preparing: 'Preparing', ready: t('status.ready'),
+            review: t('queue.status.review'), approved: t('queue.status.approved'), filling: t('queue.status.filling'),
+            submitted: t('queue.status.submitted'), rejected: t('queue.status.rejected'),
+            done: t('actions.done'), failed: t('queue.status.error')
         };
         const statusColors = {
             queued: 'var(--accent)', preparing: '#f59e0b', ready: '#22c55e',
@@ -35,9 +35,9 @@ async function renderQueue(container) {
 
         container.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">Application Queue</h1>
+                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">${t('queue.applicationQueue')}</h1>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="btn btn-primary btn-sm" id="queue-prepare-all-btn"${queuedCount === 0 ? ' disabled' : ''}>Prepare All</button>
+                    <button class="btn btn-primary btn-sm" id="queue-prepare-all-btn"${queuedCount === 0 ? ' disabled' : ''}>${t('queue.prepareAll')}</button>
                     ${reviewCount > 0 ? `
                         <button class="btn btn-sm" id="queue-approve-all-btn" style="background:#22c55e;color:#fff">Approve All (${reviewCount})</button>
                         <button class="btn btn-danger btn-sm" id="queue-reject-all-btn">Reject All</button>
@@ -70,15 +70,15 @@ async function renderQueue(container) {
         document.getElementById('queue-prepare-all-btn')?.addEventListener('click', async () => {
             const btn = document.getElementById('queue-prepare-all-btn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Preparing...';
+            btn.innerHTML = `<span class="spinner"></span> ${t('queue.preparing')}`;
             try {
                 const result = await api.request('POST', '/api/queue/prepare-all');
                 showToast(`Prepared ${result.prepared}/${result.total}${result.failed ? `, ${result.failed} failed` : ''}`, result.failed ? 'error' : 'success');
                 await renderQueue(container);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 btn.disabled = false;
-                btn.textContent = 'Prepare All';
+                btn.textContent = t('queue.prepareAll');
             }
         });
 
@@ -86,25 +86,25 @@ async function renderQueue(container) {
         document.getElementById('queue-approve-all-btn')?.addEventListener('click', async () => {
             try {
                 const result = await api.request('POST', '/api/queue/approve-all');
-                showToast(`Approved ${result.approved} items`, 'success');
+                showToast(t('queue.approvedCount', { count: result.approved }), 'success');
                 await renderQueue(container);
-            } catch (err) { showToast(err.message, 'error'); }
+            } catch (err) { showToast(apiErrorMessage(err), 'error'); }
         });
 
         // Batch Reject All
         document.getElementById('queue-reject-all-btn')?.addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Reject All',
-                message: 'Reject all items in review?',
-                confirmText: 'Reject All',
+                title: t('queue.rejectAll'),
+                message: t('queue.rejectAllConfirm'),
+                confirmText: t('queue.rejectAll'),
                 danger: true,
             });
             if (!ok) return;
             try {
                 const result = await api.request('POST', '/api/queue/reject-all');
-                showToast(`Rejected ${result.rejected} items`, 'success');
+                showToast(t('queue.rejectedCount', { count: result.rejected }), 'success');
                 await renderQueue(container);
-            } catch (err) { showToast(err.message, 'error'); }
+            } catch (err) { showToast(apiErrorMessage(err), 'error'); }
         });
 
         // Per-item: Submit for Review
@@ -112,9 +112,9 @@ async function renderQueue(container) {
             btn.addEventListener('click', async () => {
                 try {
                     await api.request('POST', `/api/queue/${btn.dataset.id}/submit-for-review`);
-                    showToast('Submitted for review', 'success');
+                    showToast(t('queue.submittedForReview'), 'success');
                     await renderQueue(container);
-                } catch (err) { showToast(err.message, 'error'); }
+                } catch (err) { showToast(apiErrorMessage(err), 'error'); }
             });
         });
 
@@ -123,9 +123,9 @@ async function renderQueue(container) {
             btn.addEventListener('click', async () => {
                 try {
                     await api.request('POST', `/api/queue/${btn.dataset.id}/approve`);
-                    showToast('Application approved', 'success');
+                    showToast(t('queue.applicationApproved'), 'success');
                     await renderQueue(container);
-                } catch (err) { showToast(err.message, 'error'); }
+                } catch (err) { showToast(apiErrorMessage(err), 'error'); }
             });
         });
 
@@ -134,9 +134,9 @@ async function renderQueue(container) {
             btn.addEventListener('click', async () => {
                 try {
                     await api.request('POST', `/api/queue/${btn.dataset.id}/reject`);
-                    showToast('Application rejected', 'info');
+                    showToast(t('queue.applicationRejected'), 'info');
                     await renderQueue(container);
-                } catch (err) { showToast(err.message, 'error'); }
+                } catch (err) { showToast(apiErrorMessage(err), 'error'); }
             });
         });
 
@@ -147,7 +147,7 @@ async function renderQueue(container) {
                     await api.request('DELETE', `/api/queue/${btn.dataset.id}`);
                     showToast('Removed from queue', 'success');
                     await renderQueue(container);
-                } catch (err) { showToast(err.message, 'error'); }
+                } catch (err) { showToast(apiErrorMessage(err), 'error'); }
             });
         });
 
@@ -156,8 +156,8 @@ async function renderQueue(container) {
             connectQueueSSE(container);
         }
     } catch (err) {
-        showToast(err.message, 'error');
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">Could not load queue</div></div>`;
+        showToast(apiErrorMessage(err), 'error');
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('queue.loadFailed')}</div></div>`;
     }
 }
 
@@ -168,15 +168,15 @@ function renderQueueItem(item, statusLabels, statusColors) {
 
     const actionButtons = [];
     if (status === 'ready') {
-        actionButtons.push(`<button class="btn btn-sm queue-submit-review-btn" data-id="${item.id}" style="background:#8b5cf6;color:#fff">Submit for Review</button>`);
+        actionButtons.push(`<button class="btn btn-sm queue-submit-review-btn" data-id="${item.id}" style="background:#8b5cf6;color:#fff">${t('queue.submitForReview')}</button>`);
     }
     if (status === 'review') {
         actionButtons.push(`<button class="btn btn-sm queue-approve-btn" data-id="${item.id}" style="background:#22c55e;color:#fff">Approve</button>`);
-        actionButtons.push(`<button class="btn btn-danger btn-sm queue-reject-btn" data-id="${item.id}">Reject</button>`);
+        actionButtons.push(`<button class="btn btn-danger btn-sm queue-reject-btn" data-id="${item.id}">${t('queue.reject')}</button>`);
     }
-    actionButtons.push(`<a href="#/job/${item.job_id}" class="btn btn-secondary btn-sm">Review</a>`);
+    actionButtons.push(`<a href="#/job/${item.job_id}" class="btn btn-secondary btn-sm">${t('queue.review')}</a>`);
     if (!['filling', 'submitted'].includes(status)) {
-        actionButtons.push(`<button class="btn btn-danger btn-sm queue-remove-btn" data-id="${item.id}">Remove</button>`);
+        actionButtons.push(`<button class="btn btn-danger btn-sm queue-remove-btn" data-id="${item.id}">${t('actions.remove')}</button>`);
     }
 
     const progressBar = status === 'filling' && item.fill_progress != null
@@ -195,7 +195,7 @@ function renderQueueItem(item, statusLabels, statusColors) {
         <div class="card queue-item" style="padding:16px" data-queue-id="${item.id}" data-queue-status="${status}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
                 <div style="flex:1;min-width:0">
-                    <a href="#/job/${item.job_id}" style="font-weight:600;font-size:0.9375rem">${escapeHtml(item.title || 'Job #' + item.job_id)}</a>
+                    <a href="#/job/${item.job_id}" style="font-weight:600;font-size:0.9375rem">${escapeHtml(item.title || t('queue.jobNumber', { id: item.job_id }))}</a>
                     <div style="font-size:0.8125rem;color:var(--text-secondary)">${escapeHtml(item.company || '')}</div>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
                         <span class="queue-status-badge" style="font-size:0.75rem;font-weight:600;color:#fff;background:${color};padding:2px 8px;border-radius:10px">${label}</span>
@@ -225,10 +225,10 @@ function connectQueueSSE(container) {
             if (progressText) progressText.textContent = `${data.progress || 0}%`;
 
             if (data.status === 'submitted') {
-                showToast('Application submitted!', 'success');
+                showToast(t('queue.applicationSubmitted'), 'success');
                 renderQueue(container);
             } else if (data.status === 'failed') {
-                showToast('Fill failed', 'error');
+                showToast(t('queue.fillFailed'), 'error');
                 renderQueue(container);
             }
         } catch {}

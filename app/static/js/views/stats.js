@@ -1,27 +1,27 @@
 // === Stats Dashboard View ===
 async function renderStats(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading stats...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('stats.loading')}</span></div>`;
 
     try {
         const stats = await api.getStats();
         container.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">Dashboard</h1>
+                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">${t('stats.title')}</h1>
                 <div style="display:flex;gap:8px">
-                    <button class="btn btn-primary" id="stats-scrape-btn">Scrape Now</button>
-                    <button class="btn btn-secondary" id="stats-score-btn">${stats.total_jobs - stats.total_scored > 0 ? `Score ${stats.total_jobs - stats.total_scored} Unscored` : 'All Scored'}</button>
-                    <button class="btn btn-secondary" id="stats-rescore-btn" title="Clear failed scores (score=0 from errors) and rescore them">Rescore Failed</button>
-                    <button class="btn btn-secondary" id="stats-export-btn">Export CSV</button>
+                    <button class="btn btn-primary" id="stats-scrape-btn">${t('nav.scrapeNow')}</button>
+                    <button class="btn btn-secondary" id="stats-score-btn">${stats.total_jobs - stats.total_scored > 0 ? t('stats.actions.scoreUnscored', { count: stats.total_jobs - stats.total_scored }) : t('stats.actions.allScored')}</button>
+                    <button class="btn btn-secondary" id="stats-rescore-btn" title="${t('stats.actions.rescoreTitle')}">${t('stats.actions.rescoreFailed')}</button>
+                    <button class="btn btn-secondary" id="stats-export-btn">${t('stats.actions.exportCsv')}</button>
                 </div>
             </div>
             <div class="stats-grid">
                 <div class="card stat-card">
                     <div class="stat-number">${stats.total_jobs || 0}</div>
-                    <div class="stat-label">Total Jobs</div>
+                    <div class="stat-label">${t('stats.kpi.totalJobs')}</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-number">${stats.total_scored || 0}</div>
-                    <div class="stat-label">Scored</div>
+                    <div class="stat-label">${t('stats.kpi.scored')}</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-number">${stats.total_applied || 0}</div>
@@ -33,15 +33,15 @@ async function renderStats(container) {
                 </div>
             </div>
             <div class="pipeline-section">
-                <h2>Pipeline</h2>
+                <h2>${t('stats.section.pipeline')}</h2>
                 <div class="pipeline-funnel">
                     <div class="card pipeline-stage">
                         <div class="stage-count">${stats.total_interested || 0}</div>
-                        <div class="stage-label">Interested</div>
+                        <div class="stage-label">${t('stats.stage.interested')}</div>
                     </div>
                     <div class="card pipeline-stage">
                         <div class="stage-count">${stats.total_prepared || 0}</div>
-                        <div class="stage-label">Prepared</div>
+                        <div class="stage-label">${t('stats.stage.prepared')}</div>
                     </div>
                     <div class="card pipeline-stage">
                         <div class="stage-count">${stats.total_applied || 0}</div>
@@ -55,8 +55,8 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Daily Digest</h2>
-                    <button class="btn btn-secondary btn-sm" id="copy-digest-btn">Copy to Clipboard</button>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.digest')}</h2>
+                    <button class="btn btn-secondary btn-sm" id="copy-digest-btn">${t('stats.actions.copyDigest')}</button>
                 </div>
                 <div id="digest-container">
                     <div class="loading-container"><span class="spinner"></span></div>
@@ -64,7 +64,7 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Follow-Up Reminders</h2>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.reminders')}</h2>
                 </div>
                 <div id="reminders-container">
                     <div class="loading-container"><span class="spinner"></span></div>
@@ -72,8 +72,8 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Skill Gap Analysis</h2>
-                    <button class="btn btn-primary btn-sm" id="analyze-skills-btn">Analyze with AI</button>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.skillGaps')}</h2>
+                    <button class="btn btn-primary btn-sm" id="analyze-skills-btn">${t('stats.actions.analyzeWithAI')}</button>
                 </div>
                 <p style="color:var(--text-secondary);font-size:0.875rem;margin-bottom:12px">Skills that would unlock more job matches (from jobs scoring 50-80).</p>
                 <div id="skill-gaps-container">
@@ -82,7 +82,7 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Application Analytics</h2>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.analytics')}</h2>
                 </div>
                 <div id="analytics-container">
                     <div class="loading-container"><span class="spinner"></span></div>
@@ -90,7 +90,7 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Response Tracking</h2>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.responseTracking')}</h2>
                 </div>
                 <div id="response-analytics-container">
                     <div class="loading-container"><span class="spinner"></span></div>
@@ -98,10 +98,10 @@ async function renderStats(container) {
             </div>
             <div class="card" style="padding:24px;margin-top:24px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">Career Advisor</h2>
-                    <button class="btn btn-primary btn-sm" id="career-analyze-btn">Analyze Career</button>
+                    <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.careerAdvisor')}</h2>
+                    <button class="btn btn-primary btn-sm" id="career-analyze-btn">${t('stats.actions.analyzeCareer')}</button>
                 </div>
-                <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">AI-powered career trajectory analysis with actionable suggestions.</p>
+                <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${t('stats.career.desc')}</p>
                 <div id="career-advisor-container">
                     <div class="loading-container"><span class="spinner"></span></div>
                 </div>
@@ -126,8 +126,8 @@ async function renderStats(container) {
                     } else if (!p.active && p.total > 0) {
                         stopScoringPoll();
                         scoreBtn.disabled = false;
-                        scoreBtn.textContent = 'All Scored';
-                        showToast(`Scored ${p.scored} jobs`, 'success');
+                        scoreBtn.textContent = t('stats.actions.allScored');
+                        showToast(t('stats.scoring.scoredCount', { count: p.scored }), 'success');
                         handleRoute();
                     }
                 } catch {}
@@ -136,36 +136,36 @@ async function renderStats(container) {
         scoreBtn.addEventListener('click', async () => {
             if (!await requireAIAndResume()) return;
             scoreBtn.disabled = true;
-            scoreBtn.innerHTML = '<span class="spinner"></span> Starting...';
+            scoreBtn.innerHTML = `<span class="spinner"></span> ${t('stats.scoring.starting')}`;
             try {
                 await api.request('POST', '/api/score');
                 startScoringPoll();
             } catch (err) {
                 scoreBtn.disabled = false;
                 scoreBtn.textContent = 'Score';
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             }
         });
         document.getElementById('stats-rescore-btn').addEventListener('click', async () => {
             const btn = document.getElementById('stats-rescore-btn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Clearing...';
+            btn.innerHTML = `<span class="spinner"></span> ${t('stats.scoring.clearing')}`;
             try {
                 const res = await api.request('POST', '/api/rescore-failed');
                 if (res.cleared === 0) {
-                    showToast('No failed scores to clear', 'info');
+                    showToast(t('stats.scoring.noFailedScores'), 'info');
                     btn.disabled = false;
-                    btn.textContent = 'Rescore Failed';
+                    btn.textContent = t('stats.actions.rescoreFailed');
                 } else {
-                    showToast(`Cleared ${res.cleared} failed scores, rescoring...`, 'success');
+                    showToast(t('stats.scoring.clearedCount', { count: res.cleared }), 'success');
                     if (res.rescoring) startScoringPoll();
                     btn.disabled = false;
-                    btn.textContent = 'Rescore Failed';
+                    btn.textContent = t('stats.actions.rescoreFailed');
                 }
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 btn.disabled = false;
-                btn.textContent = 'Rescore Failed';
+                btn.textContent = t('stats.actions.rescoreFailed');
             }
         });
         // Check if scoring is already in progress
@@ -199,7 +199,7 @@ async function renderStats(container) {
             const digest = await api.request('GET', '/api/digest');
             const digestContainer = document.getElementById('digest-container');
             if (digest.job_count === 0) {
-                digestContainer.innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">No new matches</div><div class="empty-state-desc">Check back after the next scrape cycle.</div></div>';
+                digestContainer.innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.digest.empty')}</div><div class="empty-state-desc">${t('stats.digest.emptyDesc')}</div></div>`;
             } else {
                 digestContainer.innerHTML = `
                     <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${digest.job_count} new match${digest.job_count !== 1 ? 'es' : ''} in the last 24 hours</div>
@@ -220,7 +220,7 @@ async function renderStats(container) {
             // Copy digest button
             document.getElementById('copy-digest-btn').addEventListener('click', () => {
                 copyToClipboard(digest.body);
-                showToast('Digest copied to clipboard', 'success');
+                showToast(t('stats.digest.copied'), 'success');
             });
         } catch (err) {
             document.getElementById('digest-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load digest</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
@@ -234,7 +234,7 @@ async function renderStats(container) {
             const upcoming = (allReminders.reminders || []).filter(r => !due.find(d => d.id === r.id));
             const remindersContainer = document.getElementById('reminders-container');
             if (due.length === 0 && upcoming.length === 0) {
-                remindersContainer.innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">No pending reminders</div><div class="empty-state-desc">Follow-up reminders appear after you apply to jobs.</div></div>';
+                remindersContainer.innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.reminders.empty')}</div><div class="empty-state-desc">${t('stats.reminders.emptyDesc')}</div></div>`;
             } else {
                 const renderReminder = (r, isDue) => `
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:${isDue ? 'var(--score-red-bg, #fef2f2)' : 'var(--bg-surface-secondary)'};border-radius:var(--radius-sm);border-left:3px solid ${isDue ? 'var(--danger, #ef4444)' : 'var(--accent)'}">
@@ -243,8 +243,8 @@ async function renderStats(container) {
                             <div style="font-size:0.75rem;color:var(--text-tertiary)">${escapeHtml(r.company || '')} &middot; ${isDue ? 'Overdue' : formatDate(r.remind_at)}</div>
                         </div>
                         <div style="display:flex;gap:6px">
-                            <button class="btn btn-sm" onclick="completeReminder(${r.id})" style="font-size:0.75rem;padding:4px 8px">Done</button>
-                            <button class="btn btn-sm btn-secondary" onclick="dismissReminder(${r.id})" style="font-size:0.75rem;padding:4px 8px">Dismiss</button>
+                            <button class="btn btn-sm" onclick="completeReminder(${r.id})" style="font-size:0.75rem;padding:4px 8px">${t('actions.done')}</button>
+                            <button class="btn btn-sm btn-secondary" onclick="dismissReminder(${r.id})" style="font-size:0.75rem;padding:4px 8px">${t('actions.dismiss')}</button>
                         </div>
                     </div>
                 `;
@@ -265,7 +265,7 @@ async function renderStats(container) {
             const gapData = await api.request('GET', '/api/skill-gaps');
             const gapsContainer = document.getElementById('skill-gaps-container');
             if (gapData.job_count === 0) {
-                gapsContainer.innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">No skill data yet</div><div class="empty-state-desc">Score some jobs first to see skill gap analysis.</div></div>';
+                gapsContainer.innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.skills.empty')}</div><div class="empty-state-desc">${t('stats.skills.emptyDesc')}</div></div>`;
             } else {
                 const keywords = (gapData.top_keywords || []).slice(0, 8);
                 const concerns = (gapData.top_concerns || []).slice(0, 5);
@@ -299,14 +299,14 @@ async function renderStats(container) {
             const btn = document.getElementById('analyze-skills-btn');
             const resultDiv = document.getElementById('ai-skill-analysis');
             if (!resultDiv) return;
-            btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+            btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('stats.skills.analyzing')}`;
             try {
                 const result = await api.request('POST', '/api/skill-gaps/analyze');
                 if (!result.skills || result.skills.length === 0) {
-                    resultDiv.innerHTML = '<div style="font-size:0.875rem;color:var(--text-tertiary)">No skill recommendations available.</div>';
+                    resultDiv.innerHTML = `<div style="font-size:0.875rem;color:var(--text-tertiary)">${t('stats.skills.noRecommendations')}</div>`;
                 } else {
                     resultDiv.innerHTML = `
-                        <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">AI Recommended Skills (by ROI):</div>
+                        <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.skills.recommended')}</div>
                         <div style="display:flex;flex-direction:column;gap:8px">
                             ${result.skills.map((s, i) => `
                                 <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm);border-left:3px solid var(--accent)">
@@ -326,9 +326,9 @@ async function renderStats(container) {
                     `;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
+                resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(apiErrorMessage(err))}</div>`;
             }
-            finally { btn.disabled = false; btn.textContent = 'Analyze with AI'; }
+            finally { btn.disabled = false; btn.textContent = t('stats.actions.analyzeWithAI'); }
         });
 
         // Fetch analytics
@@ -345,7 +345,7 @@ async function renderStats(container) {
             const maxVelocity = Math.max(...velocity.map(v => v.count), 1);
 
             if (!hasAnyFunnel && sources.length === 0 && velocity.length === 0) {
-                analyticsContainer.innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">No analytics data</div><div class="empty-state-desc">Start applying to jobs to see your application funnel.</div></div>';
+                analyticsContainer.innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.analytics.empty')}</div><div class="empty-state-desc">${t('stats.analytics.emptyDesc')}</div></div>`;
             } else {
                 const statusColors = {
                     interested: 'var(--accent, #3b82f6)',
@@ -425,9 +425,9 @@ async function renderStats(container) {
             const ra = await api.request('GET', '/api/analytics/response-rates');
             const raContainer = document.getElementById('response-analytics-container');
             if (ra.total_applied === 0) {
-                raContainer.innerHTML = '<div style="font-size:0.875rem;color:var(--text-tertiary)">No applications yet. Apply to jobs to see response analytics.</div>';
+                raContainer.innerHTML = `<div style="font-size:0.875rem;color:var(--text-tertiary)">${t('stats.response.empty')}</div>`;
             } else {
-                const typeLabels = { interview_invite: 'Interview Invites', rejection: 'Rejections', callback: 'Callbacks', ghosted: 'Ghosted' };
+                const typeLabels = { interview_invite: t('stats.response.invites'), rejection: 'Rejections', callback: 'Callbacks', ghosted: 'Ghosted' };
                 const typeColors = { interview_invite: '#22c55e', rejection: '#ef4444', callback: '#3b82f6', ghosted: '#94a3b8' };
                 const breakdown = ra.type_breakdown || {};
                 const maxBreakdown = Math.max(...Object.values(breakdown), 1);
@@ -438,15 +438,15 @@ async function renderStats(container) {
                     <div class="stats-grid" style="margin-bottom:20px">
                         <div class="card stat-card">
                             <div class="stat-number">${ra.response_rate}%</div>
-                            <div class="stat-label">Response Rate</div>
+                            <div class="stat-label">${t('stats.response.rate')}</div>
                         </div>
                         <div class="card stat-card">
                             <div class="stat-number">${ra.total_responses}/${ra.total_applied}</div>
-                            <div class="stat-label">Responses / Applied</div>
+                            <div class="stat-label">${t('stats.response.perApplied')}</div>
                         </div>
                         <div class="card stat-card">
                             <div class="stat-number">${ra.avg_days_to_response != null ? ra.avg_days_to_response + 'd' : '--'}</div>
-                            <div class="stat-label">Avg Days to Response</div>
+                            <div class="stat-label">${t('stats.response.avgDays')}</div>
                         </div>
                     </div>
                     ${Object.keys(breakdown).length > 0 ? `
@@ -499,7 +499,7 @@ async function renderStats(container) {
             const suggestions = careerData.suggestions || [];
             const careerContainer = document.getElementById('career-advisor-container');
             if (suggestions.length === 0) {
-                careerContainer.innerHTML = '<div style="font-size:0.875rem;color:var(--text-tertiary)">No suggestions yet. Click "Analyze Career" to get AI-powered recommendations.</div>';
+                careerContainer.innerHTML = `<div style="font-size:0.875rem;color:var(--text-tertiary)">${t('stats.career.emptyDesc')}</div>`;
             } else {
                 careerContainer.innerHTML = `
                     <div style="display:flex;flex-direction:column;gap:8px">
@@ -521,9 +521,9 @@ async function renderStats(container) {
                     btn.addEventListener('click', async () => {
                         try {
                             await api.request('POST', `/api/career/suggestions/${btn.dataset.id}/accept`);
-                            showToast('Suggestion accepted — search terms updated', 'success');
+                            showToast(t('stats.career.accepted'), 'success');
                             await renderStats(container);
-                        } catch (err) { showToast(err.message, 'error'); }
+                        } catch (err) { showToast(apiErrorMessage(err), 'error'); }
                     });
                 });
             }
@@ -536,23 +536,23 @@ async function renderStats(container) {
             if (!await requireAIAndResume()) return;
             const btn = document.getElementById('career-analyze-btn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+            btn.innerHTML = `<span class="spinner"></span> ${t('stats.skills.analyzing')}`;
             try {
                 await api.request('POST', '/api/career/analyze');
-                showToast('Career analysis complete', 'success');
+                showToast(t('stats.career.complete'), 'success');
                 await renderStats(container);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
                 btn.disabled = false;
-                btn.textContent = 'Analyze Career';
+                btn.textContent = t('stats.actions.analyzeCareer');
             }
         });
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(apiErrorMessage(err), 'error');
         container.innerHTML = `
             <div class="empty-state">
-                <div class="empty-state-title">Could not load stats</div>
-                <div class="empty-state-desc">${escapeHtml(err.message)}</div>
+                <div class="empty-state-title">${t('stats.loadFailed')}</div>
+                <div class="empty-state-desc">${escapeHtml(apiErrorMessage(err))}</div>
             </div>
         `;
     }

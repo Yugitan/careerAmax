@@ -3,7 +3,8 @@ import io
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ async def analyze_skill_gaps(request: Request):
     db = request.app.state.db
     client = getattr(request.app.state, "ai_client", None)
     if not client:
-        raise HTTPException(503, "No AI provider configured. Go to Settings → AI to set one up.")
+        raise AppError("ai.not_configured", status_code=503)
     gap_data = await db.get_skill_gap_data(min_score=50, max_score=80)
     if gap_data["job_count"] == 0:
         return {"skills": [], "message": "No jobs in the 50-80 score range to analyze"}
@@ -125,7 +126,7 @@ Rank by ROI (jobs unlocked relative to learning difficulty). Return top 5 skills
         result = parse_json_response(raw)
     except Exception as e:
         logger.error(f"Skill gap analysis failed: {e}")
-        raise HTTPException(502, f"AI analysis failed: {e}")
+        raise AppError("ai.analysis_failed", status_code=502, params={"error": str(e)})
     return {
         "skills": result.get("skills", []),
         "job_count": gap_data["job_count"],
@@ -137,11 +138,11 @@ async def predict_success(request: Request, job_id: int):
     from app.predictor import predict_success as _predict
     client = getattr(request.app.state, "ai_client", None)
     if not client:
-        raise HTTPException(503, "No AI provider configured. Go to Settings → AI to set one up.")
+        raise AppError("ai.not_configured", status_code=503)
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     history = await db.get_application_history_summary()
     emb_client = getattr(request.app.state, "embedding_client", None)
     if emb_client and getattr(db, "_vec_loaded", False):
@@ -165,7 +166,7 @@ async def analyze_career(request: Request):
     from app.career_advisor import analyze_career as _analyze
     client = getattr(request.app.state, "ai_client", None)
     if not client:
-        raise HTTPException(503, "No AI provider configured. Go to Settings → AI to set one up.")
+        raise AppError("ai.not_configured", status_code=503)
     db = request.app.state.db
     profile = await db.get_full_profile()
     work = profile.get("work_history", [])
@@ -194,7 +195,7 @@ async def accept_career_suggestion(request: Request, suggestion_id: int):
     db = request.app.state.db
     suggestion = await db.accept_career_suggestion(suggestion_id)
     if not suggestion:
-        raise HTTPException(404, "Suggestion not found")
+        raise AppError("suggestion.not_found", status_code=404)
     config = await db.get_search_config()
     if config:
         terms = config.get("search_terms", [])
@@ -295,11 +296,11 @@ async def update_offer(request: Request, offer_id: int):
         if key in body:
             fields[key] = body[key]
     if not fields:
-        raise HTTPException(400, "No fields to update")
+        raise AppError("validation.no_fields_to_update", status_code=400)
     db = request.app.state.db
     updated = await db.update_offer(offer_id, **fields)
     if not updated:
-        raise HTTPException(404, "Offer not found")
+        raise AppError("offer.not_found", status_code=404)
     offer = await db.get_offer(offer_id)
     return {"ok": True, "offer": offer}
 
@@ -308,7 +309,7 @@ async def update_offer(request: Request, offer_id: int):
 async def delete_offer(request: Request, offer_id: int):
     deleted = await request.app.state.db.delete_offer(offer_id)
     if not deleted:
-        raise HTTPException(404, "Offer not found")
+        raise AppError("offer.not_found", status_code=404)
     return {"ok": True}
 
 
@@ -327,5 +328,5 @@ async def send_digest_test(request: Request):
     from app.digest import send_digest
     success = await send_digest(request.app.state.db)
     if not success:
-        raise HTTPException(400, "Digest not sent — check email settings and digest configuration")
+        raise AppError("analytics.digest_failed", status_code=400)
     return {"ok": True, "message": "Digest sent"}

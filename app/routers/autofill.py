@@ -3,7 +3,8 @@ import json
 import logging
 import re as _re
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from app.errors import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +348,8 @@ async def analyze_form(request: Request):
 
     client = getattr(request.app.state, "ai_client", None)
     if not client:
-        return {"mappings": deterministic_mappings, "error": "No AI provider for remaining fields"}
+        return {"mappings": deterministic_mappings, "error": "No AI provider for remaining fields",
+                "code": "autofill.ai_unavailable"}
 
     custom_qa = await request.app.state.db.get_custom_qa()
     trimmed_profile = _trim_profile_for_autofill(profile)
@@ -377,9 +379,11 @@ async def analyze_form(request: Request):
         return {"mappings": deterministic_mappings + ai_mappings}
     except asyncio.TimeoutError:
         logger.warning("Autofill analyze timed out after %ds", AUTOFILL_ANALYZE_TIMEOUT)
-        return {"mappings": [], "error": f"AI analysis timed out after {AUTOFILL_ANALYZE_TIMEOUT}s"}
+        return {"mappings": [], "error": f"AI analysis timed out after {AUTOFILL_ANALYZE_TIMEOUT}s",
+                "code": "autofill.analysis_timeout", "params": {"seconds": AUTOFILL_ANALYZE_TIMEOUT}}
     except json.JSONDecodeError:
-        return {"mappings": [], "error": "Failed to parse AI response"}
+        return {"mappings": [], "error": "Failed to parse AI response",
+                "code": "autofill.parse_failed"}
     except Exception as e:
         logger.error(f"Autofill analyze failed: {e}")
-        raise HTTPException(500, f"Analysis failed: {str(e)}")
+        raise AppError("tailoring.analysis_failed", status_code=500, params={"error": str(e)})

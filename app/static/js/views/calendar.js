@@ -1,7 +1,7 @@
 // === Calendar View ===
 
 async function renderCalendar(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading calendar...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('calendar.loading')}</span></div>`;
 
     let viewDate = new Date();
     viewDate.setDate(1);
@@ -9,7 +9,7 @@ async function renderCalendar(container) {
     try {
         await renderCalendarView(container, viewDate);
     } catch (err) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">Failed to load calendar</div><div class="empty-state-desc">${escapeHtml(err.message)}</div></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('calendar.loadFailed')}</div><div class="empty-state-desc">${escapeHtml(apiErrorMessage(err))}</div></div>`;
     }
 }
 
@@ -32,7 +32,7 @@ async function renderCalendarView(container, viewDate) {
 
     const today = new Date();
     const todayStr = toDateStr(today);
-    const monthLabel = viewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const monthLabel = i18n.formatMonthYear(viewDate);
 
     // Build agenda for next 7 days
     const agendaStart = new Date(today);
@@ -47,9 +47,9 @@ async function renderCalendarView(container, viewDate) {
         <div class="calendar-header">
             <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">Calendar</h1>
             <div style="display:flex;gap:8px;align-items:center">
-                <button id="cal-prev" class="btn btn-ghost btn-sm" aria-label="Previous month">&larr;</button>
+                <button id="cal-prev" class="btn btn-ghost btn-sm" aria-label="${t('calendar.previousMonth')}">&larr;</button>
                 <span id="cal-month-label" style="font-weight:600;min-width:160px;text-align:center">${escapeHtml(monthLabel)}</span>
-                <button id="cal-next" class="btn btn-ghost btn-sm" aria-label="Next month">&rarr;</button>
+                <button id="cal-next" class="btn btn-ghost btn-sm" aria-label="${t('calendar.nextMonth')}">&rarr;</button>
                 <button id="cal-today" class="btn btn-secondary btn-sm">Today</button>
                 <button id="cal-subscribe" class="btn btn-ghost btn-sm" title="Subscribe via iCal">Subscribe</button>
             </div>
@@ -57,7 +57,7 @@ async function renderCalendarView(container, viewDate) {
         <div class="calendar-layout">
             <div class="calendar-grid-wrapper">
                 <div class="calendar-weekdays">
-                    ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d =>
+                    ${i18n.weekdayNames().map(d =>
                         `<div class="calendar-weekday">${d}</div>`
                     ).join('')}
                 </div>
@@ -66,7 +66,7 @@ async function renderCalendarView(container, viewDate) {
                 </div>
             </div>
             <div class="calendar-sidebar">
-                <h3 style="font-size:0.9375rem;font-weight:600;margin:0 0 12px">Next 7 Days</h3>
+                <h3 style="font-size:0.9375rem;font-weight:600;margin:0 0 12px">${t('calendar.next7Days')}</h3>
                 <div id="cal-agenda">
                     ${renderAgenda(agendaEvents)}
                 </div>
@@ -152,8 +152,8 @@ function buildCalendarGrid(year, month, events, todayStr) {
                     ${visibleEvents.map(e => {
                         const chipClass = e.type === 'interview' ? 'calendar-chip-interview' : 'calendar-chip-reminder';
                         const label = e.type === 'interview'
-                            ? escapeHtml(e.company || e.label || 'Interview')
-                            : escapeHtml(e.label || 'Reminder');
+                            ? escapeHtml(e.company || e.label || t('calendar.interview'))
+                            : escapeHtml(e.label || t('calendar.reminder'));
                         return `<div class="calendar-chip ${chipClass}" title="${escapeHtml(e.label || '')}">${label}</div>`;
                     }).join('')}
                     ${overflow > 0 ? `<div class="calendar-chip-more">+${overflow} more</div>` : ''}
@@ -166,22 +166,22 @@ function buildCalendarGrid(year, month, events, todayStr) {
 
 function renderAgenda(events) {
     if (!events.length) {
-        return `<div class="calendar-agenda-empty">No upcoming events</div>`;
+        return `<div class="calendar-agenda-empty">${t('calendar.emptyUpcoming')}</div>`;
     }
 
     return events.map(e => {
         const d = e.scheduled_at || e.date || '';
         const dateObj = d ? new Date(d) : null;
         const timeStr = dateObj && d.includes('T')
-            ? dateObj.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' })
+            ? i18n.formatTime(dateObj)
             : '';
         const dateLabel = dateObj
-            ? dateObj.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' })
+            ? i18n.formatWeekdayDate(dateObj)
             : '';
         const chipClass = e.type === 'interview' ? 'calendar-chip-interview' : 'calendar-chip-reminder';
         const label = e.type === 'interview'
-            ? escapeHtml(e.company || e.label || 'Interview')
-            : escapeHtml(e.label || 'Reminder');
+            ? escapeHtml(e.company || e.label || t('calendar.interview'))
+            : escapeHtml(e.label || t('calendar.reminder'));
 
         return `
             <div class="calendar-agenda-item">
@@ -189,7 +189,7 @@ function renderAgenda(events) {
                 <div class="calendar-agenda-content">
                     <div class="calendar-agenda-label">${label}</div>
                     <div class="calendar-agenda-time">${escapeHtml(dateLabel)}${timeStr ? ` at ${escapeHtml(timeStr)}` : ''}</div>
-                    ${e.job_id ? `<a href="#/job/${e.job_id}" class="calendar-agenda-link">View job</a>` : ''}
+                    ${e.job_id ? `<a href="#/job/${e.job_id}" class="calendar-agenda-link">${t('calendar.viewJob')}</a>` : ''}
                 </div>
             </div>
         `;
@@ -201,7 +201,7 @@ function showDayDetailModal(dateStr, events) {
     if (existing) existing.remove();
 
     const dateObj = new Date(dateStr + 'T12:00:00');
-    const dateLabel = dateObj.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const dateLabel = i18n.formatWeekdayDateLong(dateObj);
 
     const modal = document.createElement('div');
     modal.id = 'cal-day-modal';
@@ -210,25 +210,25 @@ function showDayDetailModal(dateStr, events) {
             <div class="modal-content" style="max-width:480px" onclick="event.stopPropagation()">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                     <h2 class="modal-title" style="margin:0">${escapeHtml(dateLabel)}</h2>
-                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cal-day-modal')?.remove()">Close</button>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cal-day-modal')?.remove()">${t('actions.close')}</button>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:10px">
                     ${events.map(e => {
                         const time = (e.scheduled_at && e.scheduled_at.includes('T'))
-                            ? new Date(e.scheduled_at).toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' })
-                            : 'All day';
+                            ? i18n.formatTime(e.scheduled_at)
+                            : t('calendar.allDay');
                         const chipClass = e.type === 'interview' ? 'calendar-chip-interview' : 'calendar-chip-reminder';
                         return `
                             <div class="card" style="padding:12px${e.type === 'interview' ? ';cursor:pointer' : ''}"${e.type === 'interview' && e.id && e.job_id ? ` data-interview-id="${e.id}" data-job-id="${e.job_id}"` : ''}>
                                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
                                     <div class="calendar-agenda-dot ${chipClass}"></div>
-                                    <span style="font-weight:600;font-size:0.875rem">${escapeHtml(e.label || e.company || (e.type === 'interview' ? 'Interview' : 'Reminder'))}</span>
+                                    <span style="font-weight:600;font-size:0.875rem">${escapeHtml(e.label || e.company || (e.type === 'interview' ? t('calendar.interview') : t('calendar.reminder')))}</span>
                                     <span style="margin-left:auto;font-size:0.8rem;color:var(--text-secondary)">${escapeHtml(time)}</span>
                                 </div>
                                 ${e.company ? `<div style="font-size:0.8rem;color:var(--text-secondary)">${escapeHtml(e.company)}</div>` : ''}
                                 ${e.notes ? `<div style="font-size:0.8rem;color:var(--text-tertiary);margin-top:4px">${escapeHtml(e.notes)}</div>` : ''}
                                 <div style="display:flex;gap:8px;margin-top:6px">
-                                    ${e.type === 'interview' && e.id && e.job_id ? `<button class="btn btn-primary btn-sm cal-open-interview" data-interview-id="${e.id}" data-job-id="${e.job_id}" style="font-size:0.75rem">View Interview</button>` : ''}
+                                    ${e.type === 'interview' && e.id && e.job_id ? `<button class="btn btn-primary btn-sm cal-open-interview" data-interview-id="${e.id}" data-job-id="${e.job_id}" style="font-size:0.75rem">${t('calendar.viewInterview')}</button>` : ''}
                                     ${e.job_id ? `<a href="#/job/${e.job_id}" class="btn btn-ghost btn-sm" style="font-size:0.75rem" onclick="document.getElementById('cal-day-modal')?.remove()">View Job</a>` : ''}
                                 </div>
                             </div>
@@ -272,23 +272,23 @@ async function showIcalModal() {
     modal.innerHTML = `
         <div class="modal-overlay" onclick="document.getElementById('ical-modal')?.remove()">
             <div class="modal-content" style="max-width:480px" onclick="event.stopPropagation()">
-                <h2 class="modal-title">Subscribe to Calendar</h2>
-                <p class="modal-message">Copy the URL below to subscribe in your calendar app (Google Calendar, Apple Calendar, Outlook, etc).</p>
+                <h2 class="modal-title">${t('calendar.subscribeModalTitle')}</h2>
+                <p class="modal-message">${t('calendar.subscribeHelp')}</p>
                 ${icalUrl ? `
                     <div style="display:flex;gap:8px;margin-bottom:12px">
                         <input type="text" class="form-input" id="ical-url" value="${escapeHtml(icalUrl)}" readonly style="font-size:0.8rem">
-                        <button id="ical-copy-btn" class="btn btn-primary btn-sm">Copy</button>
+                        <button id="ical-copy-btn" class="btn btn-primary btn-sm">${t('calendar.copy')}</button>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center">
                         <button id="ical-regen-btn" class="btn btn-ghost btn-sm" style="color:var(--danger)">Regenerate URL</button>
-                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ical-modal')?.remove()">Close</button>
+                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ical-modal')?.remove()">${t('actions.close')}</button>
                     </div>
                 ` : `
                     <div class="empty-state-compact" style="margin-bottom:16px">
                         <div class="empty-state-desc">Calendar subscription is not available yet. Please check back later.</div>
                     </div>
                     <div class="modal-actions">
-                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ical-modal')?.remove()">Close</button>
+                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ical-modal')?.remove()">${t('actions.close')}</button>
                     </div>
                 `}
             </div>
@@ -300,18 +300,18 @@ async function showIcalModal() {
         modal.querySelector('#ical-copy-btn').addEventListener('click', () => {
             const input = modal.querySelector('#ical-url');
             navigator.clipboard.writeText(input.value).then(() => {
-                showToast('iCal URL copied to clipboard', 'success');
+                showToast(t('calendar.icalCopied'), 'success');
             }).catch(() => {
                 input.select();
-                showToast('Select and copy the URL manually', 'info');
+                showToast(t('calendar.icalCopyManual'), 'info');
             });
         });
 
         modal.querySelector('#ical-regen-btn').addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Regenerate URL',
-                message: 'This will invalidate the current subscription URL. Any calendars using the old URL will stop updating. Continue?',
-                confirmText: 'Regenerate',
+                title: t('calendar.regenerate'),
+                message: t('calendar.regenerateConfirm'),
+                confirmText: t('actions.regenerate'),
                 danger: true,
             });
             if (!ok) return;
@@ -320,9 +320,9 @@ async function showIcalModal() {
                 const newUrl = `${window.location.origin}/ical/${newData.token}.ics`;
                 const input = modal.querySelector('#ical-url');
                 if (input) input.value = newUrl;
-                showToast('iCal URL regenerated', 'success');
+                showToast(t('calendar.regenerated'), 'success');
             } catch (err) {
-                showToast(`Failed to regenerate: ${err.message}`, 'error');
+                showToast(t('calendar.regenerateFailed', { error: err.message }), 'error');
             }
         });
     }

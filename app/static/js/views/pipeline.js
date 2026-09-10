@@ -2,12 +2,12 @@
 let pipelineActiveTab = 'board';
 
 async function renderPipeline(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading pipeline...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('pipeline.loading')}</span></div>`;
 
     const statuses = ['interested', 'prepared', 'applied', 'interviewing', 'offered', 'rejected'];
     const statusLabels = {
-        interested: 'Interested', prepared: 'Prepared', applied: 'Applied',
-        interviewing: 'Interviewing', offered: 'Offered', rejected: 'Rejected'
+        interested: t('pipeline.stage.interested'), prepared: t('pipeline.stage.prepared'), applied: t('pipeline.stage.applied'),
+        interviewing: t('pipeline.stage.interviewing'), offered: t('pipeline.stage.offered'), rejected: t('pipeline.stage.rejected')
     };
     const statusColors = {
         interested: 'var(--text-secondary)', prepared: 'var(--accent)',
@@ -29,7 +29,7 @@ async function renderPipeline(container) {
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
                 <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">Pipeline</h1>
                 <div style="display:flex;align-items:center;gap:12px">
-                    <button id="add-external-job-btn" class="btn btn-primary btn-sm">+ Add Job</button>
+                    <button id="add-external-job-btn" class="btn btn-primary btn-sm">${t('pipeline.addJobShort')}</button>
                     <div class="tab-bar">
                         <button class="tab-btn ${pipelineActiveTab === 'board' ? 'active' : ''}" data-pipeline-tab="board">Board</button>
                         <button class="tab-btn ${pipelineActiveTab === 'offers' ? 'active' : ''}" data-pipeline-tab="offers">
@@ -64,7 +64,7 @@ async function renderPipeline(container) {
             renderPipelineBoard(tabContent, results, statuses, statusLabels, statusColors, container);
         }
     } catch (err) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">Failed to load pipeline</div><div class="empty-state-desc">${escapeHtml(err.message)}</div></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('pipeline.loadFailed')}</div><div class="empty-state-desc">${escapeHtml(apiErrorMessage(err))}</div></div>`;
     }
 }
 
@@ -86,8 +86,8 @@ function renderPipelineBoard(tabContent, results, statuses, statusLabels, status
                                     ${status === 'interviewing' ? `
                                     <div class="pipeline-quick-actions" onclick="event.stopPropagation()">
                                         <button class="pipeline-qa-btn" data-qa="call" data-job-id="${job.id}" title="Log call">\u{1F4DE}</button>
-                                        <button class="pipeline-qa-btn" data-qa="email" data-job-id="${job.id}" title="Log email">\u{1F4E7}</button>
-                                        <button class="pipeline-qa-btn" data-qa="note" data-job-id="${job.id}" title="Add note">\u{1F4DD}</button>
+                                        <button class="pipeline-qa-btn" data-qa="email" data-job-id="${job.id}" title="${t('pipeline.quickAction.email')}">\u{1F4E7}</button>
+                                        <button class="pipeline-qa-btn" data-qa="note" data-job-id="${job.id}" title="${t('pipeline.quickAction.note')}">\u{1F4DD}</button>
                                     </div>` : ''}
                                 </div>
                             `).join('')}
@@ -156,9 +156,9 @@ function renderPipelineBoard(tabContent, results, statuses, statusLabels, status
 
                 try {
                     await api.updateApplication(jobId, newStatus);
-                    showToast(`Moved to ${statusLabels[newStatus]}`, 'success');
+                    showToast(t('pipeline.movedTo', { stage: statusLabels[newStatus] }), 'success');
                 } catch (err) {
-                    showToast(`Failed to move: ${err.message}`, 'error');
+                    showToast(t('pipeline.moveFailed', { error: err.message }), 'error');
                     await renderPipeline(container);
                 }
             });
@@ -211,7 +211,7 @@ function showPipelineQuickAction(card, jobId, action) {
     } else {
         formHtml = `
             <div class="pipeline-qa-form" onclick="event.stopPropagation()">
-                <textarea class="search-input" name="notes" placeholder="Add a note..." rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
+                <textarea class="search-input" name="notes" placeholder="${t('pipeline.notesPlaceholder')}" rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
                 <div style="display:flex;gap:4px">
                     <button class="btn btn-primary btn-sm pqa-submit" style="flex:1;font-size:0.7rem;padding:3px 6px">Add</button>
                     <button class="btn btn-secondary btn-sm pqa-cancel" style="font-size:0.7rem;padding:3px 6px">X</button>
@@ -251,10 +251,10 @@ function showPipelineQuickAction(card, jobId, action) {
 
         try {
             await api.addEvent(jobId, detail, eventType);
-            showToast(action === 'call' ? 'Call logged' : action === 'email' ? 'Email logged' : 'Note added', 'success');
+            showToast(action === 'call' ? t('pipeline.callLogged') : action === 'email' ? t('pipeline.emailLogged') : t('pipeline.noteAdded'), 'success');
             form.remove();
         } catch (err) {
-            showToast(err.message, 'error');
+            showToast(apiErrorMessage(err), 'error');
             submitBtn.disabled = false;
         }
     });
@@ -271,8 +271,8 @@ async function renderOffersTab(tabContent, offers, offeredJobs) {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <p style="color:var(--text-secondary);margin:0">${offers.length} offer${offers.length !== 1 ? 's' : ''} tracked</p>
             <div style="display:flex;gap:8px">
-                ${offers.length >= 2 ? `<button id="compare-offers-btn" class="btn btn-primary btn-sm">Compare Offers</button>` : ''}
-                <button id="add-offer-btn" class="btn btn-primary btn-sm">+ Add Offer</button>
+                ${offers.length >= 2 ? `<button id="compare-offers-btn" class="btn btn-primary btn-sm">${t('pipeline.offers.compareTitle')}</button>` : ''}
+                <button id="add-offer-btn" class="btn btn-primary btn-sm">${t('pipeline.offers.add')}</button>
             </div>
         </div>
         <div id="offers-list"></div>
@@ -294,7 +294,7 @@ async function renderOffersTab(tabContent, offers, offeredJobs) {
 function renderOffersList(tabContent, offers, jobMap) {
     const listEl = tabContent.querySelector('#offers-list');
     if (!offers.length) {
-        listEl.innerHTML = `<div class="empty-state"><div class="empty-state-title">No offers yet</div><div class="empty-state-desc">Add an offer when a job reaches the "offered" stage</div></div>`;
+        listEl.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('pipeline.offers.emptyTitle')}</div><div class="empty-state-desc">${t('pipeline.offers.emptyDesc')}</div></div>`;
         return;
     }
 
@@ -308,7 +308,7 @@ function renderOffersList(tabContent, offers, jobMap) {
             <div class="card offer-card" style="margin-bottom:12px;padding:16px">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                     <div>
-                        <div style="font-weight:600;font-size:0.95rem">${escapeHtml(job.title || 'Unknown Position')}</div>
+                        <div style="font-weight:600;font-size:0.95rem">${escapeHtml(job.title || t('pipeline.offers.unknownPosition'))}</div>
                         <div style="color:var(--text-secondary);font-size:0.85rem">${escapeHtml(job.company || '')}${offer.location ? ` \u2022 ${escapeHtml(offer.location)}` : ''}</div>
                     </div>
                     <div style="display:flex;gap:6px">
@@ -321,8 +321,8 @@ function renderOffersList(tabContent, offers, jobMap) {
                     <div><div style="font-size:0.75rem;color:var(--text-secondary)">Bonus</div><div style="font-weight:600">${formatCurrency(bonus)}</div></div>
                     <div><div style="font-size:0.75rem;color:var(--text-secondary)">Equity</div><div style="font-weight:600">${formatCurrency(equity)}</div></div>
                     <div><div style="font-size:0.75rem;color:var(--text-secondary)">Total Cash</div><div style="font-weight:600;color:var(--accent)">${formatCurrency(totalCash)}</div></div>
-                    ${offer.pto_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">PTO</div><div style="font-weight:600">${offer.pto_days} days</div></div>` : ''}
-                    ${offer.remote_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">Remote</div><div style="font-weight:600">${offer.remote_days} days/wk</div></div>` : ''}
+                    ${offer.pto_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.ptoShort')}</div><div style="font-weight:600">${t('pipeline.offers.fields.ptoDays', { n: offer.pto_days })}</div></div>` : ''}
+                    ${offer.remote_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.remote')}</div><div style="font-weight:600">${t('pipeline.offers.fields.remoteDays', { n: offer.remote_days })}</div></div>` : ''}
                 </div>
                 ${offer.notes ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--text-secondary)">${escapeHtml(offer.notes)}</div>` : ''}
             </div>
@@ -340,21 +340,21 @@ function renderOffersList(tabContent, offers, jobMap) {
     listEl.querySelectorAll('.offer-delete-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Delete Offer',
-                message: 'Are you sure you want to delete this offer?',
+                title: t('pipeline.offers.deleteTitle'),
+                message: t('pipeline.offers.deleteMessage'),
                 confirmText: 'Delete',
                 danger: true,
             });
             if (!ok) return;
             try {
                 await api.request('DELETE', `/api/offers/${btn.dataset.offerId}`);
-                showToast('Offer deleted', 'success');
+                showToast(t('pipeline.offers.deleted'), 'success');
                 const refreshed = await api.request('GET', '/api/offers');
                 offers.length = 0;
                 refreshed.offers.forEach(o => offers.push(o));
                 renderOffersList(tabContent, offers, jobMap);
             } catch (err) {
-                showToast(`Failed to delete: ${err.message}`, 'error');
+                showToast(t('pipeline.offers.deleteFailed', { error: err.message }), 'error');
             }
         });
     });
@@ -373,7 +373,7 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
 
     formContainer.innerHTML = `
         <div class="card" style="padding:20px;margin-bottom:16px;border:2px solid var(--accent)">
-            <h3 style="margin:0 0 16px;font-size:1rem">${isEdit ? 'Edit' : 'Add'} Offer</h3>
+            <h3 style="margin:0 0 16px;font-size:1rem">${isEdit ? t('actions.edit') : t('actions.add')} Offer</h3>
             <form id="offer-form">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                     <div style="grid-column:1/-1">
@@ -381,11 +381,11 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                         <select name="job_id" class="form-input" required>${jobOptions}</select>
                     </div>
                     <div>
-                        <label class="form-label">Base Salary ($)</label>
+                        <label class="form-label">${t('pipeline.offers.form.baseSalary')}</label>
                         <input type="number" name="base" class="form-input" value="${existingOffer?.base || ''}" placeholder="120000">
                     </div>
                     <div>
-                        <label class="form-label">Bonus ($)</label>
+                        <label class="form-label">${t('pipeline.offers.form.bonus')}</label>
                         <input type="number" name="bonus" class="form-input" value="${existingOffer?.bonus || ''}" placeholder="15000">
                     </div>
                     <div>
@@ -401,11 +401,11 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                         <input type="number" name="retirement_match" class="form-input" step="0.1" value="${existingOffer?.retirement_match || ''}" placeholder="6">
                     </div>
                     <div>
-                        <label class="form-label">Relocation ($)</label>
+                        <label class="form-label">${t('pipeline.offers.form.relocation')}</label>
                         <input type="number" name="relocation" class="form-input" value="${existingOffer?.relocation || ''}" placeholder="5000">
                     </div>
                     <div>
-                        <label class="form-label">PTO Days</label>
+                        <label class="form-label">${t('pipeline.offers.form.ptoDays')}</label>
                         <input type="number" name="pto_days" class="form-input" value="${existingOffer?.pto_days || ''}" placeholder="20">
                     </div>
                     <div>
@@ -418,11 +418,11 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                     </div>
                     <div style="grid-column:1/-1">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-input" rows="2" placeholder="Additional details...">${escapeHtml(existingOffer?.notes || '')}</textarea>
+                        <textarea name="notes" class="form-input" rows="2" placeholder="${t('pipeline.offers.additionalDetailsPlaceholder')}">${escapeHtml(existingOffer?.notes || '')}</textarea>
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
-                    <button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Update' : 'Add'} Offer</button>
+                    <button type="submit" class="btn btn-primary btn-sm">${isEdit ? t('actions.update') : t('actions.add')} Offer</button>
                     <button type="button" id="cancel-offer-form" class="btn btn-ghost btn-sm">Cancel</button>
                 </div>
             </form>
@@ -447,10 +447,10 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
         try {
             if (isEdit) {
                 await api.request('PUT', `/api/offers/${existingOffer.id}`, body);
-                showToast('Offer updated', 'success');
+                showToast(t('pipeline.offers.updated'), 'success');
             } else {
                 await api.request('POST', '/api/offers', body);
-                showToast('Offer added', 'success');
+                showToast(t('pipeline.offers.added'), 'success');
             }
             formContainer.style.display = 'none';
             formContainer.innerHTML = '';
@@ -467,13 +467,13 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                     const cmpBtn = document.createElement('button');
                     cmpBtn.id = 'compare-offers-btn';
                     cmpBtn.className = 'btn btn-primary btn-sm';
-                    cmpBtn.textContent = 'Compare Offers';
+                    cmpBtn.textContent = t('pipeline.offers.compareTitle');
                     cmpBtn.addEventListener('click', () => showOfferComparison(tabContent));
                     addBtn.parentElement.insertBefore(cmpBtn, addBtn);
                 }
             }
         } catch (err) {
-            showToast(`Failed to save offer: ${err.message}`, 'error');
+            showToast(t('pipeline.offers.saveFailed', { error: err.message }), 'error');
         }
     });
 }
@@ -481,26 +481,26 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
 async function showOfferComparison(tabContent) {
     const compContainer = tabContent.querySelector('#offer-comparison-container');
     compContainer.style.display = 'block';
-    compContainer.innerHTML = `<div class="loading-container"><div class="spinner"></div><span>Calculating...</span></div>`;
+    compContainer.innerHTML = `<div class="loading-container"><div class="spinner"></div><span>${t('pipeline.offers.calculating')}</span></div>`;
 
     try {
         const { comparison } = await api.request('GET', '/api/offers/compare');
         if (!comparison || !comparison.length) {
-            compContainer.innerHTML = `<div class="empty-state"><div class="empty-state-desc">No offers to compare</div></div>`;
+            compContainer.innerHTML = `<div class="empty-state"><div class="empty-state-desc">${t('pipeline.offers.compareEmpty')}</div></div>`;
             return;
         }
 
         const compFields = [
-            { key: 'base', label: 'Base Salary' },
+            { key: 'base', label: t('pipeline.offers.fields.base') },
             { key: 'bonus', label: 'Bonus' },
             { key: 'equity', label: 'Equity' },
-            { key: 'health_value', label: 'Health Benefits' },
-            { key: 'retirement_value', label: 'Retirement (calc)' },
-            { key: 'relocation', label: 'Relocation' },
-            { key: 'pto_value', label: 'PTO Value' },
-            { key: 'total_cash', label: 'Total Cash' },
-            { key: 'total_comp', label: 'Total Comp' },
-            { key: 'total_with_pto', label: 'Total + PTO Value' },
+            { key: 'health_value', label: t('pipeline.offers.fields.health') },
+            { key: 'retirement_value', label: t('pipeline.offers.fields.retirement') },
+            { key: 'relocation', label: t('pipeline.offers.fields.relocation') },
+            { key: 'pto_value', label: t('pipeline.offers.fields.pto') },
+            { key: 'total_cash', label: t('pipeline.offers.fields.totalCash') },
+            { key: 'total_comp', label: t('pipeline.offers.fields.totalComp') },
+            { key: 'total_with_pto', label: t('pipeline.offers.fields.totalWithPto') },
         ];
 
         const bestTotal = comparison[0]?.total_comp || 0;
@@ -508,7 +508,7 @@ async function showOfferComparison(tabContent) {
         compContainer.innerHTML = `
             <div class="card" style="padding:20px;margin-top:16px;overflow-x:auto">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h3 style="margin:0;font-size:1rem">Offer Comparison</h3>
+                    <h3 style="margin:0;font-size:1rem">${t('pipeline.offers.compareTitle')}</h3>
                     <button id="close-comparison" class="btn btn-ghost btn-sm">Close</button>
                 </div>
                 <table class="comparison-table" style="width:100%">
@@ -517,7 +517,7 @@ async function showOfferComparison(tabContent) {
                             <th style="text-align:left;padding:8px 12px;min-width:140px">Component</th>
                             ${comparison.map((c, i) => `
                                 <th style="text-align:right;padding:8px 12px;min-width:140px">
-                                    <div style="font-weight:600">${escapeHtml(c.location || `Offer ${i + 1}`)}</div>
+                                    <div style="font-weight:600">${escapeHtml(c.location || t('pipeline.offers.label', { n: i + 1 }))}</div>
                                     ${i === 0 ? '<span class="badge badge-sm" style="background:var(--score-green);color:#fff;font-size:0.65rem">Best</span>' : ''}
                                 </th>
                             `).join('')}
@@ -555,14 +555,14 @@ async function showOfferComparison(tabContent) {
                             ${comparison.map((c, i) => {
                                 const total = c.total_comp || 1;
                                 const segments = [
-                                    { label: 'Base', val: c.base, color: 'var(--accent)' },
+                                    { label: t('pipeline.offers.segments.base'), val: c.base, color: 'var(--accent)' },
                                     { label: 'Bonus', val: c.bonus, color: 'var(--score-green)' },
                                     { label: 'Equity', val: c.equity, color: 'var(--score-amber)' },
-                                    { label: 'Benefits', val: (c.health_value || 0) + (c.retirement_value || 0) + (c.relocation || 0), color: '#8b5cf6' },
+                                    { label: t('pipeline.offers.segments.benefits'), val: (c.health_value || 0) + (c.retirement_value || 0) + (c.relocation || 0), color: '#8b5cf6' },
                                 ];
                                 return `
                                     <div style="flex:1;min-width:200px">
-                                        <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px">${escapeHtml(c.location || `Offer ${i + 1}`)}</div>
+                                        <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px">${escapeHtml(c.location || t('pipeline.offers.label', { n: i + 1 }))}</div>
                                         <div style="height:24px;display:flex;border-radius:6px;overflow:hidden;background:var(--bg-secondary)">
                                             ${segments.filter(s => s.val > 0).map(s => `
                                                 <div title="${s.label}: ${formatCurrency(s.val)}" style="width:${(s.val / total * 100).toFixed(1)}%;background:${s.color};min-width:2px"></div>
@@ -590,7 +590,7 @@ async function showOfferComparison(tabContent) {
             compContainer.innerHTML = '';
         });
     } catch (err) {
-        compContainer.innerHTML = `<div class="empty-state"><div class="empty-state-desc">Failed to compare: ${escapeHtml(err.message)}</div></div>`;
+        compContainer.innerHTML = `<div class="empty-state"><div class="empty-state-desc">${escapeHtml(t('pipeline.offers.compareFailed', { error: apiErrorMessage(err) }))}</div></div>`;
     }
 }
 
@@ -610,27 +610,27 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
         <div class="modal-overlay" onclick="document.getElementById('add-job-modal')?.remove()">
             <div class="modal-content" style="max-width:540px" onclick="event.stopPropagation()">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 class="modal-title" style="margin:0">Add External Job</h2>
+                    <h2 class="modal-title" style="margin:0">${t('pipeline.addJobModal.title')}</h2>
                     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">Close</button>
                 </div>
                 <form id="add-job-form">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                         <div style="grid-column:1/-1">
-                            <label class="form-label">Job URL</label>
+                            <label class="form-label">${t('pipeline.addJobModal.jobUrl')}</label>
                             <input type="url" name="url" class="form-input" id="add-job-url" placeholder="https://..." autocomplete="off">
                             <div id="add-job-fetch-status" style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px"></div>
                         </div>
                         <div>
-                            <label class="form-label">Title *</label>
+                            <label class="form-label">${t('pipeline.addJobModal.titleRequired')}</label>
                             <input type="text" name="title" class="form-input" id="add-job-title" required>
                         </div>
                         <div>
-                            <label class="form-label">Company *</label>
+                            <label class="form-label">${t('pipeline.addJobModal.companyRequired')}</label>
                             <input type="text" name="company" class="form-input" id="add-job-company" required>
                         </div>
                         <div style="grid-column:1/-1">
                             <label class="form-label">Description</label>
-                            <textarea name="description" class="form-input" id="add-job-description" rows="3" placeholder="Paste or auto-filled from URL..."></textarea>
+                            <textarea name="description" class="form-input" id="add-job-description" rows="3" placeholder="${t('pipeline.addJobModal.pastePlaceholder')}"></textarea>
                         </div>
                         <div>
                             <label class="form-label">Location</label>
@@ -641,7 +641,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                             <input type="text" name="salary" class="form-input" id="add-job-salary" placeholder="e.g. 150000 or 150k-180k">
                         </div>
                         <div>
-                            <label class="form-label">Initial Status</label>
+                            <label class="form-label">${t('pipeline.addJobModal.initialStatus')}</label>
                             <select name="status" class="form-input" id="add-job-status">${statusOptions}</select>
                         </div>
                         <div style="display:flex;align-items:flex-end">
@@ -652,29 +652,29 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                         </div>
                     </div>
                     <div id="add-job-interview-fields" style="display:none;margin-top:12px;padding:12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm)">
-                        <div style="font-size:0.8125rem;font-weight:600;margin-bottom:8px">Interview Details</div>
+                        <div style="font-size:0.8125rem;font-weight:600;margin-bottom:8px">${t('pipeline.addJobModal.interviewDetails')}</div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                             <div>
                                 <label class="form-label">Round Label</label>
-                                <input type="text" name="interview_label" class="form-input" placeholder="e.g. Phone Screen">
+                                <input type="text" name="interview_label" class="form-input" placeholder="${t('pipeline.addJobModal.roundPlaceholder')}">
                             </div>
                             <div>
                                 <label class="form-label">Date & Time</label>
                                 <input type="datetime-local" name="interview_date" class="form-input">
                             </div>
                             <div>
-                                <label class="form-label">Duration (min)</label>
+                                <label class="form-label">${t('pipeline.addJobModal.durationMin')}</label>
                                 <input type="number" name="interview_duration" class="form-input" value="60" min="15" step="15">
                             </div>
                             <div>
-                                <label class="form-label">Interviewer Name</label>
+                                <label class="form-label">${t('pipeline.addJobModal.interviewerName')}</label>
                                 <input type="text" name="interviewer_name" class="form-input" placeholder="Optional">
                             </div>
                         </div>
                     </div>
                     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
                         <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm" id="add-job-submit">Add Job</button>
+                        <button type="submit" class="btn btn-primary btn-sm" id="add-job-submit">${t('pipeline.addJob')}</button>
                     </div>
                 </form>
             </div>
@@ -698,7 +698,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
 
         if (fetchAbort) fetchAbort.abort();
         fetchAbort = new AbortController();
-        fetchStatus.textContent = 'Fetching job details...';
+        fetchStatus.textContent = t('pipeline.addJobModal.fetching');
 
         try {
             const data = await api.request('POST', '/api/jobs/lookup', { url });
@@ -707,10 +707,10 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
             if (data.description) modal.querySelector('#add-job-description').value = data.description;
             if (data.location) modal.querySelector('#add-job-location').value = data.location;
             if (data.salary) modal.querySelector('#add-job-salary').value = data.salary;
-            fetchStatus.textContent = 'Details auto-filled from URL';
+            fetchStatus.textContent = t('pipeline.addJobModal.autoFilled');
             fetchStatus.style.color = 'var(--score-green)';
         } catch {
-            fetchStatus.textContent = 'Could not fetch details — fill in manually';
+            fetchStatus.textContent = t('pipeline.addJobModal.fetchFailed');
             fetchStatus.style.color = 'var(--score-amber)';
         }
     });
@@ -760,7 +760,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
             // Create interview if toggled
             if (modal.querySelector('#add-job-interview-toggle').checked) {
                 const interviewData = {
-                    label: fd.get('interview_label') || 'Round 1',
+                    label: fd.get('interview_label') || 'Round 1', // i18n-audit-ignore: default round label stored as data
                     scheduled_at: fd.get('interview_date') || null,
                     duration_min: parseInt(fd.get('interview_duration') || '60', 10),
                     interviewer_name: fd.get('interviewer_name') || '',
@@ -773,12 +773,12 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
             }
 
             modal.remove();
-            showToast('Job added to pipeline', 'success');
+            showToast(t('pipeline.addJobModal.added'), 'success');
             await renderPipeline(container);
         } catch (err) {
-            showToast(`Failed to add job: ${err.message}`, 'error');
+            showToast(t('pipeline.addJobModal.addFailed', { error: err.message }), 'error');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Add Job';
+            submitBtn.textContent = t('pipeline.addJob');
         }
     });
 }

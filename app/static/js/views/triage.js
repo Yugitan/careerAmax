@@ -29,13 +29,13 @@ async function enterTriageMode() {
         triageJobs = (data.jobs || []).filter(j => !j.app_status);
         triageIndex = 0;
         if (triageJobs.length === 0) {
-            showToast('No jobs to triage', 'info');
+            showToast(t('triage.noJobs'), 'info');
             triageActive = false;
             return;
         }
         renderTriageCard();
     } catch (err) {
-        showToast(`Failed to load triage: ${err.message}`, 'error');
+        showToast(t('triage.loadFailed', { error: apiErrorMessage(err) }), 'error');
         triageActive = false;
     }
 }
@@ -55,9 +55,9 @@ function renderTriageCard() {
             <div class="triage-container">
                 <div class="triage-done">
                     <div class="empty-state-icon">&#9989;</div>
-                    <div class="empty-state-title">Triage complete!</div>
-                    <div class="empty-state-desc">You reviewed ${triageJobs.length} jobs.</div>
-                    <button class="btn btn-primary" style="margin-top:16px" onclick="exitTriageMode()">Back to Feed</button>
+                    <div class="empty-state-title">${t('triage.doneTitle')}</div>
+                    <div class="empty-state-desc">${t('triage.doneDesc', { count: triageJobs.length })}</div>
+                    <button class="btn btn-primary" style="margin-top:16px" onclick="exitTriageMode()">${t('triage.backToFeed')}</button>
                 </div>
             </div>
         `;
@@ -71,13 +71,13 @@ function renderTriageCard() {
     const salary = formatSalary(job.salary_min, job.salary_max, job.salary_estimate_min, job.salary_estimate_max);
 
     container.innerHTML = `
-        <div class="triage-container" role="region" aria-label="Job triage" aria-live="polite">
+        <div class="triage-container" role="region" aria-label="${t('triage.ariaLabel')}" aria-live="polite">
             <div class="triage-header">
-                <span class="triage-progress">${triageIndex + 1} of ${triageJobs.length}</span>
+                <span class="triage-progress">${t('triage.progress', { current: triageIndex + 1, total: triageJobs.length })}</span>
                 <div class="triage-progress-bar">
                     <div class="triage-progress-fill" style="width:${((triageIndex + 1) / triageJobs.length) * 100}%"></div>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="exitTriageMode()">Exit Triage</button>
+                <button class="btn btn-ghost btn-sm" onclick="exitTriageMode()">${t('triage.exit')}</button>
             </div>
             <div class="triage-card card">
                 <div class="triage-card-body">
@@ -102,14 +102,14 @@ function renderTriageCard() {
                         </div>
                     ` : ''}
                     <div class="triage-actions">
-                        <button class="btn btn-primary" id="triage-keep-btn">Keep &amp; Prepare &rarr;</button>
-                        <button class="btn btn-secondary" id="triage-skip-btn">Skip &rarr;</button>
-                        <button class="btn btn-danger" id="triage-dismiss-btn">Dismiss</button>
-                        <button class="btn btn-ghost" id="triage-view-btn">View Details</button>
-                        ${triageUndoStack.length ? '<button class="btn btn-ghost" id="triage-undo-btn">Undo</button>' : ''}
+                        <button class="btn btn-primary" id="triage-keep-btn">${t('triage.keepPrepare')}</button>
+                        <button class="btn btn-secondary" id="triage-skip-btn">${t('triage.skip')}</button>
+                        <button class="btn btn-danger" id="triage-dismiss-btn">${t('triage.dismiss')}</button>
+                        <button class="btn btn-ghost" id="triage-view-btn">${t('triage.viewDetails')}</button>
+                        ${triageUndoStack.length ? `<button class="btn btn-ghost" id="triage-undo-btn">${t('actions.undo')}</button>` : ''}
                     </div>
                     <div class="triage-shortcuts-hint">
-                        <kbd>&rarr;</kbd> Keep &nbsp; <kbd>&larr;</kbd> Dismiss &nbsp; <kbd>&darr;</kbd> Skip &nbsp; <kbd>Enter</kbd> View &nbsp; <kbd>z</kbd> Undo &nbsp; <kbd>Esc</kbd> Exit
+                        <kbd>&rarr;</kbd> ${t('triage.shortcutKeep')} &nbsp; <kbd>&larr;</kbd> ${t('triage.dismiss')} &nbsp; <kbd>&darr;</kbd> ${t('triage.skip')} &nbsp; <kbd>Enter</kbd> ${t('triage.viewDetails')} &nbsp; <kbd>z</kbd> ${t('actions.undo')} &nbsp; <kbd>Esc</kbd> ${t('triage.exit')}
                     </div>
                 </div>
             </div>

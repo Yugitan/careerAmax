@@ -3,6 +3,7 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, File
+from app.errors import AppError
 
 from app.ai_client import AIClient
 
@@ -182,7 +183,7 @@ async def create_resume(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
     if not name:
-        raise HTTPException(400, "Resume name is required")
+        raise AppError("resume.name_required", status_code=400)
     db = request.app.state.db
     resume_id = await db.create_resume(
         name=name, resume_text=body.get("resume_text", ""),
@@ -199,18 +200,18 @@ async def create_resume(request: Request):
 async def update_resume(request: Request, resume_id: int):
     body = await request.json()
     if "name" in body and not body["name"].strip():
-        raise HTTPException(400, "Resume name cannot be empty")
+        raise AppError("resume.name_empty", status_code=400)
     fields = {}
     for key in ("name", "resume_text", "is_default", "search_terms",
                  "job_titles", "key_skills", "seniority", "summary"):
         if key in body:
             fields[key] = body[key].strip() if isinstance(body[key], str) else body[key]
     if not fields:
-        raise HTTPException(400, "No fields to update")
+        raise AppError("validation.no_fields_to_update", status_code=400)
     db = request.app.state.db
     updated = await db.update_resume(resume_id, **fields)
     if not updated:
-        raise HTTPException(404, "Resume not found")
+        raise AppError("resume.not_found", status_code=404)
     resume = await db.get_resume(resume_id)
     return {"ok": True, "resume": resume}
 
@@ -219,7 +220,7 @@ async def update_resume(request: Request, resume_id: int):
 async def delete_resume(request: Request, resume_id: int):
     deleted = await request.app.state.db.delete_resume(resume_id)
     if not deleted:
-        raise HTTPException(404, "Resume not found")
+        raise AppError("resume.not_found", status_code=404)
     return {"ok": True}
 
 
@@ -227,7 +228,7 @@ async def delete_resume(request: Request, resume_id: int):
 async def set_default_resume(request: Request, resume_id: int):
     result = await request.app.state.db.set_default_resume(resume_id)
     if not result:
-        raise HTTPException(404, "Resume not found")
+        raise AppError("resume.not_found", status_code=404)
     return {"ok": True}
 
 
@@ -242,7 +243,7 @@ async def create_saved_view(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
     if not name:
-        raise HTTPException(400, "View name is required")
+        raise AppError("view.name_required", status_code=400)
     db = request.app.state.db
     filters = body.get("filters", {})
     view_id = await db.create_saved_view(name, filters)
@@ -256,13 +257,13 @@ async def update_saved_view(request: Request, view_id: int):
     name = body.get("name")
     filters = body.get("filters")
     if name is not None and not name.strip():
-        raise HTTPException(400, "View name cannot be empty")
+        raise AppError("view.name_empty", status_code=400)
     db = request.app.state.db
     updated = await db.update_saved_view(
         view_id, name=name.strip() if name else name, filters=filters
     )
     if not updated:
-        raise HTTPException(404, "View not found")
+        raise AppError("view.not_found", status_code=404)
     view = await db.get_saved_view(view_id)
     return {"ok": True, "view": view}
 
@@ -271,7 +272,7 @@ async def update_saved_view(request: Request, view_id: int):
 async def delete_saved_view(request: Request, view_id: int):
     deleted = await request.app.state.db.delete_saved_view(view_id)
     if not deleted:
-        raise HTTPException(404, "View not found")
+        raise AppError("view.not_found", status_code=404)
     return {"ok": True}
 
 
@@ -292,7 +293,7 @@ async def update_search_terms(request: Request):
     body = await request.json()
     terms = body.get("search_terms", [])
     if not isinstance(terms, list):
-        raise HTTPException(400, "search_terms must be a list")
+        raise AppError("settings.search_terms_invalid", status_code=400)
     await request.app.state.db.update_search_terms(terms)
     return {"ok": True, "search_terms": terms}
 
@@ -302,7 +303,7 @@ async def update_exclude_terms(request: Request):
     body = await request.json()
     terms = body.get("exclude_terms", [])
     if not isinstance(terms, list):
-        raise HTTPException(400, "exclude_terms must be a list")
+        raise AppError("settings.exclude_terms_invalid", status_code=400)
     await request.app.state.db.update_exclude_terms(terms)
     return {"ok": True, "exclude_terms": terms}
 
@@ -318,7 +319,7 @@ async def update_allowed_regions(request: Request):
     body = await request.json()
     regions = body.get("allowed_regions", [])
     if not isinstance(regions, list):
-        raise HTTPException(400, "allowed_regions must be a list")
+        raise AppError("settings.allowed_regions_invalid", status_code=400)
     await request.app.state.db.update_allowed_regions(regions)
     return {"ok": True, "allowed_regions": regions}
 
@@ -334,7 +335,7 @@ async def update_remote_only(request: Request):
     body = await request.json()
     enabled = body.get("remote_only", False)
     if not isinstance(enabled, bool):
-        raise HTTPException(400, "remote_only must be a boolean")
+        raise AppError("settings.remote_only_invalid", status_code=400)
     await request.app.state.db.set_remote_only(enabled)
     return {"ok": True, "remote_only": enabled}
 
@@ -373,7 +374,7 @@ async def update_ai_settings(request: Request):
     base_url = body.get("base_url", "")
     region = body.get("region", "")
     if provider not in ALL_PROVIDERS:
-        raise HTTPException(400, f"Provider must be one of: {', '.join(ALL_PROVIDERS)}")
+        raise AppError("ai.invalid_provider", status_code=400, params={"providers": ", ".join(ALL_PROVIDERS)})
     existing = None
     if api_key.startswith("****") or (provider == "bedrock" and base_url.startswith("****")):
         existing = await request.app.state.db.get_ai_settings()
@@ -409,7 +410,9 @@ async def list_ollama_models(request: Request, base_url: str = Query("http://loc
             models = [m["name"] for m in data.get("models", [])]
             return {"ok": True, "models": models}
     except Exception as e:
-        return {"ok": False, "models": [], "error": str(e)}
+        # Raw provider text is kept in `error` and shown behind a localized prefix.
+        return {"ok": False, "models": [], "error": str(e),
+                "code": "ai.models_failed", "params": {"error": str(e)}}
 
 
 @router.post("/ai-settings/test")
@@ -443,7 +446,8 @@ async def test_ai_connection(request: Request):
         cause = e.__cause__ or e.__context__
         if cause:
             detail = f"{detail} — {type(cause).__name__}: {cause}"
-        return {"ok": False, "error": detail}
+        return {"ok": False, "error": detail,
+                "code": "ai.connection_failed", "params": {"error": detail}}
 
 
 @router.get("/settings/embeddings")
@@ -475,7 +479,7 @@ async def save_embedding_settings(request: Request):
     base_url = body.get("base_url", "")
     dimensions = body.get("dimensions", 256)
     if provider not in ("openai", "ollama"):
-        raise HTTPException(400, "Provider must be 'openai' or 'ollama'")
+        raise AppError("ai.provider_unsupported", status_code=400)
     if api_key.startswith("****"):
         existing = await request.app.state.db.get_embedding_settings()
         if existing:
@@ -491,7 +495,7 @@ async def save_embedding_settings(request: Request):
 async def backfill_embeddings(request: Request):
     client = request.app.state.embedding_client
     if not client:
-        raise HTTPException(400, "Embeddings not configured")
+        raise AppError("ai.embeddings_not_configured", status_code=400)
     db = request.app.state.db
     from app.embeddings import upsert_embedding
     cursor = await db.db.execute(
@@ -548,14 +552,14 @@ async def test_email_settings(request: Request):
         data["smtp_password"] = existing.get("smtp_password", "")
     test_to = data.get("from_address", "")
     if not test_to:
-        raise HTTPException(400, "From address required for test")
+        raise AppError("email.from_required", status_code=400)
     success = await send_email(
         data, to=test_to, subject="CareerPulse SMTP Test",
         body_text="Your SMTP settings are configured correctly.",
         body_html="<p>Your SMTP settings are configured correctly.</p>",
     )
     if not success:
-        raise HTTPException(500, "Failed to send test email — check SMTP settings")
+        raise AppError("email.test_failed", status_code=500)
     return {"ok": True, "message": f"Test email sent to {test_to}"}
 
 
@@ -597,7 +601,7 @@ async def update_scraper_schedule(request: Request):
     source_name = data.get("source_name")
     interval_hours = data.get("interval_hours")
     if not source_name or interval_hours is None:
-        raise HTTPException(400, "source_name and interval_hours required")
+        raise AppError("settings.source_config_required", status_code=400)
     await request.app.state.db.update_scraper_schedule(source_name, int(interval_hours))
     return {"ok": True}
 
@@ -611,10 +615,10 @@ async def upload_resume(request: Request, file: UploadFile = File(...)):
     filename = (file.filename or "").lower()
     ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
     if ext not in _ALLOWED_EXTENSIONS:
-        raise HTTPException(400, f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(_ALLOWED_EXTENSIONS))}")
+        raise AppError("resume.unsupported_file_type", status_code=400, params={"ext": ext, "allowed": ", ".join(sorted(_ALLOWED_EXTENSIONS))})
     content = await file.read()
     if len(content) > _MAX_UPLOAD_SIZE:
-        raise HTTPException(400, f"File too large ({len(content)} bytes). Maximum: {_MAX_UPLOAD_SIZE // (1024*1024)}MB")
+        raise AppError("resume.file_too_large", status_code=400, params={"size": len(content), "max_mb": _MAX_UPLOAD_SIZE // (1024*1024)})
     if filename.endswith(".pdf"):
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")

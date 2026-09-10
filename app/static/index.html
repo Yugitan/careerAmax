@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,26 +20,30 @@
             </a>
         </div>
         <div id="nav-links" class="nav-links">
-            <a href="#/" class="nav-link active" data-route="feed">Jobs</a>
-            <a href="#/stats" class="nav-link" data-route="stats">Dashboard</a>
-            <a href="#/pipeline" class="nav-link" data-route="pipeline">Pipeline</a>
-            <a href="#/calendar" class="nav-link" data-route="calendar">Calendar</a>
-            <a href="#/queue" class="nav-link" data-route="queue">Queue</a>
-            <a href="#/network" class="nav-link" data-route="network">Network</a>
-            <a href="#/calculator" class="nav-link" data-route="calculator">Calculator</a>
-            <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
+            <a href="#/" class="nav-link active" data-route="feed" data-i18n="nav.jobs"></a>
+            <a href="#/stats" class="nav-link" data-route="stats" data-i18n="nav.stats"></a>
+            <a href="#/pipeline" class="nav-link" data-route="pipeline" data-i18n="nav.pipeline"></a>
+            <a href="#/calendar" class="nav-link" data-route="calendar" data-i18n="nav.calendar"></a>
+            <a href="#/queue" class="nav-link" data-route="queue" data-i18n="nav.queue"></a>
+            <a href="#/network" class="nav-link" data-route="network" data-i18n="nav.network"></a>
+            <a href="#/calculator" class="nav-link" data-route="calculator" data-i18n="nav.calculator"></a>
+            <a href="#/settings" class="nav-link" data-route="settings" data-i18n="nav.settings"></a>
         </div>
         <div class="nav-actions">
-            <button id="nav-hamburger" class="btn btn-ghost btn-icon nav-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links">
+            <button id="nav-hamburger" class="btn btn-ghost btn-icon nav-hamburger" data-i18n-aria-label="nav.openMenu" aria-expanded="false" aria-controls="nav-links">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <button id="notif-btn" class="btn btn-ghost btn-icon notif-btn" title="Notifications" aria-label="Notifications" aria-controls="notif-dropdown" aria-expanded="false">
+            <button id="notif-btn" class="btn btn-ghost btn-icon notif-btn" data-i18n-title="nav.notifications" data-i18n-aria-label="nav.notifications" aria-controls="notif-dropdown" aria-expanded="false">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 <span id="notif-badge" class="notif-badge" aria-live="polite" role="status" style="display:none">0</span>
             </button>
             <div id="notif-dropdown" class="notif-dropdown" style="display:none"></div>
-            <button id="scrape-btn" class="btn btn-primary btn-sm" aria-label="Scrape job boards now">Scrape Now</button>
-            <button id="theme-toggle" class="btn btn-ghost btn-sm" aria-label="Toggle theme">Toggle Theme</button>
+            <button id="scrape-btn" class="btn btn-primary btn-sm" data-i18n="nav.scrapeNow" data-i18n-aria-label="nav.scrapeNowLabel"></button>
+            <button id="theme-toggle" class="btn btn-ghost btn-sm" data-i18n="nav.themeToggle" data-i18n-aria-label="nav.themeToggleLabel"></button>
+            <div id="lang-switch" class="lang-switch" role="group" data-i18n-aria-label="nav.languageSwitcher">
+                <button type="button" class="lang-option" data-lang="zh-CN" data-i18n="nav.languageZh" aria-pressed="true"></button>
+                <button type="button" class="lang-option" data-lang="en" data-i18n="nav.languageEn" aria-pressed="false"></button>
+            </div>
         </div>
     </nav>
     <div id="nav-drawer-overlay" class="nav-drawer-overlay"></div>
@@ -55,6 +59,22 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4/dist/chart.umd.min.js"></script>
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/locales/common.js"></script>
+    <script src="/static/js/locales/shell.js"></script>
+    <script src="/static/js/locales/feed.js"></script>
+    <script src="/static/js/locales/detail.js"></script>
+    <script src="/static/js/locales/pipeline.js"></script>
+    <script src="/static/js/locales/calendar.js"></script>
+    <script src="/static/js/locales/queue.js"></script>
+    <script src="/static/js/locales/network.js"></script>
+    <script src="/static/js/locales/stats.js"></script>
+    <script src="/static/js/locales/settings.js"></script>
+    <script src="/static/js/locales/onboarding.js"></script>
+    <script src="/static/js/locales/calculator.js"></script>
+    <script src="/static/js/locales/triage.js"></script>
+    <script src="/static/js/locales/interviews.js"></script>
+    <script src="/static/js/locales/errors.js"></script>
     <script src="/static/js/tax-data.js"></script>
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/api.js"></script>

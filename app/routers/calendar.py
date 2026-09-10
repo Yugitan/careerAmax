@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 from fastapi.responses import Response
 
 from app.database import Database
@@ -100,10 +101,10 @@ def _build_ical(events: list[dict]) -> str:
 @router.get("/calendar.ics")
 async def ical_feed(request: Request, token: str = Query(None)):
     if not token:
-        raise HTTPException(401, "Token required")
+        raise AppError("calendar.token_required", status_code=401)
     db: Database = request.app.state.db
     if not await db.validate_ical_token(token):
-        raise HTTPException(401, "Invalid token")
+        raise AppError("calendar.invalid_token", status_code=401)
 
     now = datetime.now(timezone.utc)
     start = (now - timedelta(days=7)).isoformat()

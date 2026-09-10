@@ -1,5 +1,6 @@
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from app.errors import AppError
 
 from app.database import Database
 
@@ -60,9 +61,9 @@ async def promote_to_contact(round_id: int, request: Request):
     db: Database = request.app.state.db
     r = await db.get_interview_round(round_id)
     if not r:
-        raise HTTPException(404, "Interview round not found")
+        raise AppError("interview.round_not_found", status_code=404)
     if not r["interviewer_name"]:
-        raise HTTPException(400, "No interviewer name to promote")
+        raise AppError("interview.interviewer_name_required", status_code=400)
     if r["contact_id"]:
         return {"contact_id": r["contact_id"], "already_existed": True}
 

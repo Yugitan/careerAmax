@@ -2,7 +2,8 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,11 @@ async def add_to_queue(request: Request):
     body = await request.json()
     job_id = body.get("job_id")
     if not job_id:
-        raise HTTPException(400, "job_id is required")
+        raise AppError("queue.job_id_required", status_code=400)
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     queue_id = await db.add_to_queue(
         job_id=job_id, resume_id=body.get("resume_id"), priority=body.get("priority", 0),
     )
@@ -37,8 +38,8 @@ async def prepare_all_queued(request: Request):
     tailor = request.app.state.tailor
     if not tailor:
         if not getattr(request.app.state, "ai_client", None):
-            raise HTTPException(503, "No AI provider configured. Go to Settings → AI to set one up.")
-        raise HTTPException(503, "No resume uploaded. Go to Settings → Resume to upload one.")
+            raise AppError("ai.not_configured", status_code=503)
+        raise AppError("resume.missing", status_code=503)
     db = request.app.state.db
     queued = await db.get_queue(status="queued")
     prepared = 0
@@ -84,7 +85,7 @@ async def submit_queue_for_review(request: Request, queue_id: int):
     db = request.app.state.db
     item = await db.get_queue_item(queue_id)
     if not item:
-        raise HTTPException(404, "Queue item not found")
+        raise AppError("queue.item_not_found", status_code=404)
     await db.update_queue_status(queue_id, "review")
     return {"ok": True}
 
@@ -94,7 +95,7 @@ async def approve_queue_item(request: Request, queue_id: int):
     db = request.app.state.db
     item = await db.get_queue_item(queue_id)
     if not item:
-        raise HTTPException(404, "Queue item not found")
+        raise AppError("queue.item_not_found", status_code=404)
     await db.update_queue_status(queue_id, "approved")
     await db.add_event(item["job_id"], "queue_approved", "Approved from queue")
     return {"ok": True}
@@ -105,7 +106,7 @@ async def reject_queue_item(request: Request, queue_id: int):
     db = request.app.state.db
     item = await db.get_queue_item(queue_id)
     if not item:
-        raise HTTPException(404, "Queue item not found")
+        raise AppError("queue.item_not_found", status_code=404)
     await db.update_queue_status(queue_id, "rejected")
     await db.add_event(item["job_id"], "queue_rejected", "Rejected from queue")
     return {"ok": True}
@@ -116,7 +117,7 @@ async def update_fill_status(request: Request, queue_id: int):
     db = request.app.state.db
     item = await db.get_queue_item(queue_id)
     if not item:
-        raise HTTPException(404, "Queue item not found")
+        raise AppError("queue.item_not_found", status_code=404)
     body = await request.json()
     status = body.get("status", "filling")
     progress = body.get("progress")
@@ -173,5 +174,5 @@ async def queue_events(request: Request):
 async def remove_queue_item(request: Request, queue_id: int):
     removed = await request.app.state.db.remove_from_queue(queue_id)
     if not removed:
-        raise HTTPException(404, "Queue item not found")
+        raise AppError("queue.item_not_found", status_code=404)
     return {"ok": True}

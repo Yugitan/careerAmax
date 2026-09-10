@@ -46,30 +46,59 @@ async function updateSetupIndicator() {
         indicator.id = 'setup-indicator';
         indicator.className = 'setup-indicator';
         indicator.textContent = `${status.done}/${status.total}`;
-        indicator.title = 'Setup incomplete — click Settings to finish';
+        indicator.title = t('onboarding.setupIndicator');
         settingsLink.style.position = 'relative';
         settingsLink.appendChild(indicator);
     }
 }
 
+/**
+ * Register an unsaved-changes check for the wizard's in-progress inputs.
+ * Deferred with `setTimeout` because `handleRoute()` calls `clearDirtyChecks()`
+ * synchronously on initial load and after a language switch; deferring lets the
+ * check land after that cleanup while the wizard is still open.
+ */
+function scheduleWizardDirtyCheck() {
+    if (typeof registerDirtyCheck !== 'function') return;
+    setTimeout(() => {
+        registerDirtyCheck(() => {
+            const wizard = document.getElementById('onboarding-wizard');
+            if (!wizard) return false;
+            return !!(
+                (wizard.querySelector('#onb-name')?.value || '').trim() ||
+                (wizard.querySelector('#onb-email')?.value || '').trim() ||
+                (wizard.querySelector('#onb-location')?.value || '').trim() ||
+                (wizard.querySelector('#onb-provider')?.value || '') ||
+                (wizard.querySelector('#onb-api-key')?.value || '').trim()
+            );
+        });
+    }, 0);
+}
+
 function showOnboardingWizard() {
-    let currentStep = 0;
-    const stepData = { name: '', email: '', location: '' };
+    const state = {
+        currentStep: 0,
+        stepData: { name: '', email: '', location: '' },
+        aiData: { provider: '', apiKey: '', ollamaUrl: 'http://localhost:11434' },
+    };
 
     const wizard = document.createElement('div');
     wizard.id = 'onboarding-wizard';
+    // Expose the wizard's mutable state so `rerenderOnboarding()` can re-render
+    // the current step without resetting the user's progress or typed input.
+    wizard.__onboardingState = state;
 
     function renderStep() {
         const steps = [renderStep1, renderStep2, renderStep3, renderStep4];
         const dots = [0, 1, 2, 3].map(i =>
-            `<div class="onboarding-step-dot ${i === currentStep ? 'active' : (i < currentStep ? 'done' : '')}"></div>`
+            `<div class="onboarding-step-dot ${i === state.currentStep ? 'active' : (i < state.currentStep ? 'done' : '')}"></div>`
         ).join('');
 
         wizard.innerHTML = `
             <div class="modal-overlay">
                 <div class="onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
                     <div class="onboarding-steps">${dots}</div>
-                    <div id="onboarding-step-content">${steps[currentStep]()}</div>
+                    <div id="onboarding-step-content">${steps[state.currentStep]()}</div>
                 </div>
             </div>
         `;
@@ -79,94 +108,105 @@ function showOnboardingWizard() {
     }
 
     function renderStep1() {
+        // raw business content: user-entered profile values
+        const nameValue = escapeHtml(state.stepData.name);
+        const emailValue = escapeHtml(state.stepData.email);
+        const locationValue = escapeHtml(state.stepData.location);
         return `
-            <h2 id="onboarding-title" class="onboarding-heading">Welcome to CareerPulse</h2>
-            <p class="onboarding-desc">Let's get you set up. First, tell us a bit about yourself.</p>
+            <h2 id="onboarding-title" class="onboarding-heading">${t('onboarding.profile.title')}</h2>
+            <p class="onboarding-desc">${t('onboarding.profile.desc')}</p>
             <div class="onboarding-form">
                 <div class="onboarding-field">
-                    <label for="onb-name">Full Name</label>
-                    <input type="text" id="onb-name" class="search-input" placeholder="Your name" value="${escapeHtml(stepData.name)}">
+                    <label for="onb-name">${t('onboarding.profile.fullName')}</label>
+                    <input type="text" id="onb-name" class="search-input" placeholder="${t('onboarding.profile.namePlaceholder')}" value="${nameValue}">
                 </div>
                 <div class="onboarding-field">
-                    <label for="onb-email">Email</label>
-                    <input type="email" id="onb-email" class="search-input" placeholder="you@example.com" value="${escapeHtml(stepData.email)}">
+                    <label for="onb-email">${t('fields.email')}</label>
+                    <input type="email" id="onb-email" class="search-input" placeholder="${t('onboarding.profile.emailPlaceholder')}" value="${emailValue}">
                 </div>
                 <div class="onboarding-field">
-                    <label for="onb-location">Location</label>
-                    <input type="text" id="onb-location" class="search-input" placeholder="City, State" value="${escapeHtml(stepData.location)}">
+                    <label for="onb-location">${t('fields.location')}</label>
+                    <input type="text" id="onb-location" class="search-input" placeholder="${t('onboarding.profile.locationPlaceholder')}" value="${locationValue}">
                 </div>
             </div>
             <div class="onboarding-actions">
-                <button class="btn btn-primary" id="onb-next">Next</button>
+                <button class="btn btn-primary" id="onb-next">${t('actions.next')}</button>
             </div>
         `;
     }
 
     function renderStep2() {
         return `
-            <h2 id="onboarding-title" class="onboarding-heading">Upload Your Resume</h2>
-            <p class="onboarding-desc">Upload a resume so we can match you with relevant jobs and tailor applications.</p>
+            <h2 id="onboarding-title" class="onboarding-heading">${t('onboarding.resume.title')}</h2>
+            <p class="onboarding-desc">${t('onboarding.resume.desc')}</p>
             <div class="onboarding-upload" id="onb-upload-area">
                 <div class="onboarding-upload-icon">&#128196;</div>
-                <div class="onboarding-upload-text">Drop a file here or click to browse</div>
-                <div class="onboarding-upload-hint">PDF, DOCX, or TXT</div>
+                <div class="onboarding-upload-text">${t('onboarding.resume.dropHint')}</div>
+                <div class="onboarding-upload-hint">${t('onboarding.resume.formats')}</div>
                 <input type="file" id="onb-file" accept=".pdf,.docx,.doc,.txt" style="display:none">
             </div>
             <div id="onb-upload-status"></div>
             <div class="onboarding-actions">
-                <button class="btn btn-secondary" id="onb-back">Back</button>
-                <button class="btn btn-ghost" id="onb-skip">Skip</button>
-                <button class="btn btn-primary" id="onb-next">Next</button>
+                <button class="btn btn-secondary" id="onb-back">${t('actions.back')}</button>
+                <button class="btn btn-ghost" id="onb-skip">${t('actions.skip')}</button>
+                <button class="btn btn-primary" id="onb-next">${t('actions.next')}</button>
             </div>
         `;
     }
 
     function renderStep3() {
+        // raw business content: user-entered API key and Ollama base URL
+        const apiKeyValue = escapeHtml(state.aiData.apiKey);
+        const ollamaUrlValue = escapeHtml(state.aiData.ollamaUrl);
+        const provider = state.aiData.provider || '';
+        const showKey = provider && provider !== 'ollama';
+        const showOllama = provider === 'ollama';
+        const showTest = !!provider;
         return `
-            <h2 id="onboarding-title" class="onboarding-heading">Connect AI Provider</h2>
-            <p class="onboarding-desc">CareerPulse uses AI to score jobs and tailor resumes. Connect a provider to get started.</p>
+            <h2 id="onboarding-title" class="onboarding-heading">${t('onboarding.ai.title')}</h2>
+            <p class="onboarding-desc">${t('onboarding.ai.desc')}</p>
             <div class="onboarding-form">
                 <div class="onboarding-field">
-                    <label for="onb-provider">Provider</label>
+                    <label for="onb-provider">${t('onboarding.ai.provider')}</label>
                     <select id="onb-provider" class="filter-select" style="width:100%">
-                        <option value="">Select a provider...</option>
-                        <option value="anthropic">Anthropic (Claude)</option>
-                        <option value="openai">OpenAI (GPT)</option>
-                        <option value="google">Google (Gemini)</option>
-                        <option value="openrouter">OpenRouter</option>
-                        <option value="ollama">Ollama (Local)</option>
+                        <option value="">${t('onboarding.ai.selectProvider')}</option>
+                        <option value="anthropic"${provider === 'anthropic' ? ' selected' : ''}>${t('onboarding.ai.providers.anthropic')}</option>
+                        <option value="openai"${provider === 'openai' ? ' selected' : ''}>${t('onboarding.ai.providers.openai')}</option>
+                        <option value="google"${provider === 'google' ? ' selected' : ''}>${t('onboarding.ai.providers.google')}</option>
+                        <option value="openrouter"${provider === 'openrouter' ? ' selected' : ''}>${t('onboarding.ai.providers.openrouter')}</option>
+                        <option value="ollama"${provider === 'ollama' ? ' selected' : ''}>${t('onboarding.ai.providers.ollama')}</option>
                     </select>
                 </div>
-                <div class="onboarding-field" id="onb-key-field" style="display:none">
-                    <label for="onb-api-key">API Key</label>
-                    <input type="password" id="onb-api-key" class="search-input" placeholder="sk-...">
+                <div class="onboarding-field" id="onb-key-field" style="display:${showKey ? '' : 'none'}">
+                    <label for="onb-api-key">${t('onboarding.ai.apiKey')}</label>
+                    <input type="password" id="onb-api-key" class="search-input" placeholder="${t('onboarding.ai.apiKeyPlaceholder')}" value="${apiKeyValue}">
                 </div>
-                <div class="onboarding-field" id="onb-ollama-field" style="display:none">
-                    <label for="onb-ollama-url">Ollama URL</label>
-                    <input type="text" id="onb-ollama-url" class="search-input" placeholder="http://localhost:11434" value="http://localhost:11434">
+                <div class="onboarding-field" id="onb-ollama-field" style="display:${showOllama ? '' : 'none'}">
+                    <label for="onb-ollama-url">${t('onboarding.ai.ollamaUrl')}</label>
+                    <input type="text" id="onb-ollama-url" class="search-input" placeholder="${t('onboarding.ai.ollamaUrlPlaceholder')}" value="${ollamaUrlValue}">
                 </div>
-                <button class="btn btn-secondary btn-sm" id="onb-test-ai" style="display:none">Test Connection</button>
+                <button class="btn btn-secondary btn-sm" id="onb-test-ai" style="display:${showTest ? '' : 'none'}">${t('onboarding.ai.testConnection')}</button>
                 <div id="onb-ai-status"></div>
             </div>
             <div class="onboarding-actions">
-                <button class="btn btn-secondary" id="onb-back">Back</button>
-                <button class="btn btn-ghost" id="onb-skip">Skip</button>
-                <button class="btn btn-primary" id="onb-next">Next</button>
+                <button class="btn btn-secondary" id="onb-back">${t('actions.back')}</button>
+                <button class="btn btn-ghost" id="onb-skip">${t('actions.skip')}</button>
+                <button class="btn btn-primary" id="onb-next">${t('actions.next')}</button>
             </div>
         `;
     }
 
     function renderStep4() {
         return `
-            <h2 id="onboarding-title" class="onboarding-heading">You're All Set!</h2>
-            <p class="onboarding-desc">CareerPulse is ready to find and match jobs for you. Start your first scrape to discover opportunities.</p>
+            <h2 id="onboarding-title" class="onboarding-heading">${t('onboarding.summary.title')}</h2>
+            <p class="onboarding-desc">${t('onboarding.summary.desc')}</p>
             <div class="onboarding-summary">
                 <div class="onboarding-summary-item" id="onb-summary"></div>
             </div>
             <div class="onboarding-actions">
-                <button class="btn btn-secondary" id="onb-back">Back</button>
-                <button class="btn btn-primary" id="onb-scrape">Start Scraping</button>
-                <button class="btn btn-ghost" id="onb-later">I'll do this later</button>
+                <button class="btn btn-secondary" id="onb-back">${t('actions.back')}</button>
+                <button class="btn btn-primary" id="onb-scrape">${t('onboarding.summary.startScraping')}</button>
+                <button class="btn btn-ghost" id="onb-later">${t('onboarding.summary.later')}</button>
             </div>
         `;
     }
@@ -178,29 +218,30 @@ function showOnboardingWizard() {
         const scrape = wizard.querySelector('#onb-scrape');
         const later = wizard.querySelector('#onb-later');
 
-        if (back) back.addEventListener('click', () => { currentStep--; renderStep(); });
-        if (skip) skip.addEventListener('click', () => { currentStep++; renderStep(); });
+        if (back) back.addEventListener('click', () => { state.currentStep--; renderStep(); });
+        if (skip) skip.addEventListener('click', () => { state.currentStep++; renderStep(); });
 
-        if (currentStep === 0 && next) {
+        if (state.currentStep === 0 && next) {
             const nameInput = wizard.querySelector('#onb-name');
             if (nameInput) nameInput.focus();
             next.addEventListener('click', async () => {
-                stepData.name = wizard.querySelector('#onb-name')?.value?.trim() || '';
-                stepData.email = wizard.querySelector('#onb-email')?.value?.trim() || '';
-                stepData.location = wizard.querySelector('#onb-location')?.value?.trim() || '';
-                if (stepData.name || stepData.email) {
+                // raw business content: user-entered profile values
+                state.stepData.name = wizard.querySelector('#onb-name')?.value?.trim() || '';
+                state.stepData.email = wizard.querySelector('#onb-email')?.value?.trim() || '';
+                state.stepData.location = wizard.querySelector('#onb-location')?.value?.trim() || '';
+                if (state.stepData.name || state.stepData.email) {
                     try {
                         await api.request('POST', '/api/profile', {
-                            full_name: stepData.name, email: stepData.email, location: stepData.location
+                            full_name: state.stepData.name, email: state.stepData.email, location: state.stepData.location
                         });
                     } catch {}
                 }
-                currentStep++;
+                state.currentStep++;
                 renderStep();
             });
         }
 
-        if (currentStep === 1) {
+        if (state.currentStep === 1) {
             const uploadArea = wizard.querySelector('#onb-upload-area');
             const fileInput = wizard.querySelector('#onb-file');
             const statusEl = wizard.querySelector('#onb-upload-status');
@@ -220,19 +261,19 @@ function showOnboardingWizard() {
             }
 
             async function handleUpload(file) {
-                if (statusEl) statusEl.innerHTML = '<span class="spinner"></span> Uploading...';
+                if (statusEl) statusEl.innerHTML = `<span class="spinner"></span> ${t('status.uploading')}`;
                 try {
                     await api.uploadResume(file);
-                    if (statusEl) statusEl.innerHTML = '<span style="color:var(--score-green);font-weight:600">Resume uploaded!</span>';
+                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--score-green);font-weight:600">${t('onboarding.resume.uploaded')}</span>`;
                 } catch (err) {
-                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger)">${escapeHtml(err.message)}</span>`;
+                    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger)">${escapeHtml(apiErrorMessage(err))}</span>`;
                 }
             }
 
-            if (next) next.addEventListener('click', () => { currentStep++; renderStep(); });
+            if (next) next.addEventListener('click', () => { state.currentStep++; renderStep(); });
         }
 
-        if (currentStep === 2) {
+        if (state.currentStep === 2) {
             const providerSelect = wizard.querySelector('#onb-provider');
             const keyField = wizard.querySelector('#onb-key-field');
             const ollamaField = wizard.querySelector('#onb-ollama-field');
@@ -255,16 +296,16 @@ function showOnboardingWizard() {
                     const ollamaUrl = wizard.querySelector('#onb-ollama-url')?.value?.trim();
                     if (!provider) return;
                     testBtn.disabled = true;
-                    testBtn.innerHTML = '<span class="spinner"></span> Testing...';
+                    testBtn.innerHTML = `<span class="spinner"></span> ${t('onboarding.ai.testing')}`;
                     try {
                         const settings = { provider, api_key: apiKey || undefined, base_url: ollamaUrl || undefined };
                         await api.testAIConnection(settings);
-                        if (statusEl) statusEl.innerHTML = '<span style="color:var(--score-green);font-weight:600">Connected!</span>';
+                        if (statusEl) statusEl.innerHTML = `<span style="color:var(--score-green);font-weight:600">${t('onboarding.ai.connected')}</span>`;
                     } catch (err) {
-                        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger)">${escapeHtml(err.message)}</span>`;
+                        if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger)">${escapeHtml(apiErrorMessage(err))}</span>`;
                     } finally {
                         testBtn.disabled = false;
-                        testBtn.textContent = 'Test Connection';
+                        testBtn.textContent = t('onboarding.ai.testConnection');
                     }
                 });
             }
@@ -279,20 +320,20 @@ function showOnboardingWizard() {
                             await api.updateAISettings({ provider, api_key: apiKey || undefined, base_url: ollamaUrl || undefined });
                         } catch {}
                     }
-                    currentStep++;
+                    state.currentStep++;
                     renderStep();
                 });
             }
         }
 
-        if (currentStep === 3) {
+        if (state.currentStep === 3) {
             const summaryEl = wizard.querySelector('#onb-summary');
             if (summaryEl) {
                 checkSetupCompleteness().then(status => {
                     const items = [];
-                    items.push(status.steps.profile ? '&#10003; Profile configured' : '&#10007; Profile not set');
-                    items.push(status.steps.resume ? '&#10003; Resume uploaded' : '&#10007; No resume yet');
-                    items.push(status.steps.ai ? '&#10003; AI provider connected' : '&#10007; AI not configured');
+                    items.push(status.steps.profile ? `&#10003; ${t('onboarding.summary.profileConfigured')}` : `&#10007; ${t('onboarding.summary.profileNotSet')}`);
+                    items.push(status.steps.resume ? `&#10003; ${t('onboarding.summary.resumeUploaded')}` : `&#10007; ${t('onboarding.summary.resumeMissing')}`);
+                    items.push(status.steps.ai ? `&#10003; ${t('onboarding.summary.aiConnected')}` : `&#10007; ${t('onboarding.summary.aiNotConfigured')}`);
                     summaryEl.innerHTML = items.map(i => `<div class="onboarding-check-item">${i}</div>`).join('');
                 });
             }
@@ -326,5 +367,42 @@ function showOnboardingWizard() {
         });
     }
 
+    state.renderStep = renderStep;
     renderStep();
+    scheduleWizardDirtyCheck();
+}
+
+/**
+ * Re-render the wizard in place for the new interface language without
+ * resetting the user's current step or typed input. Called from
+ * `rerenderForLanguage()` only while the wizard is open.
+ */
+function rerenderOnboarding() {
+    const wizard = document.getElementById('onboarding-wizard');
+    const state = wizard && wizard.__onboardingState;
+    if (!wizard || !state) return;
+
+    // Preserve the user's in-progress input before re-rendering so a language
+    // switch keeps the current step and everything typed so far.
+    const nameEl = wizard.querySelector('#onb-name');
+    if (nameEl) state.stepData.name = nameEl.value;
+    const emailEl = wizard.querySelector('#onb-email');
+    if (emailEl) state.stepData.email = emailEl.value;
+    const locationEl = wizard.querySelector('#onb-location');
+    if (locationEl) state.stepData.location = locationEl.value;
+
+    const providerEl = wizard.querySelector('#onb-provider');
+    if (providerEl) state.aiData.provider = providerEl.value;
+    const apiKeyEl = wizard.querySelector('#onb-api-key');
+    if (apiKeyEl) state.aiData.apiKey = apiKeyEl.value;
+    const ollamaEl = wizard.querySelector('#onb-ollama-url');
+    if (ollamaEl) state.aiData.ollamaUrl = ollamaEl.value;
+
+    // Re-render the current step with the freshly translated copy.
+    state.renderStep();
+    // The re-render restored the inputs programmatically; re-baseline them so
+    // they are not treated as unsaved user edits, and re-register the dirty
+    // check (handleRoute clears it right after this runs).
+    if (typeof refreshFormBaseline === 'function') refreshFormBaseline(wizard);
+    scheduleWizardDirtyCheck();
 }

@@ -160,12 +160,12 @@ function renderDonutChart(canvas, result) {
     if (!result) return;
     const colors = getChartColors();
     const segments = [
-        { label: 'Federal Tax', value: result.federal, color: colors.federal },
-        { label: 'State Tax', value: result.state, color: colors.state },
-        { label: 'Social Security', value: result.ss, color: colors.ss },
-        { label: 'Medicare', value: result.medicare, color: colors.medicare }
+        { label: t('calculator.rows.federalTax'), value: result.federal, color: colors.federal },
+        { label: t('calculator.rows.stateTax'), value: result.state, color: colors.state },
+        { label: t('calculator.rows.socialSecurity'), value: result.ss, color: colors.ss },
+        { label: t('calculator.rows.medicare'), value: result.medicare, color: colors.medicare }
     ];
-    if (result.seTax > 0) segments.push({ label: 'SE Tax', value: result.seTax, color: colors.seTax });
+    if (result.seTax > 0) segments.push({ label: t('calculator.rows.seTax'), value: result.seTax, color: colors.seTax });
     segments.push({ label: 'Take-Home', value: Math.max(0, result.takeHome), color: colors.takeHome });
     const filtered = segments.filter(s => s.value > 0);
 
@@ -189,7 +189,7 @@ function renderDonutChart(canvas, result) {
                 legend: { position: 'bottom', labels: { color: colors.text, padding: 12, usePointStyle: true, pointStyleWidth: 10, font: { size: 12 } } },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `${ctx.label}: ${formatCurrency(ctx.raw)} (${((ctx.raw / result.gross) * 100).toFixed(1)}%)`
+                        label: ctx => t('calculator.chart.tooltip', { label: ctx.label, amount: formatCurrency(ctx.raw), pct: ((ctx.raw / result.gross) * 100).toFixed(1) })
                     }
                 }
             }
@@ -205,9 +205,9 @@ function renderBarChart(canvas, comparison) {
     const labels = ['W-2', '1099', 'C2C'];
 
     const datasets = [
-        { label: 'Federal Tax', backgroundColor: colors.federal, data: types.map(t => comparison[t]?.federal || 0) },
-        { label: 'State Tax', backgroundColor: colors.state, data: types.map(t => comparison[t]?.state || 0) },
-        { label: 'SS + Medicare / SE Tax', backgroundColor: colors.ss, data: types.map(t => (comparison[t]?.ss || 0) + (comparison[t]?.medicare || 0) + (comparison[t]?.seTax || 0)) },
+        { label: t('calculator.rows.federalTax'), backgroundColor: colors.federal, data: types.map(t => comparison[t]?.federal || 0) },
+        { label: t('calculator.rows.stateTax'), backgroundColor: colors.state, data: types.map(t => comparison[t]?.state || 0) },
+        { label: t('calculator.chart.ssMedicare'), backgroundColor: colors.ss, data: types.map(t => (comparison[t]?.ss || 0) + (comparison[t]?.medicare || 0) + (comparison[t]?.seTax || 0)) },
         { label: 'Take-Home', backgroundColor: colors.takeHome, data: types.map(t => Math.max(0, comparison[t]?.takeHome || 0)) }
     ];
 
@@ -330,45 +330,45 @@ async function renderSalaryCalculator(container) {
 
     container.innerHTML = `
         <div style="margin-bottom:24px">
-            <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:4px">Salary Calculator</h2>
-            <p style="color:var(--text-secondary);font-size:0.875rem">Estimate take-home pay across employment types with federal &amp; state taxes.</p>
+            <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:4px">${t('calculator.title')}</h2>
+            <p style="color:var(--text-secondary);font-size:0.875rem">${t('calculator.description')}</p>
         </div>
 
         <div class="calc-chart-card" style="margin-bottom:24px">
             <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin-bottom:20px">
                 <div class="calc-input-group">
-                    <label>Pay Type</label>
-                    ${buildToggleGroup('payType', [{ label: 'Salary', value: 'salary' }, { label: 'Hourly', value: 'hourly' }], defaults.payType)}
+                    <label>${t('calculator.inputs.payType')}</label>
+                    ${buildToggleGroup('payType', [{ label: t('calculator.inputs.salary'), value: 'salary' }, { label: t('calculator.inputs.hourly'), value: 'hourly' }], defaults.payType)}
                 </div>
                 <div class="calc-input-group">
-                    <label>Employment</label>
+                    <label>${t('calculator.inputs.employment')}</label>
                     ${buildToggleGroup('empType', [{ label: 'W-2', value: 'w2' }, { label: '1099', value: '1099' }, { label: 'C2C', value: 'c2c' }], defaults.empType)}
                 </div>
                 <div class="calc-input-group">
-                    <label>Filing Status</label>
-                    ${buildToggleGroup('filing', [{ label: 'Single', value: 'single' }, { label: 'Married', value: 'married' }], defaults.filing)}
+                    <label>${t('calculator.inputs.filingStatus')}</label>
+                    ${buildToggleGroup('filing', [{ label: t('calculator.inputs.single'), value: 'single' }, { label: t('calculator.inputs.married'), value: 'married' }], defaults.filing)}
                 </div>
                 <div class="calc-input-group">
-                    <label>State</label>
+                    <label>${t('calculator.inputs.state')}</label>
                     ${buildStateDropdown(defaults.state)}
                 </div>
             </div>
 
             <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:end">
                 <div class="calc-input-group" id="calc-salary-group" style="${showHourly ? 'display:none' : ''}">
-                    <label>Annual Salary ($)</label>
+                    <label>${t('calculator.inputs.annualSalary')}</label>
                     <input type="number" id="calc-salary" placeholder="100,000" min="0" step="1000" value="${defaults.salary}">
                 </div>
                 <div class="calc-input-group" id="calc-hourly-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>Hourly Rate ($)</label>
+                    <label>${t('calculator.inputs.hourlyRate')}</label>
                     <input type="number" id="calc-rate" placeholder="75" min="0" step="1" value="${defaults.rate}">
                 </div>
                 <div class="calc-input-group" id="calc-hpw-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>Hours/Week</label>
+                    <label>${t('calculator.inputs.hoursPerWeek')}</label>
                     <input type="number" id="calc-hpw" min="1" max="80" value="${defaults.hpw}">
                 </div>
                 <div class="calc-input-group" id="calc-wpy-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>Weeks/Year</label>
+                    <label>${t('calculator.inputs.weeksPerYear')}</label>
                     <input type="number" id="calc-wpy" min="1" max="52" value="${defaults.wpy}">
                 </div>
                 ${offers.length > 0 ? `
@@ -376,7 +376,7 @@ async function renderSalaryCalculator(container) {
                     <label>Import from Offer</label>
                     <select id="calc-import-offer">
                         <option value="">-- select --</option>
-                        ${offers.map(o => `<option value="${o.base || 0}" data-title="${(o.title || 'Offer').replace(/"/g, '&quot;')}">${o.title || 'Offer'} — ${formatCurrency(o.base)}</option>`).join('')}
+                        ${offers.map(o => `<option value="${o.base || 0}" data-title="${(o.title || 'Offer').replace(/"/g, '&quot;')}">${o.title || 'Offer'} ${t('common.notAvailable')} ${formatCurrency(o.base)}</option>`).join('')}
                     </select>
                 </div>` : ''}
             </div>
@@ -384,22 +384,22 @@ async function renderSalaryCalculator(container) {
 
         <div class="calc-deductions-panel${showDeductions ? ' open' : ''}" id="calc-deductions-panel">
             <div class="calc-chart-card" style="margin-bottom:24px">
-                <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">Business Deductions (Annual)</h3>
+                <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">${t('calculator.deductions.title')}</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:16px">
                     <div class="calc-input-group">
-                        <label>Health Insurance ($)</label>
+                        <label>${t('calculator.deductions.health')}</label>
                         <input type="number" id="calc-ded-health" min="0" step="100" placeholder="0" value="${defaults.dedHealth}">
                     </div>
                     <div class="calc-input-group">
-                        <label>Retirement ($)</label>
+                        <label>${t('calculator.deductions.retirement')}</label>
                         <input type="number" id="calc-ded-retirement" min="0" step="100" placeholder="0" value="${defaults.dedRetirement}">
                     </div>
                     <div class="calc-input-group">
-                        <label>Equipment ($)</label>
+                        <label>${t('calculator.deductions.equipment')}</label>
                         <input type="number" id="calc-ded-equipment" min="0" step="100" placeholder="0" value="${defaults.dedEquipment}">
                     </div>
                     <div class="calc-input-group">
-                        <label>Other Expenses ($)</label>
+                        <label>${t('calculator.deductions.other')}</label>
                         <input type="number" id="calc-ded-other" min="0" step="100" placeholder="0" value="${defaults.dedOther}">
                     </div>
                     <div class="calc-input-group" id="calc-c2c-margin-group" style="${defaults.empType === 'c2c' ? '' : 'display:none'}">
@@ -411,28 +411,28 @@ async function renderSalaryCalculator(container) {
         </div>
 
         <div class="calc-stat-grid" id="calc-stats">
-            <div class="calc-stat-card"><div class="stat-number" id="stat-gross">-</div><div class="stat-label">Gross Annual</div></div>
+            <div class="calc-stat-card"><div class="stat-number" id="stat-gross">-</div><div class="stat-label">${t('calculator.summary.grossAnnual')}</div></div>
             <div class="calc-stat-card"><div class="stat-number" id="stat-tax">-</div><div class="stat-label">Total Taxes</div></div>
             <div class="calc-stat-card"><div class="stat-number" id="stat-takehome">-</div><div class="stat-label">Take-Home</div></div>
-            <div class="calc-stat-card"><div class="stat-number" id="stat-rate">-</div><div class="stat-label">Effective Rate</div></div>
+            <div class="calc-stat-card"><div class="stat-number" id="stat-rate">-</div><div class="stat-label">${t('calculator.summary.effectiveRate')}</div></div>
         </div>
 
         <div class="calc-chart-row" style="margin-bottom:24px">
             <div class="calc-chart-card">
-                <h3>Tax Breakdown</h3>
+                <h3>${t('calculator.chart.taxBreakdown')}</h3>
                 <div style="height:280px"><canvas id="calc-donut"></canvas></div>
             </div>
             <div class="calc-chart-card">
-                <h3>W-2 vs 1099 vs C2C</h3>
+                <h3>${t('calculator.chart.comparison')}</h3>
                 <div style="height:280px"><canvas id="calc-bar"></canvas></div>
             </div>
         </div>
 
         <div class="calc-chart-card" style="margin-bottom:24px">
-            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">Detailed Breakdown</h3>
+            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">${t('calculator.chart.detailedBreakdown')}</h3>
             <div class="calc-breakdown-table-wrap">
                 <table class="calc-breakdown-table" id="calc-breakdown-table">
-                    <thead><tr><th>Item</th><th style="text-align:right">W-2</th><th style="text-align:right">1099</th><th style="text-align:right">C2C</th></tr></thead>
+                    <thead><tr><th>${t('calculator.chart.item')}</th><th style="text-align:right">W-2</th><th style="text-align:right">1099</th><th style="text-align:right">C2C</th></tr></thead>
                     <tbody id="calc-breakdown-body"></tbody>
                 </table>
             </div>
@@ -571,15 +571,15 @@ function renderBreakdownTable(tbody, comparison, gross, hoursPerYear = 2080) {
     const fmtHr = v => v != null ? formatCurrency(Math.round(v / hoursPerYear * 100) / 100) + '/hr' : '';
 
     const rows = [
-        { label: 'Gross Income', key: 'gross' },
-        { label: 'Federal Tax', key: 'federal' },
-        { label: 'State Tax', key: 'state' },
-        { label: 'Social Security', key: 'ss' },
-        { label: 'Medicare', key: 'medicare' },
-        { label: 'SE Tax', key: 'seTax', show1099: true },
-        { label: 'Business Deductions', key: 'bizDeductions', hideW2: true },
+        { label: t('calculator.rows.grossIncome'), key: 'gross' },
+        { label: t('calculator.rows.federalTax'), key: 'federal' },
+        { label: t('calculator.rows.stateTax'), key: 'state' },
+        { label: t('calculator.rows.socialSecurity'), key: 'ss' },
+        { label: t('calculator.rows.medicare'), key: 'medicare' },
+        { label: t('calculator.rows.seTax'), key: 'seTax', show1099: true },
+        { label: t('calculator.rows.businessDeductions'), key: 'bizDeductions', hideW2: true },
         { label: 'Total Taxes', key: 'totalTax', bold: true },
-        { label: 'Take-Home Pay', key: 'takeHome', bold: true, highlight: true }
+        { label: t('calculator.rows.takeHomePay'), key: 'takeHome', bold: true, highlight: true }
     ];
 
     const html = rows.map(row => {

@@ -4,8 +4,8 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import time as _time
@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from app.database import Database
 from app.ai_client import AIClient
+from app.errors import AppError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -265,6 +266,11 @@ def create_app(db_path: str = "data/jobfinder.db", testing: bool = False) -> Fas
     app = FastAPI(title="CareerPulse", lifespan=lifespan)
     app.state.db_path = db_path
     app.state.testing = testing
+
+    # --- Error contract: {code, params, detail} (see app/errors.py) ---
+    @app.exception_handler(AppError)
+    async def _app_error_handler(request: Request, exc: AppError):
+        return JSONResponse(status_code=exc.status_code, content=exc.to_payload(), headers=exc.headers)
 
     app.state.scoring_progress = None
     app.state.scrape_progress = None

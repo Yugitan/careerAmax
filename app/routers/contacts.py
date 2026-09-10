@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from app.errors import AppError
 
 router = APIRouter(prefix="/api")
 
@@ -16,7 +17,7 @@ async def create_contact(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
     if not name:
-        raise HTTPException(400, "Contact name is required")
+        raise AppError("contact.name_required", status_code=400)
     fields = {}
     for key in ("email", "phone", "company", "role", "linkedin_url", "notes"):
         if key in body:
@@ -35,11 +36,11 @@ async def update_contact(request: Request, contact_id: int):
         if key in body:
             fields[key] = body[key]
     if not fields:
-        raise HTTPException(400, "No fields to update")
+        raise AppError("validation.no_fields_to_update", status_code=400)
     db = request.app.state.db
     updated = await db.update_contact(contact_id, **fields)
     if not updated:
-        raise HTTPException(404, "Contact not found")
+        raise AppError("contact.not_found", status_code=404)
     contact = await db.get_contact(contact_id)
     return {"ok": True, "contact": contact}
 
@@ -48,7 +49,7 @@ async def update_contact(request: Request, contact_id: int):
 async def delete_contact(request: Request, contact_id: int):
     deleted = await request.app.state.db.delete_contact(contact_id)
     if not deleted:
-        raise HTTPException(404, "Contact not found")
+        raise AppError("contact.not_found", status_code=404)
     return {"ok": True}
 
 
@@ -57,7 +58,7 @@ async def get_contact_interactions(request: Request, contact_id: int):
     db = request.app.state.db
     contact = await db.get_contact(contact_id)
     if not contact:
-        raise HTTPException(404, "Contact not found")
+        raise AppError("contact.not_found", status_code=404)
     interactions = await db.get_contact_interactions(contact_id)
     return {"interactions": interactions}
 
@@ -67,7 +68,7 @@ async def add_contact_interaction(request: Request, contact_id: int):
     db = request.app.state.db
     contact = await db.get_contact(contact_id)
     if not contact:
-        raise HTTPException(404, "Contact not found")
+        raise AppError("contact.not_found", status_code=404)
     body = await request.json()
     interaction_id = await db.add_contact_interaction(
         contact_id,
@@ -83,7 +84,7 @@ async def get_job_contacts(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     contacts = await db.get_job_contacts(job_id)
     return {"contacts": contacts}
 
@@ -93,7 +94,7 @@ async def link_job_contact(request: Request, job_id: int):
     body = await request.json()
     contact_id = body.get("contact_id")
     if not contact_id:
-        raise HTTPException(400, "contact_id is required")
+        raise AppError("contact.id_required", status_code=400)
     await request.app.state.db.link_job_contact(
         job_id, contact_id, relationship=body.get("relationship", "")
     )
@@ -104,5 +105,5 @@ async def link_job_contact(request: Request, job_id: int):
 async def unlink_job_contact(request: Request, job_id: int, contact_id: int):
     removed = await request.app.state.db.unlink_job_contact(job_id, contact_id)
     if not removed:
-        raise HTTPException(404, "Link not found")
+        raise AppError("link.not_found", status_code=404)
     return {"ok": True}

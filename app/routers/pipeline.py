@@ -2,7 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ async def apply_to_job(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     apply_url = job.get("apply_url") or job["url"]
     await db.upsert_application(job_id, status="applied")
     await db.add_event(job_id, "applied", "Applied via CareerPulse")
@@ -55,15 +56,15 @@ async def record_job_response(request: Request, job_id: int):
     response_type = body.get("response_type", "").strip()
     valid_types = ("interview_invite", "rejection", "ghosted", "callback")
     if response_type not in valid_types:
-        raise HTTPException(400, f"response_type must be one of: {', '.join(valid_types)}")
+        raise AppError("tailoring.invalid_response_type", status_code=400, params={"types": ", ".join(valid_types)})
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     try:
         result = await db.record_response(job_id, response_type)
     except ValueError as e:
-        raise HTTPException(404, str(e))
+        raise AppError("job.invalid_transition", status_code=404, params={"error": str(e)})
     return {"ok": True, **result}
 
 
@@ -90,18 +91,18 @@ async def draft_email(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     application = await db.get_application(job_id)
     cover_letter = application.get("cover_letter", "") if application else ""
     if not cover_letter:
-        raise HTTPException(400, "No cover letter prepared for this job")
+        raise AppError("tailoring.cover_letter_missing", status_code=400)
     email = draft_application_email(
         to=job.get("hiring_manager_email") or job.get("contact_email"),
         company=job["company"], position=job["title"],
         cover_letter=cover_letter, sender_name="Job Seeker", sender_email="",
     )
     if not email:
-        raise HTTPException(400, "No contact email available for this job")
+        raise AppError("tailoring.no_contact_email", status_code=400)
     if application:
         await db.update_application(application["id"], email_draft=json.dumps(email))
     await db.add_event(job_id, "email_drafted", "Email drafted")
@@ -114,14 +115,14 @@ async def send_job_email(request: Request, job_id: int):
     db = request.app.state.db
     email_settings = await db.get_email_settings()
     if not email_settings or not email_settings.get("smtp_host"):
-        raise HTTPException(400, "SMTP not configured")
+        raise AppError("email.smtp_not_configured", status_code=400)
     application = await db.get_application(job_id)
     if not application or not application.get("email_draft"):
-        raise HTTPException(400, "No email draft for this job")
+        raise AppError("tailoring.email_draft_missing", status_code=400)
     email_draft = json.loads(application["email_draft"])
     success = await send_application_email(email_settings, email_draft)
     if not success:
-        raise HTTPException(500, "Failed to send email")
+        raise AppError("email.send_failed", status_code=500)
     await db.add_event(job_id, "email_sent", f"Email sent to {email_draft.get('to', '')}")
     return {"ok": True, "message": "Email sent"}
 
@@ -143,12 +144,12 @@ async def create_reminder(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     body = await request.json()
     remind_at = body.get("remind_at")
     reminder_type = body.get("type", "follow_up")
     if not remind_at:
-        raise HTTPException(400, "remind_at is required")
+        raise AppError("pipeline.remind_at_required", status_code=400)
     rid = await db.create_reminder(job_id, remind_at, reminder_type)
     return {"ok": True, "reminder_id": rid}
 
@@ -176,7 +177,7 @@ async def create_follow_up_template(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
     if not name:
-        raise HTTPException(400, "Template name is required")
+        raise AppError("pipeline.template_name_required", status_code=400)
     db = request.app.state.db
     template_id = await db.create_follow_up_template(
         name=name, days_after=body.get("days_after", 7),
@@ -195,11 +196,11 @@ async def update_follow_up_template(request: Request, template_id: int):
         if key in body:
             fields[key] = body[key]
     if not fields:
-        raise HTTPException(400, "No fields to update")
+        raise AppError("validation.no_fields_to_update", status_code=400)
     db = request.app.state.db
     updated = await db.update_follow_up_template(template_id, **fields)
     if not updated:
-        raise HTTPException(404, "Template not found")
+        raise AppError("template.not_found", status_code=404)
     template = await db.get_follow_up_template(template_id)
     return {"ok": True, "template": template}
 
@@ -208,5 +209,5 @@ async def update_follow_up_template(request: Request, template_id: int):
 async def delete_follow_up_template(request: Request, template_id: int):
     deleted = await request.app.state.db.delete_follow_up_template(template_id)
     if not deleted:
-        raise HTTPException(404, "Template not found")
+        raise AppError("template.not_found", status_code=404)
     return {"ok": True}

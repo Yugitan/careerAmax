@@ -1,5 +1,16 @@
 // === Shared Utilities ===
+//
+// User-visible copy must go through `t(key, params)` (see app/static/js/i18n.js
+// and docs/i18n.md). Business content (job titles, company names, AI output,
+// email bodies) is rendered verbatim and never translated.
 
+/** Translate via the i18n module; degrade to the key when i18n is not loaded. */
+function tr(key, params) {
+    return typeof t === 'function' ? t(key, params) : key;
+}
+
+// Money stays USD — CareerPulse is a US job market product and does not
+// convert amounts to other currencies.
 function formatCurrency(val) {
     if (!val && val !== 0) return '-';
     return '$' + Number(val).toLocaleString();
@@ -20,26 +31,29 @@ function showToast(message, type = 'success') {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        showToast('Copied to clipboard!', 'info');
+        showToast(tr('toast.copied'), 'info');
     } catch {
-        showToast('Failed to copy', 'error');
+        showToast(tr('toast.copyFailed'), 'error');
     }
 }
 
+/** Language-aware date label: Today / Yesterday / 3d ago / Mar 5. */
 function formatDate(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    const d = typeof i18n !== 'undefined' ? i18n.toDate(dateStr) : new Date(dateStr);
+    if (!d || isNaN(d.getTime())) return dateStr;
     const now = new Date();
     const diff = now - d;
     const days = Math.floor(diff / 86400000);
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
-    if (days < 30) return `${Math.floor(days / 7)}w ago`;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (days === 0) return tr('time.today');
+    if (days === 1) return tr('time.yesterday');
+    if (days < 7) return tr('time.daysAgo', { count: days, n: days });
+    if (days < 30) return tr('time.weeksAgo', { count: Math.floor(days / 7), n: Math.floor(days / 7) });
+    // No i18n module available (rare): fall back to a locale-neutral date.
+    return typeof i18n !== 'undefined' ? i18n.formatDate(d) : d.toISOString().slice(0, 10);
 }
 
+// Salary amounts are USD and are never converted.
 function formatSalary(min, max, estMin, estMax) {
     const lo = min || estMin;
     const hi = max || estMax;
@@ -48,9 +62,9 @@ function formatSalary(min, max, estMin, estMax) {
         if (n >= 1000) return `$${Math.round(n / 1000)}k`;
         return `$${n}`;
     };
-    if (lo && hi) return `${fmt(lo)} - ${fmt(hi)}`;
-    if (lo) return `${fmt(lo)}+`;
-    return `Up to ${fmt(hi)}`;
+    if (lo && hi) return tr('common.salary.range', { min: fmt(lo), max: fmt(hi) });
+    if (lo) return tr('common.salary.from', { amount: fmt(lo) });
+    return tr('common.salary.upTo', { amount: fmt(hi) });
 }
 
 function getScoreClass(score) {
@@ -137,12 +151,12 @@ function getFreshness(job) {
     const date = job.last_seen_at || job.posted_date || job.created_at;
     if (!date) return null;
     const days = Math.floor((Date.now() - new Date(date)) / 86400000);
-    if (days <= 1) return { label: "Fresh", class: "freshness-hot", days };
-    if (days <= 3) return { label: "New", class: "freshness-new", days };
-    if (days <= 7) return { label: `${days}d ago`, class: "freshness-recent", days };
-    if (days <= 14) return { label: `${days}d ago`, class: "freshness-aging", days };
-    if (days <= 30) return { label: `${days}d ago`, class: "freshness-old", days };
-    return { label: "Stale", class: "freshness-stale", days };
+    if (days <= 1) return { label: tr('common.freshness.fresh'), class: "freshness-hot", days };
+    if (days <= 3) return { label: tr('common.freshness.new'), class: "freshness-new", days };
+    if (days <= 7) return { label: tr('time.daysAgo', { count: days, n: days }), class: "freshness-recent", days };
+    if (days <= 14) return { label: tr('time.daysAgo', { count: days, n: days }), class: "freshness-aging", days };
+    if (days <= 30) return { label: tr('time.daysAgo', { count: days, n: days }), class: "freshness-old", days };
+    return { label: tr('common.freshness.stale'), class: "freshness-stale", days };
 }
 
 // === In-App Modal (replaces native prompt/confirm) ===
@@ -160,8 +174,8 @@ function showModal({ title, message, input, confirmText, cancelText, danger }) {
                     ${message ? `<p class="modal-message">${escapeHtml(message)}</p>` : ''}
                     ${input ? `<input type="text" class="search-input modal-input" id="modal-input" placeholder="${escapeHtml(input.placeholder || '')}" value="${escapeHtml(input.value || '')}">` : ''}
                     <div class="modal-actions">
-                        <button class="btn btn-secondary btn-sm" id="modal-cancel">${escapeHtml(cancelText || 'Cancel')}</button>
-                        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="modal-confirm">${escapeHtml(confirmText || 'OK')}</button>
+                        <button class="btn btn-secondary btn-sm" id="modal-cancel">${escapeHtml(cancelText || tr('modal.cancel'))}</button>
+                        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="modal-confirm">${escapeHtml(confirmText || tr('modal.ok'))}</button>
                     </div>
                 </div>
             </div>
@@ -232,7 +246,7 @@ function invalidateSetupStatus() {
 async function requireAI() {
     const status = await getSetupStatus();
     if (!status.hasAI) {
-        showToast('AI provider not configured. Go to Settings \u2192 AI & Integrations to set up.', 'error');
+        showToast(tr('errors.aiNotConfigured'), 'error');
         return false;
     }
     return true;
@@ -241,7 +255,7 @@ async function requireAI() {
 async function requireResume() {
     const status = await getSetupStatus();
     if (!status.hasResume) {
-        showToast('No resume uploaded. Go to Settings \u2192 Resumes to upload one.', 'error');
+        showToast(tr('errors.resumeMissing'), 'error');
         return false;
     }
     return true;
@@ -250,12 +264,94 @@ async function requireResume() {
 async function requireAIAndResume() {
     const status = await getSetupStatus();
     if (!status.hasAI) {
-        showToast('AI provider not configured. Go to Settings \u2192 AI & Integrations to set up.', 'error');
+        showToast(tr('errors.aiNotConfigured'), 'error');
         return false;
     }
     if (!status.hasResume) {
-        showToast('No resume uploaded. Go to Settings \u2192 Resumes to upload one.', 'error');
+        showToast(tr('errors.resumeMissing'), 'error');
         return false;
     }
     return true;
+}
+
+// === Unsaved Form Change Tracking ===
+//
+// Two layers, per the i18n design:
+//   1. Explicit checks a view registers while it is mounted (most accurate).
+//   2. A generic snapshot of form controls inside `#app`, compared on demand.
+// Views that fill inputs programmatically after their async load must call
+// `refreshFormBaseline()` when the programmatic fill is done, otherwise the
+// snapshot looks like user input.
+const _dirtyChecks = [];
+let _formBaseline = null;
+
+const DIRTY_SKIP_SELECTOR = '[data-dirty-ignore],[type="hidden"],[type="file"],[type="range"],[type="color"],[type="submit"],[type="button"],[disabled]';
+
+function registerDirtyCheck(fn) {
+    if (typeof fn === 'function') _dirtyChecks.push(fn);
+}
+
+function clearDirtyChecks() {
+    _dirtyChecks.length = 0;
+    _formBaseline = null;
+}
+
+function _isContentEditable(el) {
+    // jsdom does not implement isContentEditable, so check the attribute too.
+    return el.isContentEditable === true || el.getAttribute('contenteditable') === 'true';
+}
+
+function _dirtyFieldValue(el) {
+    if (_isContentEditable(el)) return el.textContent;
+    if (el.type === 'checkbox' || el.type === 'radio') return String(el.checked);
+    return el.value === undefined ? '' : String(el.value);
+}
+
+function _isDirtySkipped(el) {
+    return !!(el.closest && el.closest(DIRTY_SKIP_SELECTOR)) || (el.matches && el.matches(DIRTY_SKIP_SELECTOR));
+}
+
+/**
+ * Snapshot every form control currently rendered so later comparisons can tell
+ * user edits apart from programmatic fills.
+ */
+function refreshFormBaseline(root) {
+    const scope = root || document.getElementById('app') || document.body;
+    if (!scope || !scope.querySelectorAll) { _formBaseline = null; return; }
+    const records = [];
+    scope.querySelectorAll('input, textarea, select, [contenteditable="true"]').forEach((el) => {
+        if (_isDirtySkipped(el)) return;
+        records.push({ el, value: _dirtyFieldValue(el) });
+    });
+    _formBaseline = { records };
+}
+
+/** True when the mounted view holds edits the user has not saved yet. */
+function hasUnsavedChanges() {
+    for (const check of _dirtyChecks) {
+        try {
+            if (check()) return true;
+        } catch { /* a broken check must not block language switching */ }
+    }
+    if (!_formBaseline) return false;
+    for (const record of _formBaseline.records) {
+        const el = record.el;
+        if (!el.isConnected) continue;
+        if (_isDirtySkipped(el)) continue;
+        if (_dirtyFieldValue(el) !== record.value) return true;
+    }
+    return false;
+}
+
+/** Ask the user before throwing away unsaved edits. Returns true to continue. */
+async function confirmDiscardUnsavedChanges(options = {}) {
+    if (!hasUnsavedChanges()) return true;
+    const result = await showModal({
+        title: options.title || tr('modal.unsavedTitle'),
+        message: options.message || tr('modal.unsavedMessage'),
+        confirmText: options.confirmText || tr('modal.discardAndContinue'),
+        cancelText: options.cancelText || tr('modal.keepEditing'),
+        danger: true,
+    });
+    return result === true;
 }

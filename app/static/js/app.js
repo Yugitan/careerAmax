@@ -18,6 +18,7 @@ function cleanupCurrentView() {
         queueEventSource.close();
         queueEventSource = null;
     }
+    if (typeof clearDirtyChecks === 'function') clearDirtyChecks();
 }
 
 // === Router ===
@@ -86,6 +87,10 @@ async function handleRoute() {
 
     app.setAttribute('tabindex', '-1');
     app.focus({ preventScroll: true });
+    updateDocumentTitle();
+    // Baseline for unsaved-change detection: anything the view has already
+    // filled programmatically counts as the starting point, not as user input.
+    if (typeof refreshFormBaseline === 'function') refreshFormBaseline(app);
 }
 
 // === Filter Persistence & Smart Views ===
@@ -169,7 +174,7 @@ async function renderSmartViewChips(reloadFn) {
     if (!container) return;
     const views = await getSmartViews();
     container.innerHTML = views.map(v => `
-        <button class="smart-view-chip" data-view-id="${v.id}" title="Apply: ${escapeHtml(v.name)}">
+        <button class="smart-view-chip" data-view-id="${v.id}" title="${escapeHtml(t('shell.smartViews.apply', { name: v.name }))}">
             ${escapeHtml(v.name)}
             <span class="smart-view-delete" data-view-id="${v.id}">&times;</span>
         </button>
@@ -199,7 +204,7 @@ async function renderSmartViewChips(reloadFn) {
                 invalidateViewsCache();
                 renderSmartViewChips(reloadFn);
             } catch (err) {
-                showToast(err.message, 'error');
+                showToast(apiErrorMessage(err), 'error');
             }
         });
     });
@@ -230,18 +235,20 @@ function phaseLabel(p) {
     const phase = p && p.phase;
     if (phase === 'scraping') {
         const name = p.current || '';
-        const progress = `${p.completed || 0}/${p.total || 0}`;
-        return name ? `Scraping: ${name} (${progress})` : `Scraping ${progress}`;
+        const progress = t('shell.scrape.progress', { completed: p.completed || 0, total: p.total || 0 });
+        return name
+            ? t('shell.scrape.scraping', { source: name, completed: p.completed || 0, total: p.total || 0 })
+            : t('shell.scrape.scrapingProgress', { progress });
     }
-    if (phase === 'enriching') return 'Enriching job details\u2026';
-    if (phase === 'classifying') return 'Classifying locations\u2026';
+    if (phase === 'enriching') return t('shell.scrape.enriching');
+    if (phase === 'classifying') return t('shell.scrape.classifying');
     if (phase === 'scoring') {
         const s = (p && p.scoring) || {};
-        return `Scoring: ${s.scored || 0}/${s.total || 0}`;
+        return t('shell.scrape.scoring', { scored: s.scored || 0, total: s.total || 0 });
     }
-    if (phase === 'done') return 'Done';
-    if (phase === 'error') return 'Error';
-    return 'Working\u2026';
+    if (phase === 'done') return t('shell.scrape.done');
+    if (phase === 'error') return t('shell.scrape.error');
+    return t('shell.scrape.working');
 }
 
 function computeStallSec(p) {
@@ -261,7 +268,7 @@ function setCancelLinkVisible(visible, btn) {
     link = document.createElement('a');
     link.className = 'scrape-cancel-link';
     link.href = '#';
-    link.textContent = 'Cancel';
+    link.textContent = t('actions.cancel');
     link.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -281,8 +288,9 @@ function renderScrapeButtonState(p) {
     let label = phaseLabel(p);
     if (warn) {
         const secs = Math.round(stallSec);
-        const current = p.current || p.phase || 'working';
-        label = `Stalled \u2014 ${current} (${secs}s)`;
+        const phaseKey = `shell.scrape.phaseNames.${p.phase || ''}`;
+        const current = p.current || (typeof i18n !== 'undefined' && i18n.has(phaseKey) ? t(phaseKey) : t('shell.scrape.working'));
+        label = t('shell.scrape.stalled', { current, seconds: secs });
     }
 
     btns.forEach(btn => {
@@ -299,7 +307,7 @@ function resetScrapeButtons() {
     getScrapeButtons().forEach(btn => {
         btn.disabled = false;
         btn.classList.remove('scrape-btn-warn', 'scrape-btn-critical');
-        btn.textContent = 'Scrape Now';
+        btn.textContent = t('nav.scrapeNow');
         setCancelLinkVisible(false, btn);
     });
 }
@@ -331,7 +339,7 @@ async function pollScrapeOnce() {
     const stallSec = computeStallSec(p);
     if (stallSec > STALL_CRITICAL_SEC && stallToastShownForTaskId !== p.task_id) {
         stallToastShownForTaskId = p.task_id;
-        showToast('Scrape appears stuck \u2014 click Cancel to stop.', 'error');
+        showToast(t('shell.scrape.stuckToast'), 'error');
     }
 }
 
@@ -347,14 +355,14 @@ async function handleScrape() {
     const btns = getScrapeButtons();
     btns.forEach(btn => {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Starting\u2026';
+        btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(t('shell.scrape.starting'))}`;
         setCancelLinkVisible(false, btn);
     });
     try {
         const result = await api.triggerScrape();
         startScrapePoll(result && result.task_id);
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(apiErrorMessage(err), 'error');
         resetScrapeButtons();
     }
 }
@@ -363,10 +371,10 @@ async function cancelScrape() {
     try {
         await api.cancelScrape();
         getScrapeButtons().forEach(btn => {
-            btn.innerHTML = '<span class="spinner"></span> Cancelling\u2026';
+            btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(t('shell.scrape.cancelling'))}`;
         });
     } catch (err) {
-        showToast(err.message, 'error');
+        showToast(apiErrorMessage(err), 'error');
     }
 }
 
@@ -402,16 +410,19 @@ function showScrapeSummaryToast(p) {
     const failed = sources.filter(s => s.status === 'failed').length;
     const total = p.total || sources.length;
 
-    let summary = `Scrape complete \u2014 ${p.new_jobs || 0} new jobs. ${ok}/${total} sources ok`;
-    if (timeout) summary += `, ${timeout} timeout`;
-    if (failed) summary += `, ${failed} failed`;
+    let summary = t('shell.scrape.complete', {
+        newJobs: p.new_jobs || 0, ok, total,
+    });
+    if (timeout) summary += t('shell.scrape.timeoutSuffix', { count: timeout });
+    if (failed) summary += t('shell.scrape.failedSuffix', { count: failed });
 
-    showToastWithAction(summary, 'success', 'View details', () => showScrapeDetailsModal(p));
+    showToastWithAction(summary, 'success', t('shell.scrape.viewDetails'), () => showScrapeDetailsModal(p));
 }
 
 function showScrapeErrorToast(p) {
-    const first = (p.errors && p.errors[0]) || 'unknown error';
-    showToastWithAction(`Scrape failed \u2014 ${first}`, 'error', 'View details', () => showScrapeDetailsModal(p));
+    const first = (p.errors && p.errors[0]) || t('errors.unknownError');
+    showToastWithAction(t('shell.scrape.failedWithReason', { reason: first }), 'error',
+        t('shell.scrape.viewDetails'), () => showScrapeDetailsModal(p));
 }
 
 function sourceStatusBadgeHTML(status) {
@@ -424,7 +435,9 @@ function sourceStatusBadgeHTML(status) {
         pending: 'score-badge-gray',
     };
     const cls = map[status] || 'score-badge-gray';
-    return `<span class="score-badge ${cls}">${escapeHtml(status || '')}</span>`;
+    const key = `shell.scrape.sourceStatus.${status || ''}`;
+    const label = status ? t(key) : '';
+    return `<span class="score-badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function showScrapeDetailsModal(p) {
@@ -444,13 +457,18 @@ function showScrapeDetailsModal(p) {
     `).join('');
 
     const errorsHtml = (p.errors && p.errors.length)
-        ? `<div class="scrape-modal-errors"><strong>Pipeline errors:</strong><ul>${p.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`
+        ? `<div class="scrape-modal-errors"><strong>${escapeHtml(t('shell.scrape.pipelineErrors'))}</strong><ul>${p.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`
         : '';
 
     const scoring = p.scoring || {};
     const scoringHtml = (scoring.total || scoring.scored || scoring.skipped_reason)
-        ? `<div class="scrape-modal-scoring"><strong>Scoring:</strong> ${scoring.skipped_reason ? escapeHtml('skipped \u2014 ' + scoring.skipped_reason) : `${scoring.scored || 0}/${scoring.total || 0}`}</div>`
+        ? `<div class="scrape-modal-scoring"><strong>${escapeHtml(t('shell.scrape.scoringLabel'))}</strong> ${scoring.skipped_reason
+            ? escapeHtml(t('shell.scrape.scoringSkipped', { reason: scoring.skipped_reason }))
+            : `${scoring.scored || 0}/${scoring.total || 0}`}</div>`
         : '';
+
+    const phaseKey = `shell.scrape.phaseNames.${p.phase || ''}`;
+    const phaseText = p.phase && i18n.has(phaseKey) ? t(phaseKey) : (p.phase || t('shell.scrape.phaseless'));
 
     const modal = document.createElement('div');
     modal.id = 'app-modal';
@@ -458,18 +476,18 @@ function showScrapeDetailsModal(p) {
         <div class="modal-overlay">
             <div class="modal-content modal-wide" role="dialog" aria-modal="true" aria-labelledby="scrape-modal-title">
                 <div class="scrape-modal-header">
-                    <h3 id="scrape-modal-title" class="modal-title">Scrape Details</h3>
-                    <button class="btn btn-ghost btn-sm" id="scrape-modal-close" type="button">Close</button>
+                    <h3 id="scrape-modal-title" class="modal-title">${escapeHtml(t('shell.scrape.detailsTitle'))}</h3>
+                    <button class="btn btn-ghost btn-sm" id="scrape-modal-close" type="button">${escapeHtml(t('actions.close'))}</button>
                 </div>
                 <div class="scrape-modal-summary">
-                    Phase: <strong>${escapeHtml(p.phase || '')}</strong> \u2014 ${p.new_jobs || 0} new jobs
+                    ${escapeHtml(t('shell.scrape.phaseSummary', { phase: phaseText, newJobs: p.new_jobs || 0 }))}
                 </div>
                 ${scoringHtml}
                 <table class="scrape-sources-table">
                     <thead>
-                        <tr><th>Source</th><th>Status</th><th>Duration</th><th>Listings</th><th>New</th><th>Error</th></tr>
+                        <tr><th>${escapeHtml(t('shell.scrape.columns.source'))}</th><th>${escapeHtml(t('shell.scrape.columns.status'))}</th><th>${escapeHtml(t('shell.scrape.columns.duration'))}</th><th>${escapeHtml(t('shell.scrape.columns.listings'))}</th><th>${escapeHtml(t('shell.scrape.columns.newJobs'))}</th><th>${escapeHtml(t('shell.scrape.columns.error'))}</th></tr>
                     </thead>
-                    <tbody>${rows || '<tr><td colspan="6">No sources recorded.</td></tr>'}</tbody>
+                    <tbody>${rows || `<tr><td colspan="6">${escapeHtml(t('shell.scrape.noSources'))}</td></tr>`}</tbody>
                 </table>
                 ${errorsHtml}
             </div>
@@ -515,17 +533,19 @@ function toggleTheme() {
 // === Keyboard Shortcuts ===
 let focusedJobIndex = -1;
 
+// `desc` values are translation keys, resolved at render time so that the
+// shortcuts help follows the current interface language.
 const SHORTCUTS = {
-    'j': { desc: 'Next job', action: () => navigateJob(1) },
-    'k': { desc: 'Previous job', action: () => navigateJob(-1) },
-    'o': { desc: 'Open job listing', action: openCurrentJob },
-    'd': { desc: 'Dismiss job', action: dismissCurrentJob },
-    'p': { desc: 'Prepare application', action: prepareCurrentJob },
-    's': { desc: 'Scrape now', action: handleScrape },
-    '/': { desc: 'Focus search', action: focusSearch },
-    't': { desc: 'Triage mode', action: enterTriageMode },
-    '?': { desc: 'Show shortcuts', action: toggleShortcutsHelp },
-    'Escape': { desc: 'Close / Go back', action: goBack },
+    'j': { desc: 'shell.shortcuts.nextJob', action: () => navigateJob(1) },
+    'k': { desc: 'shell.shortcuts.previousJob', action: () => navigateJob(-1) },
+    'o': { desc: 'shell.shortcuts.openListing', action: openCurrentJob },
+    'd': { desc: 'shell.shortcuts.dismissJob', action: dismissCurrentJob },
+    'p': { desc: 'shell.shortcuts.prepareApplication', action: prepareCurrentJob },
+    's': { desc: 'shell.shortcuts.scrapeNow', action: handleScrape },
+    '/': { desc: 'shell.shortcuts.focusSearch', action: focusSearch },
+    't': { desc: 'shell.shortcuts.triageMode', action: enterTriageMode },
+    '?': { desc: 'shell.shortcuts.showHelp', action: toggleShortcutsHelp },
+    'Escape': { desc: 'shell.shortcuts.closeOrBack', action: goBack },
 };
 
 document.addEventListener('keydown', (e) => {
@@ -620,14 +640,14 @@ function toggleShortcutsHelp() {
         <div class="modal-overlay" onclick="document.getElementById('shortcuts-modal').remove()">
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h2 style="font-size:1.125rem;font-weight:700;margin:0">Keyboard Shortcuts</h2>
-                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('shortcuts-modal').remove()">Close</button>
+                    <h2 style="font-size:1.125rem;font-weight:700;margin:0">${escapeHtml(t('shell.shortcuts.title'))}</h2>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('shortcuts-modal').remove()">${escapeHtml(t('actions.close'))}</button>
                 </div>
                 <div class="shortcuts-grid">
                     ${Object.entries(SHORTCUTS).map(([key, {desc}]) =>
-                        `<div class="shortcut-key"><kbd>${key === ' ' ? 'Space' : key}</kbd></div><div class="shortcut-desc">${desc}</div>`
+                        `<div class="shortcut-key"><kbd>${key === ' ' ? escapeHtml(t('shell.shortcuts.space')) : escapeHtml(key)}</kbd></div><div class="shortcut-desc">${escapeHtml(t(desc))}</div>`
                     ).join('')}
-                    <div class="shortcut-key"><kbd>Enter</kbd></div><div class="shortcut-desc">Open focused job</div>
+                    <div class="shortcut-key"><kbd>Enter</kbd></div><div class="shortcut-desc">${escapeHtml(t('shell.shortcuts.openFocusedJob'))}</div>
                 </div>
             </div>
         </div>
@@ -640,16 +660,16 @@ function toggleShortcutsHelp() {
 window.completeReminder = async function(id) {
     try {
         await api.request('POST', `/api/reminders/${id}/complete`);
-        showToast('Reminder completed', 'success');
+        showToast(t('shell.reminder.completed'), 'success');
         handleRoute();
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) { showToast(apiErrorMessage(err), 'error'); }
 };
 window.dismissReminder = async function(id) {
     try {
         await api.request('POST', `/api/reminders/${id}/dismiss`);
-        showToast('Reminder dismissed', 'success');
+        showToast(t('shell.reminder.dismissed'), 'success');
         handleRoute();
-    } catch (err) { showToast(err.message, 'error'); }
+    } catch (err) { showToast(apiErrorMessage(err), 'error'); }
 };
 
 // === Notifications ===
@@ -671,14 +691,14 @@ function renderNotifDropdown(notifications) {
     if (!dropdown) return;
 
     if (notifications.length === 0) {
-        dropdown.innerHTML = `<div class="notif-empty">No notifications</div>`;
+        dropdown.innerHTML = `<div class="notif-empty">${escapeHtml(t('shell.notifications.empty'))}</div>`;
         return;
     }
 
     dropdown.innerHTML = `
         <div class="notif-header">
-            <span style="font-weight:600;font-size:0.875rem">Notifications</span>
-            <button class="btn btn-ghost btn-sm" id="notif-read-all">Mark all read</button>
+            <span style="font-weight:600;font-size:0.875rem">${escapeHtml(t('nav.notifications'))}</span>
+            <button class="btn btn-ghost btn-sm" id="notif-read-all">${escapeHtml(t('shell.notifications.markAllRead'))}</button>
         </div>
         <div class="notif-list">
             ${notifications.slice(0, 20).map(n => `
@@ -763,18 +783,104 @@ function initNotificationSSE() {
     };
 }
 
+// === Language Switching ===
+// The interface language lives in localStorage (`careerpulse_lang`), defaults
+// to Simplified Chinese, and never follows the browser locale.
+const PAGE_TITLE_KEYS = {
+    feed: 'shell.pageTitle.jobs',
+    stats: 'shell.pageTitle.stats',
+    pipeline: 'shell.pageTitle.pipeline',
+    calendar: 'shell.pageTitle.calendar',
+    queue: 'shell.pageTitle.queue',
+    network: 'shell.pageTitle.network',
+    calculator: 'shell.pageTitle.calculator',
+    settings: 'shell.pageTitle.settings',
+    detail: 'shell.pageTitle.jobDetail',
+};
+
+function languageName(lang) {
+    return t(`lang.${lang}`);
+}
+
+function updateLanguageButtons() {
+    const lang = i18n.getLanguage();
+    document.querySelectorAll('#lang-switch .lang-option').forEach((btn) => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.lang === lang));
+    });
+}
+
+function updateDocumentTitle() {
+    const route = getRoute();
+    const key = PAGE_TITLE_KEYS[route.view] || PAGE_TITLE_KEYS.feed;
+    document.title = t(key);
+}
+
+/** Re-render the mounted page in the new language. */
+async function rerenderForLanguage() {
+    i18n.applyStatic(document);
+    updateLanguageButtons();
+    updateDocumentTitle();
+    if (typeof updateSetupIndicator === 'function') updateSetupIndicator();
+    if (typeof rerenderOnboarding === 'function' && document.getElementById('onboarding-wizard')) rerenderOnboarding();
+    document.querySelectorAll('#lang-switch .lang-option').forEach((btn) => {
+        btn.setAttribute('aria-label', t(btn.dataset.lang === 'zh-CN' ? 'nav.languageZhLabel' : 'nav.languageEnLabel'));
+    });
+    if (notifDropdownOpen) {
+        try {
+            const data = await api.getNotifications();
+            renderNotifDropdown(data.notifications);
+        } catch { /* keep the previous dropdown contents */ }
+    }
+    await handleRoute();
+    if (lastScrapeState && lastScrapeState.active) renderScrapeButtonState(lastScrapeState);
+}
+
+async function applyLanguage(lang) {
+    i18n.setLanguage(lang);
+    await rerenderForLanguage();
+    showToast(t('i18n.switched', { language: languageName(i18n.getLanguage()) }), 'info');
+}
+
+/**
+ * Entry point for the nav language buttons: asks for confirmation before
+ * discarding unsaved edits, then switches and re-renders.
+ */
+async function requestLanguageChange(lang) {
+    const target = i18n.normalizeLanguage(lang);
+    if (!target || target === i18n.getLanguage()) {
+        updateLanguageButtons();
+        return;
+    }
+    const proceed = await confirmDiscardUnsavedChanges({
+        title: t('i18n.switchTitle', { language: languageName(target) }),
+        message: t('i18n.unsavedWarning'),
+        confirmText: t('i18n.switchConfirm'),
+        cancelText: t('i18n.switchCancel'),
+    });
+    if (!proceed) {
+        updateLanguageButtons();
+        return;
+    }
+    await applyLanguage(target);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     if (!isOnboardingDone()) {
         showOnboardingWizard();
     }
     updateSetupIndicator();
+    updateLanguageButtons();
+    updateDocumentTitle();
     handleRoute();
 
     window.addEventListener('hashchange', handleRoute);
     document.getElementById('scrape-btn').addEventListener('click', handleScrape);
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
     document.getElementById('notif-btn').addEventListener('click', toggleNotifDropdown);
+    document.querySelectorAll('#lang-switch .lang-option').forEach((btn) => {
+        btn.addEventListener('click', () => requestLanguageChange(btn.dataset.lang));
+    });
 
     // === Hamburger Menu ===
     const hamburger = document.getElementById('nav-hamburger');

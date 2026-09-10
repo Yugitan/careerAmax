@@ -2,7 +2,8 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
+from app.errors import AppError
 from fastapi.responses import Response
 
 from app.enrichment import enrich_job_description
@@ -53,7 +54,7 @@ async def save_external_job(request: Request):
     company = body.get("company", "").strip()
     url = body.get("url", "").strip()
     if not title or not company:
-        raise HTTPException(400, "title and company are required")
+        raise AppError("job.title_and_company_required", status_code=400)
 
     # Generate a placeholder URL if none provided (DB requires unique URL)
     if not url:
@@ -131,7 +132,7 @@ async def get_job(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     score = await db.get_score(job_id)
     sources = await db.get_sources(job_id)
     application = await db.get_application(job_id)
@@ -150,7 +151,7 @@ async def get_similar_jobs(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     similar = await db.find_similar_jobs(
         job["title"], job["company"], exclude_id=job_id,
         embedding_client=request.app.state.embedding_client,
@@ -170,10 +171,10 @@ async def estimate_salary_endpoint(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     client = getattr(request.app.state, "ai_client", None)
     if not client:
-        raise HTTPException(503, "No AI provider configured. Go to Settings → AI to set one up.")
+        raise AppError("ai.not_configured", status_code=503)
     if job.get("salary_min") and job.get("salary_max"):
         return {"ok": True, "already_known": True,
                 "min": job["salary_min"], "max": job["salary_max"]}
@@ -193,7 +194,7 @@ async def find_apply_link(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     url = await find_apply_url(job["url"])
     if url:
         await db.update_job_contact(job_id, apply_url=url)
@@ -206,7 +207,7 @@ async def find_contact(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     result = await find_hiring_contact(
         job["company"], job["title"], job.get("location", "")
     )
@@ -228,15 +229,15 @@ async def add_event(request: Request, job_id: int):
     db = request.app.state.db
     job = await db.get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise AppError("job.not_found", status_code=404)
     body = await request.json()
     detail = body.get("detail", "")
     if not detail.strip():
-        raise HTTPException(400, "Detail is required")
+        raise AppError("job.detail_required", status_code=400)
     allowed_types = {"note", "call", "email_log", "status_change", "prepared", "email_drafted", "pdf_downloaded"}
     event_type = body.get("event_type", "note")
     if event_type not in allowed_types:
-        raise HTTPException(400, f"Invalid event_type: {event_type}")
+        raise AppError("job.invalid_event_type", status_code=400, params={"event_type": event_type})
     await db.add_event(job_id, event_type, detail)
     return {"ok": True}
 
@@ -246,7 +247,7 @@ async def mark_applied_by_url(request: Request):
     body = await request.json()
     url = body.get("url", "").strip()
     if not url:
-        raise HTTPException(400, "url is required")
+        raise AppError("job.url_required", status_code=400)
     db = request.app.state.db
     job = await db.find_job_by_url(url)
     if not job:

@@ -1,0 +1,110 @@
+// === Interface copy: onboarding ===
+//
+// Keys registered here become `onboarding.*`. Both languages are required — a key
+// present in only one language fails app/static/tests/i18n.test.js.
+// Never add business content (job/company/AI text) to a catalog.
+// Provider brand names (Anthropic, OpenAI, Google, OpenRouter, Ollama) stay raw;
+// only the surrounding interface copy is localized.
+
+i18n.register('onboarding', {
+    en: {
+        setupIndicator: 'Setup incomplete — click Settings to finish',
+        profile: {
+            title: 'Welcome to CareerPulse',
+            desc: "Let's get you set up. First, tell us a bit about yourself.",
+            fullName: 'Full Name',
+            namePlaceholder: 'Your name',
+            emailPlaceholder: 'you@example.com',
+            locationPlaceholder: 'City, State',
+        },
+        resume: {
+            title: 'Upload Your Resume',
+            desc: 'Upload a resume so we can match you with relevant jobs and tailor applications.',
+            dropHint: 'Drop a file here or click to browse',
+            formats: 'PDF, DOCX, or TXT',
+            uploaded: 'Resume uploaded!',
+        },
+        ai: {
+            title: 'Connect AI Provider',
+            desc: 'CareerPulse uses AI to score jobs and tailor resumes. Connect a provider to get started.',
+            provider: 'Provider',
+            selectProvider: 'Select a provider...',
+            providers: {
+                anthropic: 'Anthropic (Claude)',
+                openai: 'OpenAI (GPT)',
+                google: 'Google (Gemini)',
+                openrouter: 'OpenRouter',
+                ollama: 'Ollama (Local)',
+            },
+            apiKey: 'API Key',
+            apiKeyPlaceholder: 'sk-...',
+            ollamaUrl: 'Ollama URL',
+            ollamaUrlPlaceholder: 'http://localhost:11434',
+            testConnection: 'Test Connection',
+            testing: 'Testing...',
+            connected: 'Connected!',
+        },
+        summary: {
+            title: "You're All Set!",
+            desc: 'CareerPulse is ready to find and match jobs for you. Start your first scrape to discover opportunities.',
+            profileConfigured: 'Profile configured',
+            profileNotSet: 'Profile not set',
+            resumeUploaded: 'Resume uploaded',
+            resumeMissing: 'No resume yet',
+            aiConnected: 'AI provider connected',
+            aiNotConfigured: 'AI not configured',
+            startScraping: 'Start Scraping',
+            later: "I'll do this later",
+        },
+    },
+    'zh-CN': {
+        setupIndicator: '设置尚未完成 — 点击「设置」完成',
+        profile: {
+            title: '欢迎使用 CareerPulse',
+            desc: '让我们为您完成设置。首先，请简单介绍一下您自己。',
+            fullName: '姓名',
+            namePlaceholder: '您的姓名',
+            emailPlaceholder: 'you@example.com',
+            locationPlaceholder: '城市，州/省',
+        },
+        resume: {
+            title: '上传您的简历',
+            desc: '上传简历后，我们将为您匹配相关职位并定制求职申请。',
+            dropHint: '将文件拖放到此处，或点击浏览',
+            formats: 'PDF、DOCX 或 TXT',
+            uploaded: '简历上传成功！',
+        },
+        ai: {
+            title: '连接 AI 服务',
+            desc: 'CareerPulse 使用 AI 为职位评分并定制简历，连接一个服务商即可开始。',
+            provider: '服务商',
+            selectProvider: '请选择服务商…',
+            providers: {
+                anthropic: 'Anthropic（Claude）',
+                openai: 'OpenAI（GPT）',
+                google: 'Google（Gemini）',
+                openrouter: 'OpenRouter',
+                ollama: 'Ollama（本地）',
+            },
+            apiKey: 'API 密钥',
+            apiKeyPlaceholder: 'sk-...',
+            ollamaUrl: 'Ollama 地址',
+            ollamaUrlPlaceholder: 'http://localhost:11434',
+            testConnection: '测试连接',
+            testing: '测试中…',
+            connected: '连接成功！',
+        },
+        summary: {
+            title: '全部就绪！',
+            desc: 'CareerPulse 已准备好为您查找并匹配职位。开始第一次抓取，发现更多机会。',
+            profileConfigured: '个人信息已填写',
+            profileNotSet: '尚未填写个人信息',
+            resumeUploaded: '简历已上传',
+            resumeMissing: '尚未上传简历',
+            aiConnected: 'AI 服务已连接',
+            aiNotConfigured: '尚未配置 AI',
+            startScraping: '开始抓取',
+            later: '稍后再做',
+        },
+    },
+});

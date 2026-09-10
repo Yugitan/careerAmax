@@ -3,7 +3,7 @@ let settingsActiveTab = 'profile';
 let settingsData = {};
 
 async function renderSettings(container) {
-    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>Loading settings...</span></div>`;
+    container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('settings.loading')}</span></div>`;
 
     try {
         const [config, aiSettings, profile, fullProfile, scraperKeys, customQA, emailSettings, resumesData, embeddingSettings] = await Promise.all([
@@ -21,24 +21,24 @@ async function renderSettings(container) {
         renderSettingsShell(container);
     } catch (err) {
         showToast(err.message, 'error');
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">Could not load settings</div></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('settings.loadFailed')}</div></div>`;
     }
 }
 
 function renderSettingsShell(container) {
     const tabs = [
         { id: 'profile', label: 'Profile' },
-        { id: 'resumes', label: 'Resumes' },
-        { id: 'work-history', label: 'Work History' },
-        { id: 'job-search', label: 'Job Search' },
-        { id: 'alerts', label: 'Alerts' },
-        { id: 'follow-ups', label: 'Follow-Ups' },
+        { id: 'resumes', label: t('settings.resumes.title') },
+        { id: 'work-history', label: t('settings.profile.workHistory') },
+        { id: 'job-search', label: t('settings.jobSearch.title') },
+        { id: 'alerts', label: t('settings.alerts.title') },
+        { id: 'follow-ups', label: t('settings.templates.title') },
         { id: 'integrations', label: 'AI & Integrations' },
         { id: 'data', label: 'Data Management' },
     ];
 
     container.innerHTML = `
-        <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:24px">Settings</h1>
+        <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:24px">${t('settings.title')}</h1>
         <div class="settings-tab-bar" role="tablist">
             ${tabs.map(t => `<button id="settings-tab-${t.id}" class="settings-tab${settingsActiveTab === t.id ? ' settings-tab-active' : ''}" data-tab="${t.id}" role="tab" aria-selected="${settingsActiveTab === t.id}">${t.label}</button>`).join('')}
         </div>
@@ -84,12 +84,12 @@ async function renderTabAlerts(content) {
         const data = await api.request('GET', '/api/alerts');
         const alerts = data.alerts || [];
         content.innerHTML = `
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Job Alerts</h2>
-            <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:16px">Alerts notify you when new jobs match your saved filters. Create alerts from the filter bar on the Jobs page.</p>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.alerts.title')}</h2>
+            <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:16px">${t('settings.alerts.description')}</p>
             ${alerts.length === 0 ? `
                 <div class="empty-state" style="padding:32px">
                     <div class="empty-state-title">No alerts yet</div>
-                    <div class="empty-state-desc">Use "Create Alert" on the Jobs page to save your current filters as an alert.</div>
+                    <div class="empty-state-desc">Use t('settings.alerts.create') on the Jobs page to save your current filters as an alert.</div>
                 </div>
             ` : `
                 <div style="display:flex;flex-direction:column;gap:8px">
@@ -98,14 +98,14 @@ async function renderTabAlerts(content) {
                             <div style="display:flex;justify-content:space-between;align-items:center">
                                 <div>
                                     <span style="font-weight:600;font-size:0.9375rem">${escapeHtml(a.name)}</span>
-                                    ${a.enabled ? '<span class="status-badge status-applied" style="margin-left:8px">Active</span>' : '<span class="status-badge" style="margin-left:8px;background:var(--bg-surface-secondary);color:var(--text-tertiary)">Paused</span>'}
+                                    ${a.enabled ? `<span class="status-badge status-applied" style="margin-left:8px">${t('status.active')}</span>` : `<span class="status-badge" style="margin-left:8px;background:var(--bg-surface-secondary);color:var(--text-tertiary)">${t('status.paused')}</span>`}
                                 </div>
                                 <div style="display:flex;gap:6px">
-                                    <button class="btn btn-secondary btn-sm alert-toggle-btn" data-id="${a.id}" data-enabled="${a.enabled}">${a.enabled ? 'Pause' : 'Enable'}</button>
+                                    <button class="btn btn-secondary btn-sm alert-toggle-btn" data-id="${a.id}" data-enabled="${a.enabled}">${a.enabled ? t('settings.alerts.pause') : t('actions.enable')}</button>
                                     <button class="btn btn-danger btn-sm alert-delete-btn" data-id="${a.id}">Delete</button>
                                 </div>
                             </div>
-                            ${a.min_score ? `<div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">Min score: ${a.min_score}</div>` : ''}
+                            ${a.min_score ? `<div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">${t('settings.alerts.minScore', { score: a.min_score })}</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -117,7 +117,7 @@ async function renderTabAlerts(content) {
                 const enabled = btn.dataset.enabled === 'true';
                 try {
                     await api.request('PUT', `/api/alerts/${btn.dataset.id}`, { enabled: !enabled });
-                    showToast(enabled ? 'Alert paused' : 'Alert enabled', 'success');
+                    showToast(enabled ? t('settings.alerts.paused') : t('settings.alerts.enabled'), 'success');
                     renderTabAlerts(content);
                 } catch (err) { showToast(err.message, 'error'); }
             });
@@ -126,15 +126,15 @@ async function renderTabAlerts(content) {
         content.querySelectorAll('.alert-delete-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const ok = await showModal({
-                    title: 'Delete Alert',
-                    message: 'Are you sure you want to delete this alert?',
+                    title: t('settings.alerts.deleteTitle'),
+                    message: t('settings.alerts.deleteConfirm'),
                     confirmText: 'Delete',
                     danger: true,
                 });
                 if (!ok) return;
                 try {
                     await api.request('DELETE', `/api/alerts/${btn.dataset.id}`);
-                    showToast('Alert deleted', 'success');
+                    showToast(t('settings.alerts.deleted'), 'success');
                     renderTabAlerts(content);
                 } catch (err) { showToast(err.message, 'error'); }
             });
@@ -151,10 +151,10 @@ async function renderTabFollowUps(content) {
         const templates = data.templates || [];
         content.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600">Follow-Up Templates</h2>
-                <button class="btn btn-primary btn-sm" id="add-followup-btn">Add Template</button>
+                <h2 style="font-size:1.125rem;font-weight:600">${t('settings.templates.title')}</h2>
+                <button class="btn btn-primary btn-sm" id="add-followup-btn">${t('settings.templates.addTitle')}</button>
             </div>
-            <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:16px">Templates are used to auto-generate follow-up emails after applying.</p>
+            <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:16px">${t('settings.templates.description')}</p>
             <div id="followup-list">
                 ${templates.length === 0 ? `
                     <div class="empty-state" style="padding:32px">
@@ -166,7 +166,7 @@ async function renderTabFollowUps(content) {
                         <div style="display:flex;justify-content:space-between;align-items:center">
                             <div>
                                 <span style="font-weight:600;font-size:0.9375rem">${escapeHtml(t.name)}</span>
-                                ${t.is_default ? '<span class="status-badge status-applied" style="margin-left:8px">Default</span>' : ''}
+                                ${t.is_default ? `<span class="status-badge status-applied" style="margin-left:8px">${t('settings.resumes.defaultBadge')}</span>` : ''}
                                 <span style="font-size:0.75rem;color:var(--text-tertiary);margin-left:8px">${t.days_after} days after apply</span>
                             </div>
                             <div style="display:flex;gap:6px">
@@ -180,22 +180,22 @@ async function renderTabFollowUps(content) {
             </div>
             <div id="followup-form-container" style="display:none">
                 <div class="card" style="padding:20px;margin-top:16px">
-                    <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="followup-form-title">Add Template</h3>
+                    <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="followup-form-title">${t('settings.templates.addTitle')}</h3>
                     <div style="display:flex;flex-direction:column;gap:12px">
                         <div>
-                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Name</label>
-                            <input type="text" class="search-input" id="followup-name-input" placeholder="e.g. 1 Week Follow-Up" style="width:100%">
+                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.profile.referenceName')}</label>
+                            <input type="text" class="search-input" id="followup-name-input" placeholder="${t('settings.templates.namePlaceholder')}" style="width:100%">
                         </div>
                         <div>
-                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Days After Application</label>
+                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.templates.daysLabel')}</label>
                             <input type="number" class="search-input" id="followup-days-input" value="7" min="1" max="90" style="width:120px">
                         </div>
                         <div>
-                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Template Text</label>
-                            <textarea class="textarea-styled textarea-notes" id="followup-text-input" placeholder="Follow-up email template..."></textarea>
+                            <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.templates.textLabel')}</label>
+                            <textarea class="textarea-styled textarea-notes" id="followup-text-input" placeholder="${t('settings.templates.textPlaceholder')}"></textarea>
                         </div>
                         <div style="display:flex;gap:8px">
-                            <button class="btn btn-primary btn-sm" id="followup-save-btn">Save</button>
+                            <button class="btn btn-primary btn-sm" id="followup-save-btn">${t('settings.common.save')}</button>
                             <button class="btn btn-secondary btn-sm" id="followup-cancel-btn">Cancel</button>
                         </div>
                     </div>
@@ -220,7 +220,7 @@ async function renderTabFollowUps(content) {
 
         document.getElementById('followup-save-btn').addEventListener('click', async () => {
             const name = document.getElementById('followup-name-input').value.trim();
-            if (!name) { showToast('Name is required', 'error'); return; }
+            if (!name) { showToast(t('settings.common.nameRequired'), 'error'); return; }
             const body = {
                 name,
                 days_after: parseInt(document.getElementById('followup-days-input').value) || 7,
@@ -229,10 +229,10 @@ async function renderTabFollowUps(content) {
             try {
                 if (editingId) {
                     await api.request('PUT', `/api/follow-up-templates/${editingId}`, body);
-                    showToast('Template updated', 'success');
+                    showToast(t('settings.templates.updated'), 'success');
                 } else {
                     await api.request('POST', '/api/follow-up-templates', body);
-                    showToast('Template added', 'success');
+                    showToast(t('settings.templates.added'), 'success');
                 }
                 renderTabFollowUps(content);
             } catch (err) { showToast(err.message, 'error'); }
@@ -255,15 +255,15 @@ async function renderTabFollowUps(content) {
         content.querySelectorAll('.followup-delete-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const ok = await showModal({
-                    title: 'Delete Template',
-                    message: 'Are you sure you want to delete this template?',
+                    title: t('settings.templates.deleteTitle'),
+                    message: t('settings.templates.deleteConfirm'),
                     confirmText: 'Delete',
                     danger: true,
                 });
                 if (!ok) return;
                 try {
                     await api.request('DELETE', `/api/follow-up-templates/${btn.dataset.id}`);
-                    showToast('Template deleted', 'success');
+                    showToast(t('settings.templates.deleted'), 'success');
                     renderTabFollowUps(content);
                 } catch (err) { showToast(err.message, 'error'); }
             });
@@ -277,7 +277,7 @@ function renderTabResumes(content, resumes) {
     content.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
             <h2 style="font-size:1.125rem;font-weight:600">Manage Resumes</h2>
-            <button class="btn btn-primary btn-sm" id="add-resume-btn">Add Resume</button>
+            <button class="btn btn-primary btn-sm" id="add-resume-btn">${t('settings.resumes.addTitle')}</button>
         </div>
         <div id="resumes-list">
             ${resumes.length === 0 ? `
@@ -290,7 +290,7 @@ function renderTabResumes(content, resumes) {
                     <div style="display:flex;justify-content:space-between;align-items:center">
                         <div>
                             <span style="font-weight:600;font-size:0.9375rem">${escapeHtml(r.name)}</span>
-                            ${r.is_default ? '<span class="status-badge status-applied" style="margin-left:8px">Default</span>' : ''}
+                            ${r.is_default ? `<span class="status-badge status-applied" style="margin-left:8px">${t('settings.resumes.defaultBadge')}</span>` : ''}
                         </div>
                         <div style="display:flex;gap:6px">
                             ${!r.is_default ? `<button class="btn btn-secondary btn-sm resume-default-btn" data-id="${r.id}">Set Default</button>` : ''}
@@ -299,28 +299,28 @@ function renderTabResumes(content, resumes) {
                         </div>
                     </div>
                     ${r.summary ? `<div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:6px">${escapeHtml(r.summary)}</div>` : ''}
-                    <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">${r.resume_text ? `${r.resume_text.length} chars` : 'No content'}</div>
+                    <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">${r.resume_text ? `${r.resume_text.length} chars` : t('settings.resumes.noContent')}</div>
                 </div>
             `).join('')}
         </div>
         <div id="resume-form-container" style="display:none">
             <div class="card" style="padding:20px;margin-top:16px">
-                <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="resume-form-title">Add Resume</h3>
+                <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="resume-form-title">${t('settings.resumes.addTitle')}</h3>
                 <div style="display:flex;flex-direction:column;gap:12px">
                     <div>
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Name</label>
-                        <input type="text" class="search-input" id="resume-name-input" placeholder="e.g. Full-Stack Developer Resume" style="width:100%">
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.profile.referenceName')}</label>
+                        <input type="text" class="search-input" id="resume-name-input" placeholder="${t('settings.resumes.namePlaceholder')}" style="width:100%">
                     </div>
                     <div>
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Summary (optional)</label>
-                        <input type="text" class="search-input" id="resume-summary-input" placeholder="Brief description" style="width:100%">
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.resumes.summaryLabel')}</label>
+                        <input type="text" class="search-input" id="resume-summary-input" placeholder="${t('settings.resumes.summaryPlaceholder')}" style="width:100%">
                     </div>
                     <div>
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Resume Text</label>
-                        <textarea class="textarea-styled" id="resume-text-input" style="min-height:200px" placeholder="Paste your resume text here..."></textarea>
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.resumes.textLabel')}</label>
+                        <textarea class="textarea-styled" id="resume-text-input" style="min-height:200px" placeholder="${t('settings.resumes.textPlaceholder')}"></textarea>
                     </div>
                     <div style="display:flex;gap:8px">
-                        <button class="btn btn-primary btn-sm" id="resume-save-btn">Save</button>
+                        <button class="btn btn-primary btn-sm" id="resume-save-btn">${t('settings.common.save')}</button>
                         <button class="btn btn-secondary btn-sm" id="resume-cancel-btn">Cancel</button>
                     </div>
                 </div>
@@ -345,7 +345,7 @@ function renderTabResumes(content, resumes) {
 
     document.getElementById('resume-save-btn').addEventListener('click', async () => {
         const name = document.getElementById('resume-name-input').value.trim();
-        if (!name) { showToast('Name is required', 'error'); return; }
+        if (!name) { showToast(t('settings.common.nameRequired'), 'error'); return; }
         const body = {
             name,
             summary: document.getElementById('resume-summary-input').value.trim(),
@@ -354,10 +354,10 @@ function renderTabResumes(content, resumes) {
         try {
             if (editingId) {
                 await api.request('PUT', `/api/resumes/${editingId}`, body);
-                showToast('Resume updated', 'success');
+                showToast(t('settings.resumes.updated'), 'success');
             } else {
                 await api.request('POST', '/api/resumes', body);
-                showToast('Resume added', 'success');
+                showToast(t('settings.resumes.added'), 'success');
             }
             const data = await api.request('GET', '/api/resumes');
             settingsData.resumes = data.resumes || [];
@@ -385,7 +385,7 @@ function renderTabResumes(content, resumes) {
         btn.addEventListener('click', async () => {
             try {
                 await api.request('POST', `/api/resumes/${btn.dataset.id}/set-default`);
-                showToast('Default resume updated', 'success');
+                showToast(t('settings.resumes.defaultUpdated'), 'success');
                 const data = await api.request('GET', '/api/resumes');
                 settingsData.resumes = data.resumes || [];
                 renderTabResumes(content, settingsData.resumes);
@@ -396,15 +396,15 @@ function renderTabResumes(content, resumes) {
     content.querySelectorAll('.resume-delete-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Delete Resume',
-                message: 'Are you sure you want to delete this resume?',
+                title: t('settings.resumes.deleteTitle'),
+                message: t('settings.resumes.deleteConfirm'),
                 confirmText: 'Delete',
                 danger: true,
             });
             if (!ok) return;
             try {
                 await api.request('DELETE', `/api/resumes/${btn.dataset.id}`);
-                showToast('Resume deleted', 'success');
+                showToast(t('settings.resumes.deleted'), 'success');
                 const data = await api.request('GET', '/api/resumes');
                 settingsData.resumes = data.resumes || [];
                 renderTabResumes(content, settingsData.resumes);
@@ -448,16 +448,16 @@ function renderTabProfile(container, p) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Personal Information</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('First Name', 'pf-first', firstName)}
-                ${settingsField('Middle Name', 'pf-middle', p.middle_name)}
-                ${settingsField('Last Name', 'pf-last', lastName)}
+                ${settingsField(t('settings.profile.firstName'), 'pf-first', firstName)}
+                ${settingsField(t('settings.profile.middleName'), 'pf-middle', p.middle_name)}
+                ${settingsField(t('settings.profile.lastName'), 'pf-last', lastName)}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('Preferred Name', 'pf-preferred', p.preferred_name)}
-                ${settingsField('Email', 'pf-email', p.email, 'email')}
+                ${settingsField(t('settings.profile.preferredName'), 'pf-preferred', p.preferred_name)}
+                ${settingsField(t('settings.profile.email'), 'pf-email', p.email, 'email')}
                 ${settingsSelect('Pronouns', 'pf-pronouns', p.pronouns, [
                     {value:'',label:'Select...'},{value:'he/him',label:'He/Him'},{value:'she/her',label:'She/Her'},
-                    {value:'they/them',label:'They/Them'},{value:'other',label:'Other'},
+                    {value:'they/them',label:'They/Them'},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
             </div>
             <div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:12px;margin-bottom:12px">
@@ -467,29 +467,29 @@ function renderTabProfile(container, p) {
                     {value:'+81',label:'+81 (JP)'},{value:'+86',label:'+86 (CN)'},{value:'+55',label:'+55 (BR)'},
                     {value:'+52',label:'+52 (MX)'},{value:'+82',label:'+82 (KR)'},
                 ])}
-                ${settingsField('Phone', 'pf-phone', p.phone, 'tel')}
-                ${settingsSelect('Phone Type', 'pf-phone-type', p.phone_type, [
-                    {value:'',label:'Select...'},{value:'mobile',label:'Mobile'},{value:'home',label:'Home'},{value:'work',label:'Work'},
+                ${settingsField(t('settings.profile.phone'), 'pf-phone', p.phone, 'tel')}
+                ${settingsSelect(t('settings.profile.phoneType'), 'pf-phone-type', p.phone_type, [
+                    {value:'',label:'Select...'},{value:'mobile',label:t('settings.profile.phoneTypeMobile')},{value:'home',label:t('settings.profile.phoneTypeHome')},{value:'work',label:t('settings.profile.phoneTypeWork')},
                 ])}
-                ${settingsField('Additional Phone', 'pf-addl-phone', p.additional_phone, 'tel')}
+                ${settingsField(t('settings.profile.additionalPhone'), 'pf-addl-phone', p.additional_phone, 'tel')}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsField('Date of Birth', 'pf-dob', p.date_of_birth, 'date')}
-                ${settingsField('Location (for quick copy)', 'pf-location', p.location)}
+                ${settingsField(t('settings.profile.dateOfBirth'), 'pf-dob', p.date_of_birth, 'date')}
+                ${settingsField(t('settings.profile.locationQuickCopy'), 'pf-location', p.location)}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Address</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.profile.address')}</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
                 ${settingsField('Street Address 1', 'pf-addr1', p.address_street1)}
                 ${settingsField('Street Address 2', 'pf-addr2', p.address_street2)}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-                ${settingsField('City', 'pf-addr-city', p.address_city)}
-                ${settingsField('State', 'pf-addr-state', p.address_state)}
-                ${settingsField('ZIP', 'pf-addr-zip', p.address_zip)}
-                ${settingsField('Country', 'pf-addr-country', p.address_country_name || p.address_country_code)}
+                ${settingsField(t('settings.profile.city'), 'pf-addr-city', p.address_city)}
+                ${settingsField(t('settings.profile.state'), 'pf-addr-state', p.address_state)}
+                ${settingsField(t('settings.profile.zip'), 'pf-addr-zip', p.address_zip)}
+                ${settingsField(t('fields.country'), 'pf-addr-country', p.address_country_name || p.address_country_code)}
             </div>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;margin-bottom:12px">
                 <input type="checkbox" id="pf-same-addr" ${sameAddr ? 'checked' : ''}> Permanent address same as above
@@ -501,10 +501,10 @@ function renderTabProfile(container, p) {
                     ${settingsField('Street 2', 'pf-perm2', p.perm_address_street2)}
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
-                    ${settingsField('City', 'pf-perm-city', p.perm_address_city)}
-                    ${settingsField('State', 'pf-perm-state', p.perm_address_state)}
-                    ${settingsField('ZIP', 'pf-perm-zip', p.perm_address_zip)}
-                    ${settingsField('Country', 'pf-perm-country', p.perm_address_country_name || p.perm_address_country_code)}
+                    ${settingsField(t('settings.profile.city'), 'pf-perm-city', p.perm_address_city)}
+                    ${settingsField(t('settings.profile.state'), 'pf-perm-state', p.perm_address_state)}
+                    ${settingsField(t('settings.profile.zip'), 'pf-perm-zip', p.perm_address_zip)}
+                    ${settingsField(t('fields.country'), 'pf-perm-country', p.perm_address_country_name || p.perm_address_country_code)}
                 </div>
             </div>
         </div>
@@ -512,8 +512,8 @@ function renderTabProfile(container, p) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Links</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsField('LinkedIn', 'pf-linkedin', p.linkedin_url, 'url')}
-                ${settingsField('GitHub', 'pf-github', p.github_url, 'url')}
+                ${settingsField(t('settings.profile.linkedin'), 'pf-linkedin', p.linkedin_url, 'url')}
+                ${settingsField(t('settings.profile.github'), 'pf-github', p.github_url, 'url')}
                 ${settingsField('Portfolio', 'pf-portfolio', p.portfolio_url, 'url')}
                 ${settingsField('Website', 'pf-website', p.website_url, 'url')}
             </div>
@@ -522,37 +522,37 @@ function renderTabProfile(container, p) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Driver's License</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-                ${settingsSelect('Have License?', 'pf-dl', p.drivers_license, [
-                    {value:'',label:'Select...'},{value:'yes',label:'Yes'},{value:'no',label:'No'},
+                ${settingsSelect(t('settings.profile.hasLicense'), 'pf-dl', p.drivers_license, [
+                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
                 ${settingsField('Class', 'pf-dl-class', p.drivers_license_class)}
-                ${settingsField('State', 'pf-dl-state', p.drivers_license_state)}
+                ${settingsField(t('settings.profile.state'), 'pf-dl-state', p.drivers_license_state)}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Work Authorization</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('Country of Citizenship', 'pf-citizen', p.country_of_citizenship)}
-                ${settingsSelect('Authorized to Work in US?', 'pf-auth-us', p.authorized_to_work_us, [
-                    {value:'',label:'Select...'},{value:'yes',label:'Yes'},{value:'no',label:'No'},
+                ${settingsField(t('settings.profile.countryOfCitizenship'), 'pf-citizen', p.country_of_citizenship)}
+                ${settingsSelect(t('settings.profile.workAuth'), 'pf-auth-us', p.authorized_to_work_us, [
+                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
                 ${settingsSelect('Requires Sponsorship?', 'pf-sponsor', p.requires_sponsorship, [
-                    {value:'',label:'Select...'},{value:'yes',label:'Yes'},{value:'no',label:'No'},
+                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                 ${settingsSelect('Authorization Type', 'pf-auth-type', p.authorization_type, [
                     {value:'',label:'Select...'},{value:'citizen',label:'US Citizen'},{value:'permanent_resident',label:'Permanent Resident'},
                     {value:'h1b',label:'H-1B'},{value:'opt',label:'OPT'},{value:'ead',label:'EAD'},
-                    {value:'tn',label:'TN Visa'},{value:'other',label:'Other'},
+                    {value:'tn',label:'TN Visa'},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
                 ${settingsSelect('Security Clearance', 'pf-clearance', p.security_clearance, [
-                    {value:'',label:'None'},{value:'confidential',label:'Confidential'},{value:'secret',label:'Secret'},
+                    {value:'',label:t('common.none')},{value:'confidential',label:'Confidential'},{value:'secret',label:'Secret'},
                     {value:'top_secret',label:'Top Secret'},{value:'ts_sci',label:'TS/SCI'},
                 ])}
-                ${settingsSelect('Clearance Status', 'pf-clear-status', p.clearance_status, [
-                    {value:'',label:'N/A'},{value:'active',label:'Active'},{value:'inactive',label:'Inactive'},{value:'expired',label:'Expired'},
+                ${settingsSelect(t('settings.profile.clearanceStatus'), 'pf-clear-status', p.clearance_status, [
+                    {value:'',label:'N/A'},{value:'active',label:t('status.active')},{value:'inactive',label:t('status.inactive')},{value:'expired',label:'Expired'},
                 ])}
             </div>
         </div>
@@ -572,37 +572,37 @@ function renderTabProfile(container, p) {
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">Voluntary Self-Identification (EEO)</h2>
-            <p style="color:var(--text-secondary);font-size:0.8125rem;margin-bottom:16px">Optional. Used to pre-fill voluntary self-identification forms.</p>
+            <p style="color:var(--text-secondary);font-size:0.8125rem;margin-bottom:16px">${t('settings.profile.selfIdDescription')}</p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsSelect('Gender', 'pf-eeo-gender', eeo.gender, [
-                    {value:'',label:'Decline to self-identify'},{value:'male',label:'Male'},{value:'female',label:'Female'},
-                    {value:'non_binary',label:'Non-binary'},{value:'other',label:'Other'},
+                ${settingsSelect(t('settings.profile.gender'), 'pf-eeo-gender', eeo.gender, [
+                    {value:'',label:t('settings.profile.declineSelfId')},{value:'male',label:t('settings.profile.genderMale')},{value:'female',label:t('settings.profile.genderFemale')},
+                    {value:'non_binary',label:t('settings.profile.genderNonBinary')},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
-                ${settingsSelect('Race / Ethnicity', 'pf-eeo-race', eeo.race_ethnicity, [
-                    {value:'',label:'Decline to self-identify'},
-                    {value:'american_indian',label:'American Indian or Alaska Native'},
-                    {value:'asian',label:'Asian'},{value:'black',label:'Black or African American'},
-                    {value:'hispanic',label:'Hispanic or Latino'},{value:'native_hawaiian',label:'Native Hawaiian or Pacific Islander'},
-                    {value:'white',label:'White'},{value:'two_or_more',label:'Two or More Races'},
+                ${settingsSelect(t('settings.profile.race'), 'pf-eeo-race', eeo.race_ethnicity, [
+                    {value:'',label:t('settings.profile.declineSelfId')},
+                    {value:'american_indian',label:t('settings.profile.raceAmericanIndian')},
+                    {value:'asian',label:t('settings.profile.raceAsian')},{value:'black',label:t('settings.profile.raceBlack')},
+                    {value:'hispanic',label:t('settings.profile.raceHispanic')},{value:'native_hawaiian',label:t('settings.profile.racePacificIslander')},
+                    {value:'white',label:t('settings.profile.raceWhite')},{value:'two_or_more',label:t('settings.profile.raceTwoOrMore')},
                 ])}
-                ${settingsSelect('Disability Status', 'pf-eeo-disability', eeo.disability_status, [
-                    {value:'',label:'Decline to self-identify'},
-                    {value:'yes',label:'Yes, I have a disability'},{value:'no',label:'No, I do not have a disability'},
+                ${settingsSelect(t('settings.profile.disabilityStatus'), 'pf-eeo-disability', eeo.disability_status, [
+                    {value:'',label:t('settings.profile.declineSelfId')},
+                    {value:'yes',label:t('settings.profile.disabilityYes')},{value:'no',label:t('settings.profile.disabilityNo')},
                 ])}
-                ${settingsSelect('Veteran Status', 'pf-eeo-veteran', eeo.veteran_status, [
-                    {value:'',label:'Decline to self-identify'},
-                    {value:'not_veteran',label:'I am not a protected veteran'},
-                    {value:'protected_veteran',label:'I identify as a protected veteran'},
+                ${settingsSelect(t('settings.profile.veteranStatus'), 'pf-eeo-veteran', eeo.veteran_status, [
+                    {value:'',label:t('settings.profile.declineSelfId')},
+                    {value:'not_veteran',label:t('settings.profile.veteranNotProtected')},
+                    {value:'protected_veteran',label:t('settings.profile.veteranProtected')},
                 ])}
-                ${settingsSelect('Sexual Orientation', 'pf-eeo-orient', eeo.sexual_orientation, [
-                    {value:'',label:'Decline to self-identify'},
-                    {value:'heterosexual',label:'Heterosexual'},{value:'gay_lesbian',label:'Gay or Lesbian'},
-                    {value:'bisexual',label:'Bisexual'},{value:'other',label:'Other'},
+                ${settingsSelect(t('settings.profile.sexualOrientation'), 'pf-eeo-orient', eeo.sexual_orientation, [
+                    {value:'',label:t('settings.profile.declineSelfId')},
+                    {value:'heterosexual',label:'Heterosexual'},{value:'gay_lesbian',label:t('settings.profile.orientationGay')},
+                    {value:'bisexual',label:t('settings.profile.orientationBisexual')},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
             </div>
         </div>
 
-        <button class="btn btn-primary" id="save-profile-btn" style="margin-bottom:24px">Save Profile</button>
+        <button class="btn btn-primary" id="save-profile-btn" style="margin-bottom:24px">${t('settings.profile.saveProfile')}</button>
     `;
 
     document.getElementById('pf-same-addr')?.addEventListener('change', e => {
@@ -671,7 +671,7 @@ function renderTabProfile(container, p) {
             await api.request('PUT', '/api/profile/full', { ...profileData, military, eeo: eeoData });
             settingsData.fullProfile = { ...settingsData.fullProfile, ...profileData, military, eeo: eeoData };
             settingsData.profile = { ...settingsData.profile, ...profileData };
-            showToast('Profile saved', 'success');
+            showToast(t('settings.profile.savedProfile'), 'success');
         } catch (err) { showToast(err.message, 'error'); }
     });
 }
@@ -693,7 +693,7 @@ function renderTabWorkHistory(container, fp) {
                 ${extra ? `<div style="color:var(--text-tertiary);font-size:0.75rem;margin-top:2px">${extra}</div>` : ''}
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
-                <button class="btn btn-ghost btn-sm wh-edit-btn" data-type="${type}" data-id="${item.id}">Edit</button>
+                <button class="btn btn-ghost btn-sm wh-edit-btn" data-type="${type}" data-id="${item.id}">${t('actions.edit')}</button>
                 <button class="btn btn-danger btn-sm wh-delete-btn" data-type="${type}" data-id="${item.id}">Delete</button>
             </div>
         </div>`;
@@ -703,110 +703,110 @@ function renderTabWorkHistory(container, fp) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                 <h2 style="font-size:1.125rem;font-weight:600;margin:0">Work Experience</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="work-history">+ Add</button>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="work-history">${t('settings.common.add')}</button>
             </div>
             <div id="wh-work-history-list">${workHistory.length ? workHistory.map(w => {
                 const dates = [w.start_month ? `${w.start_month}/` : '', w.start_year || '', w.is_current ? ' - Present' : (w.end_year ? ` - ${w.end_month ? w.end_month + '/' : ''}${w.end_year}` : '')].join('');
                 return itemCard(w, 'work-history', w.job_title, w.company, [w.location_city, w.location_state].filter(Boolean).join(', ') + (dates ? ' | ' + dates : ''));
-            }).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No entries yet.</p>'}</div>
+            }).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-work-history-form"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Education</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="education">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.education')}</h2>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="education">${t('settings.common.add')}</button>
             </div>
-            <div id="wh-education-list">${education.length ? education.map(e => itemCard(e, 'education', e.school, [e.degree_type, e.field_of_study].filter(Boolean).join(' - '), e.grad_year ? `Graduated ${e.grad_year}` : '')).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No entries yet.</p>'}</div>
+            <div id="wh-education-list">${education.length ? education.map(e => itemCard(e, 'education', e.school, [e.degree_type, e.field_of_study].filter(Boolean).join(' - '), e.grad_year ? t('settings.common.graduated', { year: e.grad_year }) : '')).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-education-form"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Certifications & Licenses</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="certifications">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.certifications')}</h2>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="certifications">${t('settings.common.add')}</button>
             </div>
-            <div id="wh-certifications-list">${certs.length ? certs.map(c => itemCard(c, 'certifications', c.name, c.issuing_org, [c.cert_type, c.date_obtained].filter(Boolean).join(' | '))).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No entries yet.</p>'}</div>
+            <div id="wh-certifications-list">${certs.length ? certs.map(c => itemCard(c, 'certifications', c.name, c.issuing_org, [c.cert_type, c.date_obtained].filter(Boolean).join(' | '))).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-certifications-form"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Skills</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="skills">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.skills')}</h2>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="skills">${t('settings.common.add')}</button>
             </div>
             <div id="wh-skills-list">${skills.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${skills.map(s => `
                 <span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-surface-secondary);border:1px solid var(--border);padding:4px 10px;border-radius:6px;font-size:0.875rem">
                     ${escapeHtml(s.name)}${s.years_experience ? ` (${s.years_experience}yr)` : ''}${s.proficiency ? ` - ${s.proficiency}` : ''}
                     <button class="btn btn-ghost btn-sm wh-delete-btn" data-type="skills" data-id="${s.id}" style="color:var(--danger);padding:0 2px;font-size:0.75rem;min-width:auto">x</button>
                 </span>
-            `).join('')}</div>` : '<p style="color:var(--text-tertiary);font-size:0.875rem">No skills added.</p>'}</div>
+            `).join('')}</div>` : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.profile.noSkillsAdded')}</p>`}</div>
             <div id="wh-skills-form"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Languages</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="languages">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.languages')}</h2>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="languages">${t('settings.common.add')}</button>
             </div>
-            <div id="wh-languages-list">${languages.length ? languages.map(l => itemCard(l, 'languages', l.language, l.proficiency)).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No entries yet.</p>'}</div>
+            <div id="wh-languages-list">${languages.length ? languages.map(l => itemCard(l, 'languages', l.language, l.proficiency)).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-languages-form"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">References</h2>
-                <button class="btn btn-primary btn-sm wh-add-btn" data-type="references">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.references')}</h2>
+                <button class="btn btn-primary btn-sm wh-add-btn" data-type="references">${t('settings.common.add')}</button>
             </div>
-            <div id="wh-references-list">${references.length ? references.map(r => itemCard(r, 'references', r.name, [r.title, r.company].filter(Boolean).join(' at '), [r.phone, r.email].filter(Boolean).join(' | '))).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No entries yet.</p>'}</div>
+            <div id="wh-references-list">${references.length ? references.map(r => itemCard(r, 'references', r.name, [r.title, r.company].filter(Boolean).join(' at '), [r.phone, r.email].filter(Boolean).join(' | '))).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-references-form"></div>
         </div>
     `;
 
     const formConfigs = {
         'work-history': { endpoint: '/api/work-history', fields: [
-            {key:'job_title',label:'Job Title',type:'text'},{key:'company',label:'Company',type:'text'},
-            {key:'location_city',label:'City',type:'text'},{key:'location_state',label:'State',type:'text'},{key:'location_country',label:'Country',type:'text'},
-            {key:'start_month',label:'Start Month',type:'number',extra:'min="1" max="12"'},{key:'start_year',label:'Start Year',type:'number',extra:'min="1950" max="2030"'},
-            {key:'end_month',label:'End Month',type:'number',extra:'min="1" max="12"'},{key:'end_year',label:'End Year',type:'number',extra:'min="1950" max="2030"'},
+            {key:'job_title',label:t('settings.profile.jobTitle'),type:'text'},{key:'company',label:t('settings.profile.company'),type:'text'},
+            {key:'location_city',label:t('settings.profile.city'),type:'text'},{key:'location_state',label:t('settings.profile.state'),type:'text'},{key:'location_country',label:t('fields.country'),type:'text'},
+            {key:'start_month',label:t('settings.profile.startMonth'),type:'number',extra:'min="1" max="12"'},{key:'start_year',label:'Start Year',type:'number',extra:'min="1950" max="2030"'},
+            {key:'end_month',label:t('settings.profile.endMonth'),type:'number',extra:'min="1" max="12"'},{key:'end_year',label:t('settings.profile.endYear'),type:'number',extra:'min="1950" max="2030"'},
             {key:'is_current',label:'Current?',type:'checkbox'},
-            {key:'description',label:'Description',type:'textarea'},
-            {key:'salary_at_position',label:'Salary',type:'text'},
+            {key:'description',label:t('fields.description'),type:'textarea'},
+            {key:'salary_at_position',label:t('fields.salary'),type:'text'},
         ], listKey: 'work_history'},
         'education': { endpoint: '/api/education', fields: [
-            {key:'school',label:'School',type:'text'},{key:'degree_type',label:'Degree',type:'select',options:[
+            {key:'school',label:t('settings.profile.school'),type:'text'},{key:'degree_type',label:t('settings.profile.degreeType'),type:'select',options:[
                 {value:'',label:'Select...'},{value:'high_school',label:'High School'},{value:'associates',label:'Associates'},
                 {value:'bachelors',label:'Bachelors'},{value:'masters',label:'Masters'},{value:'mba',label:'MBA'},
-                {value:'phd',label:'PhD'},{value:'other',label:'Other'},
+                {value:'phd',label:'PhD'},{value:'other',label:t('settings.profile.genderOther')},
             ]},
-            {key:'field_of_study',label:'Field of Study',type:'text'},{key:'minor',label:'Minor',type:'text'},
+            {key:'field_of_study',label:t('settings.profile.fieldOfStudy'),type:'text'},{key:'minor',label:'Minor',type:'text'},
             {key:'start_year',label:'Start Year',type:'number'},{key:'grad_year',label:'Grad Year',type:'number'},
             {key:'gpa',label:'GPA',type:'text'},{key:'honors',label:'Honors',type:'text'},
         ], listKey: 'education'},
         'certifications': { endpoint: '/api/certifications', fields: [
-            {key:'name',label:'Name',type:'text'},{key:'issuing_org',label:'Issuing Org',type:'text'},
-            {key:'cert_type',label:'Type',type:'select',options:[{value:'certification',label:'Certification'},{value:'license',label:'License'}]},
-            {key:'license_number',label:'License #',type:'text'},{key:'state',label:'State',type:'text'},
-            {key:'date_obtained',label:'Date Obtained',type:'date'},{key:'expiration_date',label:'Expiration',type:'date'},
+            {key:'name',label:t('settings.profile.referenceName'),type:'text'},{key:'issuing_org',label:'Issuing Org',type:'text'},
+            {key:'cert_type',label:t('settings.profile.certType'),type:'select',options:[{value:'certification',label:'Certification'},{value:'license',label:'License'}]},
+            {key:'license_number',label:'License #',type:'text'},{key:'state',label:t('settings.profile.state'),type:'text'},
+            {key:'date_obtained',label:t('settings.profile.dateObtained'),type:'date'},{key:'expiration_date',label:'Expiration',type:'date'},
         ], listKey: 'certifications'},
         'skills': { endpoint: '/api/skills', fields: [
-            {key:'name',label:'Skill',type:'text'},{key:'years_experience',label:'Years',type:'number'},
-            {key:'proficiency',label:'Proficiency',type:'select',options:[
+            {key:'name',label:'Skill',type:'text'},{key:'years_experience',label:t('settings.profile.yearsExperienceShort'),type:'number'},
+            {key:'proficiency',label:t('settings.profile.proficiency'),type:'select',options:[
                 {value:'',label:'Select...'},{value:'beginner',label:'Beginner'},{value:'intermediate',label:'Intermediate'},
                 {value:'advanced',label:'Advanced'},{value:'expert',label:'Expert'},
             ]},
         ], listKey: 'skills'},
         'languages': { endpoint: '/api/languages', fields: [
-            {key:'language',label:'Language',type:'text'},
-            {key:'proficiency',label:'Proficiency',type:'select',options:[
+            {key:'language',label:t('settings.profile.language'),type:'text'},
+            {key:'proficiency',label:t('settings.profile.proficiency'),type:'select',options:[
                 {value:'conversational',label:'Conversational'},{value:'professional',label:'Professional'},
                 {value:'native',label:'Native / Bilingual'},{value:'basic',label:'Basic'},
             ]},
         ], listKey: 'languages'},
         'references': { endpoint: '/api/references', fields: [
-            {key:'name',label:'Name',type:'text'},{key:'title',label:'Title',type:'text'},
-            {key:'company',label:'Company',type:'text'},{key:'phone',label:'Phone',type:'tel'},
-            {key:'email',label:'Email',type:'email'},{key:'relationship',label:'Relationship',type:'text'},
+            {key:'name',label:t('settings.profile.referenceName'),type:'text'},{key:'title',label:t('settings.profile.referenceTitle'),type:'text'},
+            {key:'company',label:t('settings.profile.company'),type:'text'},{key:'phone',label:t('settings.profile.phone'),type:'tel'},
+            {key:'email',label:t('settings.profile.email'),type:'email'},{key:'relationship',label:'Relationship',type:'text'},
             {key:'years_known',label:'Years Known',type:'number'},
         ], listKey: 'references'},
     };
@@ -831,7 +831,7 @@ function renderTabWorkHistory(container, fp) {
                     }).join('')}
                 </div>
                 <div style="display:flex;gap:8px">
-                    <button class="btn btn-primary btn-sm" id="wh-save-${type}">${isEdit ? 'Update' : 'Save'}</button>
+                    <button class="btn btn-primary btn-sm" id="wh-save-${type}">${isEdit ? t('actions.update') : t('settings.common.save')}</button>
                     <button class="btn btn-secondary btn-sm" id="wh-cancel-${type}">Cancel</button>
                 </div>
             </div>`;
@@ -848,7 +848,7 @@ function renderTabWorkHistory(container, fp) {
             });
             try {
                 await api.request('POST', cfg.endpoint, entry);
-                showToast(isEdit ? 'Updated' : 'Added', 'success');
+                showToast(isEdit ? t('toast.updated') : 'Added', 'success');
                 settingsData.fullProfile = await api.request('GET', '/api/profile/full');
                 renderTabWorkHistory(container, settingsData.fullProfile);
             } catch (err) { showToast(err.message, 'error'); }
@@ -879,8 +879,8 @@ function renderTabWorkHistory(container, fp) {
             const type = btn.dataset.type;
             const id = btn.dataset.id;
             const ok = await showModal({
-                title: 'Delete Entry',
-                message: 'Are you sure you want to delete this entry?',
+                title: t('settings.common.deleteEntry'),
+                message: t('settings.common.deleteEntryConfirm'),
                 confirmText: 'Delete',
                 danger: true,
             });
@@ -889,7 +889,7 @@ function renderTabWorkHistory(container, fp) {
                 await api.request('DELETE', `/api/${type}/${id}`);
                 settingsData.fullProfile = await api.request('GET', '/api/profile/full');
                 renderTabWorkHistory(container, settingsData.fullProfile);
-                showToast('Deleted', 'info');
+                showToast(t('toast.deleted'), 'info');
             } catch (err) { showToast(err.message, 'error'); }
         });
     });
@@ -912,14 +912,14 @@ function renderTabJobSearch(container, config, profile, customQA) {
 
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Resume</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.alerts.resume')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Upload your resume to automatically derive search terms. Supported: .pdf, .txt, .md files.
             </p>
-            ${hasResume ? `<div class="status-badge status-prepared" style="margin-bottom:12px">Resume uploaded (${config.resume_text.length} chars)</div>` : ''}
+            ${hasResume ? `<div class="status-badge status-prepared" style="margin-bottom:12px">${t('settings.resumes.uploadedChars', { count: config.resume_text.length })}</div>` : ''}
             <div style="display:flex;gap:12px;align-items:center">
                 <input type="file" id="resume-file" accept=".pdf,.txt,.md,.text" style="font-size:0.875rem">
-                <button class="btn btn-primary" id="upload-resume-btn">Upload & Analyze</button>
+                <button class="btn btn-primary" id="upload-resume-btn">${t('settings.resumes.uploadAnalyze')}</button>
             </div>
         </div>
 
@@ -947,36 +947,36 @@ function renderTabJobSearch(container, config, profile, customQA) {
         </div>` : ''}
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Search Terms</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.searchTerms')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 These terms are used by scrapers to find relevant jobs. One per line.
             </p>
             <textarea class="textarea-styled" id="search-terms-textarea" rows="12" placeholder="e.g. senior devops engineer remote&#10;SRE remote&#10;platform engineer remote">${escapeHtml(termsValue)}</textarea>
             <div style="display:flex;gap:12px;margin-top:12px">
-                <button class="btn btn-primary" id="save-terms-btn">Save Search Terms</button>
+                <button class="btn btn-primary" id="save-terms-btn">${t('settings.jobSearch.saveSearchTerms')}</button>
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Exclude Terms</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.excludeTerms')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Jobs matching any of these terms will be hidden. One per line.
             </p>
             <textarea class="textarea-styled" id="exclude-terms-textarea" rows="6" placeholder="e.g. manager&#10;director&#10;VP">${escapeHtml(excludeTermsValue)}</textarea>
             <div style="display:flex;gap:12px;margin-top:12px">
-                <button class="btn btn-primary" id="save-exclude-btn">Save Exclude Terms</button>
+                <button class="btn btn-primary" id="save-exclude-btn">${t('settings.jobSearch.saveExcludeTerms')}</button>
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Allowed Regions</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.allowedRegions')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Only jobs in these regions will be scored and shown. Jobs outside allowed regions are auto-dismissed.
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">
                 ${[
                     { value: 'US', label: 'United States' },
-                    { value: 'Remote', label: 'Remote / Global' },
+                    { value: t('fields.remote'), label: 'Remote / Global' },
                     { value: 'Canada', label: 'Canada' },
                     { value: 'UK', label: 'United Kingdom' },
                     { value: 'Germany', label: 'Germany' },
@@ -984,18 +984,18 @@ function renderTabJobSearch(container, config, profile, customQA) {
                     { value: 'Netherlands', label: 'Netherlands' },
                     { value: 'Australia', label: 'Australia' },
                 ].map(r => `<label style="display:flex;align-items:center;gap:6px;font-size:0.875rem;cursor:pointer">
-                    <input type="checkbox" class="region-checkbox" value="${r.value}" ${(config.allowed_regions || ['US','Remote']).includes(r.value) ? 'checked' : ''}>
+                    <input type="checkbox" class="region-checkbox" value="${r.value}" ${(config.allowed_regions || ['US',t('fields.remote')]).includes(r.value) ? 'checked' : ''}>
                     ${escapeHtml(r.label)}
                 </label>`).join('')}
             </div>
             <div style="margin-bottom:12px">
                 <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Additional regions (one per line)</label>
                 <textarea class="textarea-styled" id="custom-regions-textarea" rows="3" placeholder="e.g. France&#10;Singapore">${escapeHtml(
-                    (config.allowed_regions || []).filter(r => !['US','Remote','Canada','UK','Germany','Ireland','Netherlands','Australia'].includes(r)).join('\n')
+                    (config.allowed_regions || []).filter(r => !['US',t('fields.remote'),'Canada','UK','Germany','Ireland','Netherlands','Australia'].includes(r)).join('\n')
                 )}</textarea>
             </div>
             <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-regions-btn">Save Allowed Regions</button>
+                <button class="btn btn-primary" id="save-regions-btn">${t('settings.jobSearch.saveAllowedRegions')}</button>
             </div>
         </div>
 
@@ -1008,14 +1008,14 @@ function renderTabJobSearch(container, config, profile, customQA) {
                 <input type="checkbox" id="remote-only-checkbox" ${config.remote_only ? 'checked' : ''}>
                 Remote jobs only
             </label>
-            <button class="btn btn-primary" id="save-remote-only-btn">Save</button>
+            <button class="btn btn-primary" id="save-remote-only-btn">${t('settings.common.save')}</button>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Salary Preferences</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.prefsTitle')}</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-                ${settingsField('Minimum Salary', 'js-sal-min', profile.desired_salary_min, 'number')}
-                ${settingsField('Maximum Salary', 'js-sal-max', profile.desired_salary_max, 'number')}
+                ${settingsField(t('settings.jobSearch.minSalary'), 'js-sal-min', profile.desired_salary_min, 'number')}
+                ${settingsField(t('settings.jobSearch.maxSalary'), 'js-sal-max', profile.desired_salary_max, 'number')}
                 ${settingsSelect('Period', 'js-sal-period', profile.salary_period, [
                     {value:'',label:'Select...'},{value:'annual',label:'Annual'},{value:'hourly',label:'Hourly'},
                 ])}
@@ -1025,36 +1025,36 @@ function renderTabJobSearch(container, config, profile, customQA) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Availability</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-                ${settingsField('Available From', 'js-avail-date', profile.availability_date, 'date')}
+                ${settingsField(t('settings.jobSearch.availableFrom'), 'js-avail-date', profile.availability_date, 'date')}
                 ${settingsSelect('Notice Period', 'js-notice', profile.notice_period, [
                     {value:'',label:'Select...'},{value:'immediate',label:'Immediate'},
-                    {value:'2_weeks',label:'2 Weeks'},{value:'1_month',label:'1 Month'},
-                    {value:'2_months',label:'2 Months'},{value:'3_months',label:'3 Months'},
+                    {value:'2_weeks',label:t('settings.jobSearch.twoWeeks')},{value:'1_month',label:t('settings.jobSearch.oneMonth')},
+                    {value:'2_months',label:t('settings.jobSearch.twoMonths')},{value:'3_months',label:t('settings.jobSearch.threeMonths')},
                 ])}
-                ${settingsSelect('Willing to Relocate', 'js-relocate', profile.willing_to_relocate, [
-                    {value:'',label:'Select...'},{value:'yes',label:'Yes'},{value:'no',label:'No'},{value:'depends',label:'Depends'},
+                ${settingsSelect(t('settings.jobSearch.willingToRelocate'), 'js-relocate', profile.willing_to_relocate, [
+                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},{value:'depends',label:'Depends'},
                 ])}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Other Defaults</h2>
-            ${settingsSelect('How did you hear about us? (default)', 'js-how-heard', profile.how_heard_default, [
-                {value:'',label:'Select...'},{value:'job_board',label:'Job Board'},{value:'linkedin',label:'LinkedIn'},
-                {value:'referral',label:'Referral'},{value:'company_website',label:'Company Website'},
-                {value:'recruiter',label:'Recruiter'},{value:'other',label:'Other'},
+            ${settingsSelect(t('settings.jobSearch.hearAboutUs'), 'js-how-heard', profile.how_heard_default, [
+                {value:'',label:'Select...'},{value:'job_board',label:t('settings.jobSearch.jobBoard')},{value:'linkedin',label:t('settings.profile.linkedin')},
+                {value:'referral',label:t('settings.jobSearch.referral')},{value:'company_website',label:t('settings.jobSearch.companyWebsite')},
+                {value:'recruiter',label:'Recruiter'},{value:'other',label:t('settings.profile.genderOther')},
             ])}
             <div style="margin-top:12px">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Cover Letter Template</label>
-                <textarea class="textarea-styled textarea-notes" id="js-cover-tpl" rows="6" placeholder="Dear Hiring Manager,&#10;&#10;I am writing to express my interest...">${escapeHtml(profile.cover_letter_template || '')}</textarea>
+                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.jobSearch.coverLetterTemplate')}</label>
+                <textarea class="textarea-styled textarea-notes" id="js-cover-tpl" rows="6" placeholder="Dear Hiring Manager,&#10;&#10;I am writing to express my interest..." data-i18n-audit-ignore="cover letter template content is business content">${escapeHtml(profile.cover_letter_template || '')}</textarea>
             </div>
-            <button class="btn btn-primary" id="save-js-prefs-btn" style="margin-top:12px">Save Preferences</button>
+            <button class="btn btn-primary" id="save-js-prefs-btn" style="margin-top:12px">${t('settings.jobSearch.savePreferences')}</button>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Custom Q&A Bank</h2>
-                <button class="btn btn-primary btn-sm" id="qa-add-btn">+ Add</button>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.jobSearch.qaBank')}</h2>
+                <button class="btn btn-primary btn-sm" id="qa-add-btn">${t('settings.common.add')}</button>
             </div>
             <div id="qa-items">${customQA.length ? customQA.map(q => `
                 <div style="padding:12px 16px;background:var(--bg-surface-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">
@@ -1069,7 +1069,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                         </div>
                     </div>
                 </div>
-            `).join('') : '<p style="color:var(--text-tertiary);font-size:0.875rem">No saved Q&A pairs yet.</p>'}</div>
+            `).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.jobSearch.qaEmpty')}</p>`}</div>
             <div id="qa-form-area"></div>
         </div>
 
@@ -1078,17 +1078,17 @@ function renderTabJobSearch(container, config, profile, customQA) {
 
     document.getElementById('upload-resume-btn').addEventListener('click', async () => {
         const fileInput = document.getElementById('resume-file');
-        if (!fileInput.files.length) { showToast('Select a resume file first', 'error'); return; }
+        if (!fileInput.files.length) { showToast(t('settings.resumes.selectFileFirst'), 'error'); return; }
         const btn = document.getElementById('upload-resume-btn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+        btn.innerHTML = `<span class="spinner"></span> ${t('status.analyzing')}`;
         try {
             const result = await api.uploadResume(fileInput.files[0]);
             showToast(`Resume analyzed! ${result.search_terms.length} search terms extracted.`, 'success');
             settingsData.config = await api.getSearchConfig();
             renderTabJobSearch(container, settingsData.config, profile, customQA);
         } catch (err) { showToast(err.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Upload & Analyze'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.resumes.uploadAnalyze'); }
     });
 
     document.getElementById('save-terms-btn').addEventListener('click', async () => {
@@ -1154,10 +1154,10 @@ function renderTabJobSearch(container, config, profile, customQA) {
             <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-top:12px;background:var(--bg-surface-secondary)">
                 <div style="margin-bottom:12px">
                     <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Question Pattern</label>
-                    <input type="text" class="search-input" id="qa-q" value="${escapeHtml(existing?.question_pattern || '')}" placeholder="e.g. Why do you want to work here?" style="width:100%">
+                    <input type="text" class="search-input" id="qa-q" value="${escapeHtml(existing?.question_pattern || '')}" placeholder="${t('settings.jobSearch.questionPlaceholder')}" style="width:100%">
                 </div>
                 <div style="margin-bottom:12px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Category</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('fields.category')}</label>
                     <input type="text" class="search-input" id="qa-cat" value="${escapeHtml(existing?.category || '')}" placeholder="e.g. motivation, experience" style="width:100%">
                 </div>
                 <div style="margin-bottom:12px">
@@ -1165,7 +1165,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                     <textarea class="textarea-styled textarea-notes" id="qa-ans" rows="4">${escapeHtml(existing?.answer || '')}</textarea>
                 </div>
                 <div style="display:flex;gap:8px">
-                    <button class="btn btn-primary btn-sm" id="qa-save-btn">Save</button>
+                    <button class="btn btn-primary btn-sm" id="qa-save-btn">${t('settings.common.save')}</button>
                     <button class="btn btn-secondary btn-sm" id="qa-cancel-btn">Cancel</button>
                 </div>
             </div>`;
@@ -1174,7 +1174,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
             if (existing?.id) entry.id = existing.id;
             try {
                 await api.request('POST', '/api/custom-qa', entry);
-                showToast('Q&A saved', 'success');
+                showToast(t('settings.jobSearch.qaSaved'), 'success');
                 const res = await api.request('GET', '/api/custom-qa');
                 settingsData.customQA = res.items || [];
                 renderTabJobSearch(container, settingsData.config, profile, settingsData.customQA);
@@ -1193,15 +1193,15 @@ function renderTabJobSearch(container, config, profile, customQA) {
     container.querySelectorAll('.qa-del-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const ok = await showModal({
-                title: 'Delete Q&A',
-                message: 'Are you sure you want to delete this Q&A?',
+                title: t('settings.jobSearch.deleteQaTitle'),
+                message: t('settings.jobSearch.deleteQaConfirm'),
                 confirmText: 'Delete',
                 danger: true,
             });
             if (!ok) return;
             try {
                 await api.request('DELETE', `/api/custom-qa/${btn.dataset.id}`);
-                showToast('Deleted', 'info');
+                showToast(t('toast.deleted'), 'info');
                 const res = await api.request('GET', '/api/custom-qa');
                 settingsData.customQA = res.items || [];
                 renderTabJobSearch(container, settingsData.config, profile, settingsData.customQA);
@@ -1247,38 +1247,38 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                         <div id="ai-model-ollama" style="${aiProvider === 'ollama' ? '' : 'display:none'}">
                             <div style="display:flex;gap:8px;align-items:center">
                                 <select class="filter-select" id="ai-model-select" style="flex:1">
-                                    ${aiModel ? `<option value="${escapeHtml(aiModel)}" selected>${escapeHtml(aiModel)}</option>` : '<option value="">Select a model...</option>'}
+                                    ${aiModel ? `<option value="${escapeHtml(aiModel)}" selected>${escapeHtml(aiModel)}</option>` : `<option value="">${t('settings.ai.selectModel')}</option>`}
                                 </select>
-                                <button class="btn btn-secondary btn-sm" id="refresh-models-btn" style="white-space:nowrap">Refresh</button>
+                                <button class="btn btn-secondary btn-sm" id="refresh-models-btn" style="white-space:nowrap">${t('actions.refresh')}</button>
                             </div>
                         </div>
                         <div id="ai-model-openrouter" style="${aiProvider === 'openrouter' ? '' : 'display:none'}">
                             <div style="display:flex;gap:8px;align-items:center">
                                 <select class="filter-select" id="ai-model-or-select" style="flex:1">
-                                    ${aiModel ? `<option value="${escapeHtml(aiModel)}" selected>${escapeHtml(aiModel)}</option>` : '<option value="">Loading models...</option>'}
+                                    ${aiModel ? `<option value="${escapeHtml(aiModel)}" selected>${escapeHtml(aiModel)}</option>` : `<option value="">${t('settings.ai.loadingModels')}</option>`}
                                 </select>
-                                <button class="btn btn-secondary btn-sm" id="refresh-or-models-btn" style="white-space:nowrap">Refresh</button>
+                                <button class="btn btn-secondary btn-sm" id="refresh-or-models-btn" style="white-space:nowrap">${t('actions.refresh')}</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
             <div id="ai-key-row" style="margin-bottom:12px;${aiProvider === 'ollama' || aiProvider === 'bedrock' ? 'display:none' : ''}">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px" id="ai-key-label">API Key</label>
+                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px" id="ai-key-label">${t('settings.ai.apiKey')}</label>
                 <input type="password" class="search-input" id="ai-api-key" placeholder="${hasKey ? 'Key configured (leave blank to keep)' : 'Enter API key'}" value="${escapeHtml(aiKey)}" style="width:100%">
             </div>
             <div id="ai-bedrock-creds" style="${aiProvider === 'bedrock' ? '' : 'display:none'}">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
                     <div>
                         <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Access Key ID</label>
-                        <input type="password" class="search-input" id="ai-aws-access-key" placeholder="${hasKey ? 'Configured (leave blank to keep)' : 'AKIA...'}" style="width:100%">
+                        <input type="password" class="search-input" id="ai-aws-access-key" placeholder="${hasKey ? t('settings.ai.apiKeyPlaceholder') : 'AKIA...'}" style="width:100%">
                     </div>
                     <div>
                         <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Secret Access Key</label>
-                        <input type="password" class="search-input" id="ai-aws-secret-key" placeholder="${hasSecret ? 'Configured (leave blank to keep)' : 'Enter secret key'}" style="width:100%">
+                        <input type="password" class="search-input" id="ai-aws-secret-key" placeholder="${hasSecret ? t('settings.ai.apiKeyPlaceholder') : t('settings.ai.awsSecretPlaceholder')}" style="width:100%">
                     </div>
                 </div>
-                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:12px">Leave blank to use default AWS credentials (~/.aws/credentials or environment variables)</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:12px">${t('settings.ai.bedrockHelp')}</div>
             </div>
             <div id="ai-region-row" style="margin-bottom:12px;${aiProvider === 'bedrock' ? '' : 'display:none'}">
                 <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Region</label>
@@ -1289,8 +1289,8 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 <input type="text" class="search-input" id="ai-base-url" placeholder="http://localhost:11434" value="${escapeHtml(aiBaseUrl)}" style="width:100%">
             </div>
             <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-ai-btn">Save AI Settings</button>
-                <button class="btn btn-secondary" id="test-ai-btn">Test Connection</button>
+                <button class="btn btn-primary" id="save-ai-btn">${t('settings.ai.saveAiSettings')}</button>
+                <button class="btn btn-secondary" id="test-ai-btn">${t('settings.ai.testConnection')}</button>
             </div>
             <div id="ai-test-result" style="margin-top:12px"></div>
         </div>
@@ -1304,8 +1304,8 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 <div>
                     <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">USAJobs API Key</label>
                     <input type="password" class="search-input" id="scraper-key-usajobs" placeholder="API key" value="${keys.usajobs?.has_key ? '****' : ''}" style="margin-bottom:4px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;margin-top:4px">USAJobs Email</label>
-                    <input type="email" class="search-input" id="scraper-email-usajobs" placeholder="Email used when registering" value="${escapeHtml(keys.usajobs?.email || '')}">
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;margin-top:4px">${t('settings.ai.usaJobsEmail')}</label>
+                    <input type="email" class="search-input" id="scraper-email-usajobs" placeholder="${t('settings.ai.usaJobsEmailPlaceholder')}" value="${escapeHtml(keys.usajobs?.email || '')}">
                 </div>
                 <div>
                     <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Adzuna App ID</label>
@@ -1318,26 +1318,26 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                     <input type="password" class="search-input" id="scraper-key-jsearch" placeholder="RapidAPI key" value="${keys.jsearch?.has_key ? '****' : ''}">
                 </div>
             </div>
-            <button class="btn btn-primary" id="save-scraper-keys-btn" style="margin-top:16px">Save Scraper Keys</button>
+            <button class="btn btn-primary" id="save-scraper-keys-btn" style="margin-top:16px">${t('settings.ai.saveScraperKeys')}</button>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">Email & Digest Settings</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">${t('settings.email.title')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Configure SMTP for sending application emails and automated job digest notifications.
             </p>
             <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;color:var(--text-secondary)">SMTP Configuration</h3>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('SMTP Host', 'email-smtp-host', emailSettings.smtp_host || '', 'text', { placeholder: 'smtp.gmail.com' })}
-                ${settingsField('SMTP Port', 'email-smtp-port', emailSettings.smtp_port || 587, 'number')}
+                ${settingsField(t('settings.email.smtpHost'), 'email-smtp-host', emailSettings.smtp_host || '', 'text', { placeholder: 'smtp.gmail.com' })}
+                ${settingsField(t('settings.email.smtpPort'), 'email-smtp-port', emailSettings.smtp_port || 587, 'number')}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('Username', 'email-smtp-username', emailSettings.smtp_username || '', 'text', { placeholder: 'your@email.com' })}
-                ${settingsField('Password', 'email-smtp-password', '', 'password', { placeholder: emailSettings.smtp_host ? 'Configured (leave blank to keep)' : 'SMTP password' })}
+                ${settingsField(t('settings.email.username'), 'email-smtp-username', emailSettings.smtp_username || '', 'text', { placeholder: t('settings.email.emailPlaceholder') })}
+                ${settingsField(t('settings.email.password'), 'email-smtp-password', '', 'password', { placeholder: emailSettings.smtp_host ? 'Configured (leave blank to keep)' : 'SMTP password' })}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('From Address', 'email-from-address', emailSettings.from_address || '', 'email', { placeholder: 'noreply@example.com' })}
-                ${settingsField('To Address (for digests)', 'email-to-address', emailSettings.to_address || '', 'email', { placeholder: 'you@example.com' })}
+                ${settingsField(t('settings.email.fromAddress'), 'email-from-address', emailSettings.from_address || '', 'email', { placeholder: 'noreply@example.com' /* i18n-audit-ignore: example address, not copy */ })}
+                ${settingsField(t('settings.email.toAddress'), 'email-to-address', emailSettings.to_address || '', 'email', { placeholder: 'you@example.com' /* i18n-audit-ignore: example address, not copy */ })}
             </div>
             <div style="margin-bottom:16px">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -1346,7 +1346,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 </label>
             </div>
 
-            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;margin-top:20px;color:var(--text-secondary)">Digest Settings</h3>
+            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;margin-top:20px;color:var(--text-secondary)">${t('settings.email.digestTitle')}</h3>
             <div style="margin-bottom:12px">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
                     <input type="checkbox" id="email-digest-enabled" ${emailSettings.digest_enabled ? 'checked' : ''}>
@@ -1358,19 +1358,19 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                     { value: 'daily', label: 'Daily' },
                     { value: 'weekly', label: 'Weekly' },
                 ])}
-                ${settingsField('Send Time', 'email-digest-time', emailSettings.digest_time || '08:00', 'time')}
-                ${settingsField('Min Score', 'email-digest-min-score', emailSettings.digest_min_score || 60, 'number')}
+                ${settingsField(t('settings.email.sendTime'), 'email-digest-time', emailSettings.digest_time || '08:00', 'time')}
+                ${settingsField(t('settings.email.minScore'), 'email-digest-min-score', emailSettings.digest_min_score || 60, 'number')}
             </div>
             <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-email-btn">Save Email Settings</button>
-                <button class="btn btn-secondary" id="test-email-btn">Send Test Email</button>
+                <button class="btn btn-primary" id="save-email-btn">${t('settings.email.saveEmailSettings')}</button>
+                <button class="btn btn-secondary" id="test-email-btn">${t('settings.email.sendTestEmail')}</button>
                 <button class="btn btn-secondary" id="test-digest-btn">Send Test Digest</button>
             </div>
             <div id="email-test-result" style="margin-top:12px"></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">Embedding Settings</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">${t('settings.embeddings.title')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Configure vector embeddings for semantic job search and similar job recommendations.
             </p>
@@ -1385,18 +1385,18 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 </div>
             </div>
             <div id="emb-key-row" style="margin-bottom:12px;${embeddingSettings.provider === 'ollama' ? 'display:none' : ''}">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">API Key</label>
+                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.apiKey')}</label>
                 <input type="password" class="search-input" id="emb-api-key" placeholder="${embeddingSettings.has_key ? 'Key configured (leave blank to keep)' : 'Enter API key'}" style="width:100%">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
                 <div id="emb-url-row" style="${embeddingSettings.provider === 'ollama' ? '' : 'display:none'}">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Base URL</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.baseUrl')}</label>
                     <input type="text" class="search-input" id="emb-base-url" value="${escapeHtml(embeddingSettings.base_url || '')}" placeholder="http://localhost:11434" style="width:100%">
                 </div>
                 ${settingsField('Dimensions', 'emb-dimensions', embeddingSettings.dimensions || (embeddingSettings.provider === 'ollama' ? 768 : 256), 'number')}
             </div>
             <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-emb-btn">Save Embedding Settings</button>
+                <button class="btn btn-primary" id="save-emb-btn">${t('settings.embeddings.save')}</button>
                 <button class="btn btn-secondary" id="backfill-emb-btn">Backfill Embeddings</button>
             </div>
             <div id="emb-result" style="margin-top:12px"></div>
@@ -1432,7 +1432,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
             options.unshift(`<option value="${escapeHtml(currentModel)}" selected>${escapeHtml(currentModel)}</option>`);
         }
         if (!currentModel) {
-            options.unshift('<option value="">Select a model...</option>');
+            options.unshift(`<option value="">${t('settings.ai.selectModel')}</option>`);
         }
         dropdown.innerHTML = options.join('');
     }
@@ -1480,12 +1480,12 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 select.innerHTML = result.models.map(m => `<option value="${escapeHtml(m)}" ${m === currentVal ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
                 if (!currentVal) select.value = result.models[0];
             } else if (!result.ok) {
-                select.innerHTML = `<option value="">Failed to connect</option>`;
+                select.innerHTML = `<option value="">${t('settings.ai.failedToConnect')}</option>`;
             } else {
-                select.innerHTML = `<option value="">No models found</option>`;
+                select.innerHTML = `<option value="">${t('settings.ai.noModelsFound')}</option>`;
             }
-        } catch { select.innerHTML = `<option value="">Error loading models</option>`; }
-        finally { btn.disabled = false; btn.textContent = 'Refresh'; }
+        } catch { select.innerHTML = `<option value="">${t('settings.ai.errorLoadingModels')}</option>`; }
+        finally { btn.disabled = false; btn.textContent = t('actions.refresh'); }
     }
 
     document.getElementById('refresh-models-btn').addEventListener('click', fetchOllamaModels);
@@ -1498,10 +1498,10 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
         const currentVal = _orCurrentModel;
         const btn = document.getElementById('refresh-or-models-btn');
         btn.disabled = true; btn.textContent = '...';
-        select.innerHTML = '<option value="">Loading models...</option>';
+        select.innerHTML = `<option value="">${t('settings.ai.loadingModels')}</option>`;
         try {
             const res = await fetch('https://openrouter.ai/api/v1/models');
-            if (!res.ok) throw new Error('Failed to fetch');
+            if (!res.ok) throw new Error(t('settings.ai.failedToFetch'));
             const data = await res.json();
             const models = (data.data || [])
                 .map(m => ({ id: m.id, name: m.name || m.id }))
@@ -1511,10 +1511,10 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 if (currentVal && !models.some(m => m.id === currentVal)) {
                     opts.unshift(`<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(currentVal)}</option>`);
                 }
-                if (!currentVal) opts.unshift('<option value="">Select a model...</option>');
+                if (!currentVal) opts.unshift(`<option value="">${t('settings.ai.selectModel')}</option>`);
                 select.innerHTML = opts.join('');
             } else {
-                select.innerHTML = '<option value="">No models found</option>';
+                select.innerHTML = `<option value="">${t('settings.ai.noModelsFound')}</option>`;
             }
         } catch {
             select.innerHTML = `<option value="${escapeHtml(currentVal)}">${currentVal || 'Failed to load models'}</option>`;
@@ -1522,7 +1522,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
             document.getElementById('ai-model').style.display = '';
             document.getElementById('ai-model').placeholder = 'e.g. anthropic/claude-sonnet-4';
         }
-        finally { btn.disabled = false; btn.textContent = 'Refresh'; }
+        finally { btn.disabled = false; btn.textContent = t('actions.refresh'); }
     }
 
     document.getElementById('refresh-or-models-btn').addEventListener('click', () => {
@@ -1561,23 +1561,23 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
 
     document.getElementById('save-ai-btn').addEventListener('click', async () => {
         const btn = document.getElementById('save-ai-btn');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
         try { await api.updateAISettings(getAIFormValues()); showToast('AI settings saved', 'success'); }
         catch (err) { showToast(err.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Save AI Settings'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.ai.saveAiSettings'); }
     });
 
     document.getElementById('test-ai-btn').addEventListener('click', async () => {
         const btn = document.getElementById('test-ai-btn');
         const resultDiv = document.getElementById('ai-test-result');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Testing...'; resultDiv.innerHTML = '';
+        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('settings.ai.testing')}`; resultDiv.innerHTML = '';
         try {
             const result = await api.testAIConnection(getAIFormValues());
             resultDiv.innerHTML = result.ok
                 ? `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">Connection successful! Response: "${escapeHtml(result.response)}"</div>`
                 : `<div style="color:var(--danger, #ef4444);font-size:0.875rem;font-weight:600">Connection failed: ${escapeHtml(result.error)}</div>`;
         } catch (err) { resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`; }
-        finally { btn.disabled = false; btn.textContent = 'Test Connection'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.ai.testConnection'); }
     });
 
     document.getElementById('save-scraper-keys-btn').addEventListener('click', async () => {
@@ -1609,12 +1609,12 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
 
     document.getElementById('save-email-btn').addEventListener('click', async () => {
         const btn = document.getElementById('save-email-btn');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
         try {
             await api.request('POST', '/api/settings/email', getEmailFormValues());
-            showToast('Email settings saved', 'success');
+            showToast(t('settings.email.emailSaved'), 'success');
         } catch (err) { showToast(err.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = 'Save Email Settings'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.email.saveEmailSettings'); }
     });
 
     document.getElementById('test-email-btn').addEventListener('click', async () => {
@@ -1627,7 +1627,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
         } catch (err) {
             resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
         }
-        finally { btn.disabled = false; btn.textContent = 'Send Test Email'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.email.sendTestEmail'); }
     });
 
     document.getElementById('test-digest-btn').addEventListener('click', async () => {
@@ -1657,7 +1657,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
     document.getElementById('save-emb-btn').addEventListener('click', async () => {
         const btn = document.getElementById('save-emb-btn');
         const resultDiv = document.getElementById('emb-result');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
         try {
             const payload = {
                 provider: document.getElementById('emb-provider').value,
@@ -1667,20 +1667,20 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 dimensions: parseInt(document.getElementById('emb-dimensions').value) || 256,
             };
             await api.request('POST', '/api/settings/embeddings', payload);
-            showToast('Embedding settings saved', 'success');
+            showToast(t('settings.embeddings.saved'), 'success');
             resultDiv.innerHTML = '';
         } catch (err) {
             showToast(err.message, 'error');
             resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
         }
-        finally { btn.disabled = false; btn.textContent = 'Save Embedding Settings'; }
+        finally { btn.disabled = false; btn.textContent = t('settings.embeddings.save'); }
     });
 
     document.getElementById('backfill-emb-btn').addEventListener('click', async () => {
         const btn = document.getElementById('backfill-emb-btn');
         const resultDiv = document.getElementById('emb-result');
         btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Backfilling...';
-        resultDiv.innerHTML = '<div style="font-size:0.875rem;color:var(--text-secondary)">Processing embeddings, this may take a while...</div>';
+        resultDiv.innerHTML = `<div style="font-size:0.875rem;color:var(--text-secondary)">${t('settings.embeddings.processing')}</div>`;
         try {
             const result = await api.request('POST', '/api/embeddings/backfill');
             resultDiv.innerHTML = `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">Backfill complete: ${result.embedded || 0}/${result.total || 0} jobs embedded${result.errors ? `, ${result.errors} errors` : ''}</div>`;
@@ -1695,18 +1695,18 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
 function renderTabData(container) {
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Export</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">Export your job data as CSV.</p>
-            <a href="/api/export/csv" class="btn btn-secondary" download>Download CSV Export</a>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('actions.export')}</h2>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.data.csvDesc')}</p>
+            <a href="/api/export/csv" class="btn btn-secondary" download>${t('settings.data.downloadCsv')}</a>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Export / Import Profile</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.data.profileExportTitle')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
                 Export your full profile data as JSON, or import from a previously exported file.
             </p>
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-                <button class="btn btn-secondary" id="export-profile-btn">Export Profile JSON</button>
+                <button class="btn btn-secondary" id="export-profile-btn">${t('settings.data.exportProfile')}</button>
                 <input type="file" id="import-profile-file" accept=".json" style="font-size:0.875rem">
                 <button class="btn btn-secondary" id="import-profile-btn">Import Profile</button>
             </div>
@@ -1714,19 +1714,19 @@ function renderTabData(container) {
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Autofill History</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">Recent autofill sessions from the browser extension.</p>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.data.autofillDesc')}</p>
             <div id="autofill-history-list"><span class="spinner"></span></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Scraper Schedule</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">Configure how often each scraper runs. Set interval in hours (e.g. 168 = weekly).</p>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.scraper.description')}</p>
             <div id="scraper-schedule-list"><span class="spinner"></span></div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Setup Guide</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">Re-run the onboarding wizard to configure your profile, resume, and AI provider.</p>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.onboarding.description')}</p>
             <button class="btn btn-secondary" id="rerun-onboarding-btn">Launch Setup Guide</button>
         </div>
 
@@ -1735,17 +1735,17 @@ function renderTabData(container) {
             <div style="display:flex;flex-direction:column;gap:16px">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
                     <div>
-                        <div style="font-weight:600;font-size:0.9375rem">Clear Jobs & Scores</div>
+                        <div style="font-weight:600;font-size:0.9375rem">${t('settings.danger.clearJobsScores')}</div>
                         <div style="color:var(--text-secondary);font-size:0.8125rem">Remove all scraped jobs, scores, and application data. Keeps your resume, search terms, and AI settings.</div>
                     </div>
-                    <button class="btn btn-danger" id="clear-jobs-btn" style="white-space:nowrap">Clear Jobs</button>
+                    <button class="btn btn-danger" id="clear-jobs-btn" style="white-space:nowrap">${t('settings.danger.clearJobs')}</button>
                 </div>
                 <div style="border-top:1px solid var(--border);padding-top:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
                     <div>
-                        <div style="font-weight:600;font-size:0.9375rem">Reset Everything</div>
+                        <div style="font-weight:600;font-size:0.9375rem">${t('settings.danger.resetEverything')}</div>
                         <div style="color:var(--text-secondary);font-size:0.8125rem">Remove all data including resume, search terms, AI settings, jobs, and scores. Returns to a fresh state.</div>
                     </div>
-                    <button class="btn btn-danger" id="clear-all-btn" style="white-space:nowrap">Reset All</button>
+                    <button class="btn btn-danger" id="clear-all-btn" style="white-space:nowrap">${t('settings.danger.resetAll')}</button>
                 </div>
             </div>
         </div>
@@ -1755,7 +1755,7 @@ function renderTabData(container) {
     api.request('GET', '/api/autofill/history').then(data => {
         const list = container.querySelector('#autofill-history-list');
         const items = data.items || [];
-        if (!items.length) { list.innerHTML = '<p style="color:var(--text-tertiary);font-size:0.875rem">No autofill sessions yet.</p>'; return; }
+        if (!items.length) { list.innerHTML = `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.data.noAutofillSessions')}</p>`; return; }
         list.innerHTML = items.map(h => `
             <div style="padding:8px 12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm);margin-bottom:6px">
                 <div style="font-weight:600;font-size:0.875rem">${escapeHtml(h.job_title || 'Unknown')} at ${escapeHtml(h.company || 'Unknown')}</div>
@@ -1771,15 +1771,15 @@ function renderTabData(container) {
         const list = container.querySelector('#scraper-schedule-list');
         const schedules = data.schedules || [];
         if (!schedules.length) {
-            list.innerHTML = '<p style="color:var(--text-tertiary);font-size:0.875rem">No scraper schedules configured yet. Scrapers will use the global interval. Run a scrape cycle first to populate sources.</p>';
+            list.innerHTML = `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.scraper.empty')}</p>`;
             return;
         }
         list.innerHTML = `
             <table style="width:100%;border-collapse:collapse;font-size:0.875rem">
                 <thead>
                     <tr style="border-bottom:2px solid var(--border);text-align:left">
-                        <th style="padding:8px 12px">Source</th>
-                        <th style="padding:8px 12px">Interval (hours)</th>
+                        <th style="padding:8px 12px">${t('fields.source')}</th>
+                        <th style="padding:8px 12px">${t('settings.scraper.intervalHours')}</th>
                         <th style="padding:8px 12px">Last Ran</th>
                         <th style="padding:8px 12px"></th>
                     </tr>
@@ -1801,7 +1801,7 @@ function renderTabData(container) {
                 const row = btn.closest('tr');
                 const source_name = row.dataset.source;
                 const interval_hours = parseInt(row.querySelector('.schedule-interval').value, 10);
-                if (!interval_hours || interval_hours < 1) { showToast('Interval must be at least 1 hour', 'error'); return; }
+                if (!interval_hours || interval_hours < 1) { showToast(t('settings.scraper.intervalTooSmall'), 'error'); return; }
                 try {
                     await api.request('POST', '/api/scraper-schedule', { source_name, interval_hours });
                     showToast(`Schedule updated for ${source_name}`, 'success');
@@ -1814,9 +1814,9 @@ function renderTabData(container) {
 
     document.getElementById('clear-jobs-btn').addEventListener('click', async () => {
         const ok = await showModal({
-            title: 'Clear All Jobs',
-            message: 'This will permanently delete all jobs, scores, and applications. Continue?',
-            confirmText: 'Clear Jobs',
+            title: t('settings.danger.clearAllTitle'),
+            message: t('settings.danger.clearJobsConfirm'),
+            confirmText: t('settings.danger.clearJobs'),
             danger: true,
         });
         if (!ok) return;
@@ -1826,15 +1826,15 @@ function renderTabData(container) {
 
     document.getElementById('clear-all-btn').addEventListener('click', async () => {
         const okAll = await showModal({
-            title: 'Delete ALL Data',
-            message: 'This will permanently delete ALL data including jobs, applications, contacts, and settings. This cannot be undone. Are you sure?',
-            confirmText: 'Delete Everything',
+            title: t('settings.danger.deleteAllData'),
+            message: t('settings.danger.resetConfirm'),
+            confirmText: t('settings.danger.deleteEverything'),
             danger: true,
         });
         if (!okAll) return;
         try {
             await api.request('POST', '/api/clear-all');
-            showToast('All data reset', 'info');
+            showToast(t('settings.danger.allReset'), 'info');
             settingsData = {};
             await renderSettings(document.getElementById('app'));
         } catch (err) { showToast(err.message, 'error'); }
@@ -1844,7 +1844,7 @@ function renderTabData(container) {
     document.getElementById('rerun-onboarding-btn').addEventListener('click', () => {
         localStorage.removeItem('careerpulse_onboarded');
         invalidateSetupStatus();
-        showToast('Setup wizard will appear on next page load', 'info');
+        showToast(t('settings.onboarding.willAppear'), 'info');
         location.reload();
     });
 
@@ -1864,7 +1864,7 @@ function renderTabData(container) {
     // Import profile
     document.getElementById('import-profile-btn').addEventListener('click', async () => {
         const fileInput = document.getElementById('import-profile-file');
-        if (!fileInput.files.length) { showToast('Select a JSON file first', 'error'); return; }
+        if (!fileInput.files.length) { showToast(t('settings.data.selectJsonFirst'), 'error'); return; }
         try {
             const text = await fileInput.files[0].text();
             const data = JSON.parse(text);
