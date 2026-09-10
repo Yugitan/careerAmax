@@ -5,7 +5,9 @@ async function getServerUrl() {
   const cleaned = serverUrl.replace(/\/+$/, '');
   // Validate URL scheme to prevent fetching non-HTTP URLs
   if (!/^https?:\/\//i.test(cleaned)) {
-    throw new Error('Server URL must start with http:// or https://');
+    const error = new Error('Server URL must start with http:// or https://'); // i18n-audit-ignore: non-localized fallback detail next to a stable code
+    error.code = 'background.invalid_server_url';
+    throw error;
   }
   return cleaned;
 }
@@ -235,7 +237,9 @@ async function processNextQueueItem() {
           chrome.tabs.onUpdated.removeListener(listener);
           chrome.tabs.onRemoved.removeListener(removedListener);
           clearTimeout(timeoutId);
-          reject(new Error('Tab closed before loading'));
+          const error = new Error('Tab closed before loading'); // i18n-audit-ignore: non-localized fallback detail next to a stable code
+          error.code = 'background.tab_closed';
+          reject(error);
         }
 
         chrome.tabs.onUpdated.addListener(listener);
@@ -276,15 +280,15 @@ async function processNextQueueItem() {
     await persistQueueState();
     return { ok: true, done: true, completed, total };
   }
-  return { ok: false, error: 'No active queue' };
+  return { ok: false, code: 'queue.no_active', error: 'No active queue' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
 }
 
 async function handleQueueUserAction(queueItemId, action) {
-  if (!queueState) return { ok: false, error: 'No active queue' };
+  if (!queueState) return { ok: false, code: 'queue.no_active', error: 'No active queue' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
 
   const currentItem = queueState.items[queueState.currentIndex];
   if (!currentItem || currentItem.id !== queueItemId) {
-    return { ok: false, error: 'Queue item mismatch' };
+    return { ok: false, code: 'queue.item_mismatch', error: 'Queue item mismatch' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
   }
 
   // Report status to backend
@@ -301,7 +305,7 @@ async function handleQueueUserAction(queueItemId, action) {
 
 async function startQueueFill(items) {
   if (!items || !items.length) {
-    return { ok: false, error: 'No queue items provided' };
+    return { ok: false, code: 'queue.no_items', error: 'No queue items provided' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
   }
 
   // Cancel any existing queue
@@ -316,7 +320,7 @@ async function startQueueFill(items) {
 }
 
 async function cancelQueueFill() {
-  if (!queueState) return { ok: false, error: 'No active queue' };
+  if (!queueState) return { ok: false, code: 'queue.no_active', error: 'No active queue' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
 
   const remaining = queueState.items.length - queueState.currentIndex;
   queueState = null;
@@ -408,10 +412,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             chrome.tabs.sendMessage(tabId, { type: 'startFill' });
             return { ok: true };
           }
-          return { ok: false, error: 'No tab context' };
+          return { ok: false, code: 'background.no_tab_context', error: 'No tab context' } // i18n-audit-ignore: non-localized fallback detail next to a stable code;
         }
         default:
-          return { ok: false, error: `Unknown message type: ${message.type}` };
+          return { ok: false, code: 'background.unknown_message_type', params: { type: message.type }, error: `Unknown message type: ${message.type}` };
       }
     } catch (err) {
       return { ok: false, error: err.message };

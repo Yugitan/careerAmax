@@ -20,6 +20,10 @@ i18n.register('detail', {
         responseLabel: 'Response:',
         contactInfo: 'Contact Info',
         copyEmailTitle: 'Copy email',
+        contact: {
+            linkedin: 'LinkedIn',
+            github: 'GitHub',
+        },
         noContactFound: 'No contact found',
         retrySearch: 'Retry Search',
         findContact: 'Find Contact',
@@ -257,6 +261,10 @@ i18n.register('detail', {
         responseLabel: '回复：',
         contactInfo: '联系信息',
         copyEmailTitle: '复制邮箱',
+        contact: {
+            linkedin: 'LinkedIn',
+            github: 'GitHub',
+        },
         noContactFound: '未找到联系人',
         retrySearch: '重新搜索',
         findContact: '查找联系人',

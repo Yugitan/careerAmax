@@ -27,7 +27,7 @@ async function renderPipeline(container) {
 
         container.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">Pipeline</h1>
+                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">${t('pipeline.title')}</h1>
                 <div style="display:flex;align-items:center;gap:12px">
                     <button id="add-external-job-btn" class="btn btn-primary btn-sm">${t('pipeline.addJobShort')}</button>
                     <div class="tab-bar">
@@ -185,11 +185,11 @@ function showPipelineQuickAction(card, jobId, action) {
             <div class="pipeline-qa-form" onclick="event.stopPropagation()">
                 <input type="text" class="search-input" name="who" placeholder="Who?" style="font-size:0.75rem">
                 <select class="filter-select" name="duration" style="font-size:0.75rem;padding:4px">
-                    <option value="">Duration</option>
+                    <option value="">${t('detail.crm.duration')}</option>
                     <option value="5 min">5m</option><option value="15 min">15m</option>
                     <option value="30 min">30m</option><option value="1 hr">1h</option>
                 </select>
-                <textarea class="search-input" name="notes" placeholder="Notes..." rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
+                <textarea class="search-input" name="notes" placeholder="${t('pipeline.notesPlaceholder')}" rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
                 <div style="display:flex;gap:4px">
                     <button class="btn btn-primary btn-sm pqa-submit" style="flex:1;font-size:0.7rem;padding:3px 6px">Log</button>
                     <button class="btn btn-secondary btn-sm pqa-cancel" style="font-size:0.7rem;padding:3px 6px">X</button>
@@ -201,8 +201,8 @@ function showPipelineQuickAction(card, jobId, action) {
                 <select class="filter-select" name="direction" style="font-size:0.75rem;padding:4px">
                     <option value="Sent">Sent</option><option value="Received">Received</option>
                 </select>
-                <input type="text" class="search-input" name="subject" placeholder="Subject" style="font-size:0.75rem">
-                <textarea class="search-input" name="notes" placeholder="Notes..." rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
+                <input type="text" class="search-input" name="subject" placeholder="${t('pipeline.subjectPlaceholder')}" style="font-size:0.75rem">
+                <textarea class="search-input" name="notes" placeholder="${t('pipeline.notesPlaceholder')}" rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
                 <div style="display:flex;gap:4px">
                     <button class="btn btn-primary btn-sm pqa-submit" style="flex:1;font-size:0.7rem;padding:3px 6px">Log</button>
                     <button class="btn btn-secondary btn-sm pqa-cancel" style="font-size:0.7rem;padding:3px 6px">X</button>
@@ -313,7 +313,7 @@ function renderOffersList(tabContent, offers, jobMap) {
                     </div>
                     <div style="display:flex;gap:6px">
                         <button class="btn btn-ghost btn-sm offer-edit-btn" data-offer-id="${offer.id}" title="Edit">Edit</button>
-                        <button class="btn btn-ghost btn-sm offer-delete-btn" data-offer-id="${offer.id}" title="Delete" style="color:var(--danger)">Delete</button>
+                        <button class="btn btn-ghost btn-sm offer-delete-btn" data-offer-id="${offer.id}" title="${t('actions.delete')}" style="color:var(--danger)">${t('actions.delete')}</button>
                     </div>
                 </div>
                 <div class="offer-comp-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:12px">
@@ -342,7 +342,7 @@ function renderOffersList(tabContent, offers, jobMap) {
             const ok = await showModal({
                 title: t('pipeline.offers.deleteTitle'),
                 message: t('pipeline.offers.deleteMessage'),
-                confirmText: 'Delete',
+                confirmText: t('actions.delete'),
                 danger: true,
             });
             if (!ok) return;
@@ -413,17 +413,17 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                         <input type="number" name="remote_days" class="form-input" value="${existingOffer?.remote_days || ''}" placeholder="3">
                     </div>
                     <div style="grid-column:1/-1">
-                        <label class="form-label">Location</label>
+                        <label class="form-label">${t('fields.location')}</label>
                         <input type="text" name="location" class="form-input" value="${escapeHtml(existingOffer?.location || '')}" placeholder="City, State">
                     </div>
                     <div style="grid-column:1/-1">
-                        <label class="form-label">Notes</label>
+                        <label class="form-label">${t('fields.notes')}</label>
                         <textarea name="notes" class="form-input" rows="2" placeholder="${t('pipeline.offers.additionalDetailsPlaceholder')}">${escapeHtml(existingOffer?.notes || '')}</textarea>
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
                     <button type="submit" class="btn btn-primary btn-sm">${isEdit ? t('actions.update') : t('actions.add')} Offer</button>
-                    <button type="button" id="cancel-offer-form" class="btn btn-ghost btn-sm">Cancel</button>
+                    <button type="button" id="cancel-offer-form" class="btn btn-ghost btn-sm">${t('actions.cancel')}</button>
                 </div>
             </form>
         </div>
@@ -509,7 +509,7 @@ async function showOfferComparison(tabContent) {
             <div class="card" style="padding:20px;margin-top:16px;overflow-x:auto">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                     <h3 style="margin:0;font-size:1rem">${t('pipeline.offers.compareTitle')}</h3>
-                    <button id="close-comparison" class="btn btn-ghost btn-sm">Close</button>
+                    <button id="close-comparison" class="btn btn-ghost btn-sm">${t('actions.close')}</button>
                 </div>
                 <table class="comparison-table" style="width:100%">
                     <thead>
@@ -611,7 +611,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
             <div class="modal-content" style="max-width:540px" onclick="event.stopPropagation()">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                     <h2 class="modal-title" style="margin:0">${t('pipeline.addJobModal.title')}</h2>
-                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">Close</button>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">${t('actions.close')}</button>
                 </div>
                 <form id="add-job-form">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -629,16 +629,16 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                             <input type="text" name="company" class="form-input" id="add-job-company" required>
                         </div>
                         <div style="grid-column:1/-1">
-                            <label class="form-label">Description</label>
+                            <label class="form-label">${t('fields.description')}</label>
                             <textarea name="description" class="form-input" id="add-job-description" rows="3" placeholder="${t('pipeline.addJobModal.pastePlaceholder')}"></textarea>
                         </div>
                         <div>
-                            <label class="form-label">Location</label>
-                            <input type="text" name="location" class="form-input" id="add-job-location" placeholder="City, State or Remote">
+                            <label class="form-label">${t('fields.location')}</label>
+                            <input type="text" name="location" class="form-input" id="add-job-location" placeholder="${t('pipeline.addJobModal.locationPlaceholder')}">
                         </div>
                         <div>
-                            <label class="form-label">Salary</label>
-                            <input type="text" name="salary" class="form-input" id="add-job-salary" placeholder="e.g. 150000 or 150k-180k">
+                            <label class="form-label">${t('fields.salary')}</label>
+                            <input type="text" name="salary" class="form-input" id="add-job-salary" placeholder="${t('pipeline.addJobModal.salaryPlaceholder')}">
                         </div>
                         <div>
                             <label class="form-label">${t('pipeline.addJobModal.initialStatus')}</label>
@@ -673,7 +673,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                         </div>
                     </div>
                     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">Cancel</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">${t('actions.cancel')}</button>
                         <button type="submit" class="btn btn-primary btn-sm" id="add-job-submit">${t('pipeline.addJob')}</button>
                     </div>
                 </form>

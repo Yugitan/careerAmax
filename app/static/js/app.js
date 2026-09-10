@@ -870,6 +870,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showOnboardingWizard();
     }
     updateSetupIndicator();
+    // Static markup (nav, buttons, aria labels) is bound through data-i18n.
+    i18n.applyStatic(document);
     updateLanguageButtons();
     updateDocumentTitle();
     handleRoute();

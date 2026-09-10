@@ -30,6 +30,7 @@ i18n.register('stats', {
             interviewing: 'Interviewing',
         },
         actions: {
+            score: 'Score',
             scoreUnscored: 'Score {count} Unscored',
             allScored: 'All Scored',
             rescoreFailed: 'Rescore Failed',
@@ -124,6 +125,7 @@ i18n.register('stats', {
             interviewing: '面试中',
         },
         actions: {
+            score: '评分',
             scoreUnscored: '为 {count} 个未评分职位评分',
             allScored: '全部已评分',
             rescoreFailed: '重新评分失败项',

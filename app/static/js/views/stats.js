@@ -5,9 +5,9 @@ async function renderStats(container) {
     try {
         const stats = await api.getStats();
         container.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <div class="stats-header">
                 <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">${t('stats.title')}</h1>
-                <div style="display:flex;gap:8px">
+                <div class="stats-header-actions">
                     <button class="btn btn-primary" id="stats-scrape-btn">${t('nav.scrapeNow')}</button>
                     <button class="btn btn-secondary" id="stats-score-btn">${stats.total_jobs - stats.total_scored > 0 ? t('stats.actions.scoreUnscored', { count: stats.total_jobs - stats.total_scored }) : t('stats.actions.allScored')}</button>
                     <button class="btn btn-secondary" id="stats-rescore-btn" title="${t('stats.actions.rescoreTitle')}">${t('stats.actions.rescoreFailed')}</button>
@@ -142,7 +142,7 @@ async function renderStats(container) {
                 startScoringPoll();
             } catch (err) {
                 scoreBtn.disabled = false;
-                scoreBtn.textContent = 'Score';
+                scoreBtn.textContent = t('stats.actions.score');
                 showToast(apiErrorMessage(err), 'error');
             }
         });

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CareerPulse AutoFill",
   "description": "Auto-fill job applications with your CareerPulse profile",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "permissions": ["activeTab", "scripting", "storage", "downloads"],
   "host_permissions": ["http://localhost:8085/*"],
   "action": {
@@ -16,7 +16,7 @@
     {
       "matches": ["<all_urls>"],
       "exclude_matches": ["http://localhost:8085/*", "http://127.0.0.1:8085/*"],
-      "js": ["normalize.js", "ats-adapters.js", "content.js"],
+      "js": ["i18n.js", "locales/common.js", "locales/extension.js", "error-messages.js", "normalize.js", "ats-adapters.js", "content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle",
       "all_frames": true

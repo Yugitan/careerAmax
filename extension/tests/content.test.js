@@ -6,9 +6,11 @@ import {
 } from './helpers.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ensureExtensionI18n } from './setup.js';
 
 // Load dependency IIFEs (normalize.js, ats-adapters.js) then content.js
 function loadScript() {
+  ensureExtensionI18n(); // interface copy is English in tests
   window.__cpAutofillLoaded = false;
   window.__cpAutofillTest = true;
   window.__cpAutofillTestAPI = undefined;

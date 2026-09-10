@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,27 +10,39 @@
   <div class="popup">
     <div class="header">
       <h1>CareerPulse</h1>
-      <span class="subtitle">AutoFill</span>
+      <span class="subtitle" data-i18n="popup.subtitle"></span>
     </div>
 
     <div class="status-row">
       <span class="status-dot" id="statusDot"></span>
-      <span class="status-text" id="statusText">Checking...</span>
+      <span class="status-text" id="statusText"></span>
     </div>
 
-    <button class="btn-primary" id="fillBtn" disabled>Fill Application</button>
+    <button class="btn-primary" id="fillBtn" disabled data-i18n="popup.fillApplication"></button>
 
     <div class="settings-section">
-      <label for="serverUrl">Server URL</label>
+      <label for="serverUrl" data-i18n="popup.serverUrl"></label>
       <div class="input-row">
         <input type="text" id="serverUrl" value="http://localhost:8085" spellcheck="false">
-        <button class="btn-small" id="saveUrlBtn">Save</button>
+        <button class="btn-small" id="saveUrlBtn" data-i18n="actions.save"></button>
       </div>
     </div>
 
-    <a class="settings-link" id="settingsLink" href="#">Open CareerPulse Settings</a>
+    <div class="language-row">
+      <span class="language-label" data-i18n="nav.language"></span>
+      <div id="lang-switch" class="lang-switch" role="group" data-i18n-aria-label="nav.languageSwitcher">
+        <button type="button" class="lang-option" data-lang="zh-CN" data-i18n="nav.languageZh" aria-pressed="true"></button>
+        <button type="button" class="lang-option" data-lang="en" data-i18n="nav.languageEn" aria-pressed="false"></button>
+      </div>
+    </div>
+
+    <a class="settings-link" id="settingsLink" href="#" data-i18n="popup.openSettings"></a>
   </div>
 
+  <script src="i18n.js"></script>
+  <script src="locales/common.js"></script>
+  <script src="locales/extension.js"></script>
+  <script src="error-messages.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

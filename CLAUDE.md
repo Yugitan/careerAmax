@@ -36,7 +36,9 @@ docker compose up -d
 - `app/predictor.py` — application success prediction
 - `app/career_advisor.py` — career trajectory AI analysis
 - `app/offer_calculator.py` — offer comparison with cost-of-living normalization
-- `app/static/js/app.js` — SPA router, mobile hamburger nav, keyboard shortcuts
+- `app/static/js/i18n.js` — i18n core: `t(key, params)`, language read/save/switch (localStorage `careerpulse_lang`, default `zh-CN`, no browser auto-detect), English fallback + dev warnings, language-aware date/number helpers; catalogs in `app/static/js/locales/*.js` (both languages in one file per domain)
+- `app/errors.py` — `AppError(code, status_code, params)` + English fallback catalog; `app.main` registers a handler returning `{code, params, detail}` so user-visible backend errors are translated client-side
+- `app/static/js/app.js` — SPA router, mobile hamburger nav, keyboard shortcuts, nav language switcher + `rerenderForLanguage()` and unsaved-form confirmation (`confirmDiscardUnsavedChanges` in `utils.js`)
 - `app/static/js/api.js` — centralized API client
 - `app/static/js/utils.js` — HTML sanitization (`escapeHtml`, `sanitizeHtml`, `sanitizeUrl`), shared helpers
 - `app/static/js/onboarding.js` — 4-step first-run wizard (profile → resume → AI provider → scrape)
@@ -46,6 +48,7 @@ docker compose up -d
 - `app/static/js/salary-calculator.js` — client-side salary calculator (W2/1099/C2C, tax estimation by state, Chart.js visualizations)
 - `app/static/js/tax-data.js` — 2025 federal + all 50 state tax brackets and FICA rates
 - `extension/` — Chrome extension (Manifest V3): autofill, job board overlays, queue orchestration
+  - `extension/i18n.js` + `extension/locales/` — extension i18n (own language setting in `chrome.storage.local.language`); `locales/common.js` is **generated** from the web catalogs via `node extension/scripts/sync-common-locale.mjs`; `error-messages.js` maps backend error codes to localized text; popup and overlay each have a language control
 
 ## Environment Variables
 Required in `.env` (all optional — can configure via UI instead):
@@ -62,13 +65,46 @@ Required in `.env` (all optional — can configure via UI instead):
 
 ## Testing
 ```bash
-uv run pytest                             # 655 backend tests
-cd app/static && npx vitest run           # 140 frontend tests
-cd extension && npx vitest run            # 453 extension tests
+uv run pytest                             # 679 backend tests
+cd app/static && npx vitest run           # 233 frontend tests
+cd extension && npx vitest run            # 506 extension tests
 ```
-Total: 1,248 tests
+Total: 1,418 tests — the frontend and extension suites include the i18n unit
+tests, the web ⇄ extension key parity check and the static hardcoded-copy audits.
+
+Language checklist per interface change (see `docs/i18n.md`):
+- web: nav language switcher → `localStorage['careerpulse_lang']`
+- extension: popup control + overlay toggle → `chrome.storage.local['language']`
+- both default to `zh-CN`, never auto-detect the browser locale, and store the
+  setting separately from each other
 
 CI runs all three suites in parallel on push/PR to main: `.github/workflows/ci.yml`
 
 ## Git Remote
 - **GitHub**: `https://github.com/tcpsyn/CareerPulse.git` (origin)
+
+## i18n Maintenance Rules
+
+The interface ships in Simplified Chinese (default) and English. See
+[`docs/i18n.md`](docs/i18n.md) for the full contract, glossary and test matrix.
+
+When adding or changing any user-visible copy:
+
+1. Never hardcode the string in a template or script — add or update a
+   translation key and call `t(key, params)` (web) or `t(key, params)` from
+   `extension/i18n.js` (extension).
+2. Provide **both** `zh-CN` and `en` in the same catalog file
+   (`app/static/js/locales/<domain>.js`, `extension/locales/extension.js`).
+   Shared terminology lives in the web `locales/common.js`; regenerate the
+   extension mirror with `node extension/scripts/sync-common-locale.mjs`.
+3. Add or update tests: an i18n unit test or the static audit
+   (`app/static/tests/i18n-audit.test.js`, `extension/tests/i18n-audit.test.js`).
+4. Mark dynamic content explicitly — interface copy vs. raw business content
+   (job titles, company names, user input, AI output, email bodies). Raw
+   business content is never translated; mark it with a `// raw business content`
+   comment. Amounts stay USD — never convert currency.
+5. Backend errors must raise `AppError("domain.code", status_code=..., params={...})`
+   (never `HTTPException(status, "English text")`); the client resolves
+   `errors.<camelCaseCode>`.
+6. Code review must check for new hardcoded user-visible strings; the audit tests
+   fail the build when copy is hardcoded in a migrated file.

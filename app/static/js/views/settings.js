@@ -102,7 +102,7 @@ async function renderTabAlerts(content) {
                                 </div>
                                 <div style="display:flex;gap:6px">
                                     <button class="btn btn-secondary btn-sm alert-toggle-btn" data-id="${a.id}" data-enabled="${a.enabled}">${a.enabled ? t('settings.alerts.pause') : t('actions.enable')}</button>
-                                    <button class="btn btn-danger btn-sm alert-delete-btn" data-id="${a.id}">Delete</button>
+                                    <button class="btn btn-danger btn-sm alert-delete-btn" data-id="${a.id}">${t('actions.delete')}</button>
                                 </div>
                             </div>
                             ${a.min_score ? `<div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">${t('settings.alerts.minScore', { score: a.min_score })}</div>` : ''}
@@ -128,7 +128,7 @@ async function renderTabAlerts(content) {
                 const ok = await showModal({
                     title: t('settings.alerts.deleteTitle'),
                     message: t('settings.alerts.deleteConfirm'),
-                    confirmText: 'Delete',
+                    confirmText: t('actions.delete'),
                     danger: true,
                 });
                 if (!ok) return;
@@ -171,7 +171,7 @@ async function renderTabFollowUps(content) {
                             </div>
                             <div style="display:flex;gap:6px">
                                 <button class="btn btn-secondary btn-sm followup-edit-btn" data-id="${t.id}">Edit</button>
-                                <button class="btn btn-danger btn-sm followup-delete-btn" data-id="${t.id}">Delete</button>
+                                <button class="btn btn-danger btn-sm followup-delete-btn" data-id="${t.id}">${t('actions.delete')}</button>
                             </div>
                         </div>
                         ${t.template_text ? `<div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:6px;white-space:pre-wrap;max-height:60px;overflow:hidden">${escapeHtml(t.template_text.slice(0, 150))}${t.template_text.length > 150 ? '...' : ''}</div>` : ''}
@@ -196,7 +196,7 @@ async function renderTabFollowUps(content) {
                         </div>
                         <div style="display:flex;gap:8px">
                             <button class="btn btn-primary btn-sm" id="followup-save-btn">${t('settings.common.save')}</button>
-                            <button class="btn btn-secondary btn-sm" id="followup-cancel-btn">Cancel</button>
+                            <button class="btn btn-secondary btn-sm" id="followup-cancel-btn">${t('actions.cancel')}</button>
                         </div>
                     </div>
                 </div>
@@ -257,7 +257,7 @@ async function renderTabFollowUps(content) {
                 const ok = await showModal({
                     title: t('settings.templates.deleteTitle'),
                     message: t('settings.templates.deleteConfirm'),
-                    confirmText: 'Delete',
+                    confirmText: t('actions.delete'),
                     danger: true,
                 });
                 if (!ok) return;
@@ -295,7 +295,7 @@ function renderTabResumes(content, resumes) {
                         <div style="display:flex;gap:6px">
                             ${!r.is_default ? `<button class="btn btn-secondary btn-sm resume-default-btn" data-id="${r.id}">Set Default</button>` : ''}
                             <button class="btn btn-secondary btn-sm resume-edit-btn" data-id="${r.id}">Edit</button>
-                            <button class="btn btn-danger btn-sm resume-delete-btn" data-id="${r.id}">Delete</button>
+                            <button class="btn btn-danger btn-sm resume-delete-btn" data-id="${r.id}">${t('actions.delete')}</button>
                         </div>
                     </div>
                     ${r.summary ? `<div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:6px">${escapeHtml(r.summary)}</div>` : ''}
@@ -321,7 +321,7 @@ function renderTabResumes(content, resumes) {
                     </div>
                     <div style="display:flex;gap:8px">
                         <button class="btn btn-primary btn-sm" id="resume-save-btn">${t('settings.common.save')}</button>
-                        <button class="btn btn-secondary btn-sm" id="resume-cancel-btn">Cancel</button>
+                        <button class="btn btn-secondary btn-sm" id="resume-cancel-btn">${t('actions.cancel')}</button>
                     </div>
                 </div>
             </div>
@@ -398,7 +398,7 @@ function renderTabResumes(content, resumes) {
             const ok = await showModal({
                 title: t('settings.resumes.deleteTitle'),
                 message: t('settings.resumes.deleteConfirm'),
-                confirmText: 'Delete',
+                confirmText: t('actions.delete'),
                 danger: true,
             });
             if (!ok) return;
@@ -456,7 +456,7 @@ function renderTabProfile(container, p) {
                 ${settingsField(t('settings.profile.preferredName'), 'pf-preferred', p.preferred_name)}
                 ${settingsField(t('settings.profile.email'), 'pf-email', p.email, 'email')}
                 ${settingsSelect('Pronouns', 'pf-pronouns', p.pronouns, [
-                    {value:'',label:'Select...'},{value:'he/him',label:'He/Him'},{value:'she/her',label:'She/Her'},
+                    {value:'',label:t('settings.common.select')},{value:'he/him',label:'He/Him'},{value:'she/her',label:'She/Her'},
                     {value:'they/them',label:'They/Them'},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
             </div>
@@ -469,7 +469,7 @@ function renderTabProfile(container, p) {
                 ])}
                 ${settingsField(t('settings.profile.phone'), 'pf-phone', p.phone, 'tel')}
                 ${settingsSelect(t('settings.profile.phoneType'), 'pf-phone-type', p.phone_type, [
-                    {value:'',label:'Select...'},{value:'mobile',label:t('settings.profile.phoneTypeMobile')},{value:'home',label:t('settings.profile.phoneTypeHome')},{value:'work',label:t('settings.profile.phoneTypeWork')},
+                    {value:'',label:t('settings.common.select')},{value:'mobile',label:t('settings.profile.phoneTypeMobile')},{value:'home',label:t('settings.profile.phoneTypeHome')},{value:'work',label:t('settings.profile.phoneTypeWork')},
                 ])}
                 ${settingsField(t('settings.profile.additionalPhone'), 'pf-addl-phone', p.additional_phone, 'tel')}
             </div>
@@ -523,7 +523,7 @@ function renderTabProfile(container, p) {
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Driver's License</h2>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                 ${settingsSelect(t('settings.profile.hasLicense'), 'pf-dl', p.drivers_license, [
-                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
+                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
                 ${settingsField('Class', 'pf-dl-class', p.drivers_license_class)}
                 ${settingsField(t('settings.profile.state'), 'pf-dl-state', p.drivers_license_state)}
@@ -535,15 +535,15 @@ function renderTabProfile(container, p) {
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
                 ${settingsField(t('settings.profile.countryOfCitizenship'), 'pf-citizen', p.country_of_citizenship)}
                 ${settingsSelect(t('settings.profile.workAuth'), 'pf-auth-us', p.authorized_to_work_us, [
-                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
+                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
                 ${settingsSelect('Requires Sponsorship?', 'pf-sponsor', p.requires_sponsorship, [
-                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
+                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
                 ])}
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                 ${settingsSelect('Authorization Type', 'pf-auth-type', p.authorization_type, [
-                    {value:'',label:'Select...'},{value:'citizen',label:'US Citizen'},{value:'permanent_resident',label:'Permanent Resident'},
+                    {value:'',label:t('settings.common.select')},{value:'citizen',label:'US Citizen'},{value:'permanent_resident',label:'Permanent Resident'},
                     {value:'h1b',label:'H-1B'},{value:'opt',label:'OPT'},{value:'ead',label:'EAD'},
                     {value:'tn',label:'TN Visa'},{value:'other',label:t('settings.profile.genderOther')},
                 ])}
@@ -694,7 +694,7 @@ function renderTabWorkHistory(container, fp) {
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
                 <button class="btn btn-ghost btn-sm wh-edit-btn" data-type="${type}" data-id="${item.id}">${t('actions.edit')}</button>
-                <button class="btn btn-danger btn-sm wh-delete-btn" data-type="${type}" data-id="${item.id}">Delete</button>
+                <button class="btn btn-danger btn-sm wh-delete-btn" data-type="${type}" data-id="${item.id}">${t('actions.delete')}</button>
             </div>
         </div>`;
     }
@@ -775,7 +775,7 @@ function renderTabWorkHistory(container, fp) {
         ], listKey: 'work_history'},
         'education': { endpoint: '/api/education', fields: [
             {key:'school',label:t('settings.profile.school'),type:'text'},{key:'degree_type',label:t('settings.profile.degreeType'),type:'select',options:[
-                {value:'',label:'Select...'},{value:'high_school',label:'High School'},{value:'associates',label:'Associates'},
+                {value:'',label:t('settings.common.select')},{value:'high_school',label:'High School'},{value:'associates',label:'Associates'},
                 {value:'bachelors',label:'Bachelors'},{value:'masters',label:'Masters'},{value:'mba',label:'MBA'},
                 {value:'phd',label:'PhD'},{value:'other',label:t('settings.profile.genderOther')},
             ]},
@@ -792,7 +792,7 @@ function renderTabWorkHistory(container, fp) {
         'skills': { endpoint: '/api/skills', fields: [
             {key:'name',label:'Skill',type:'text'},{key:'years_experience',label:t('settings.profile.yearsExperienceShort'),type:'number'},
             {key:'proficiency',label:t('settings.profile.proficiency'),type:'select',options:[
-                {value:'',label:'Select...'},{value:'beginner',label:'Beginner'},{value:'intermediate',label:'Intermediate'},
+                {value:'',label:t('settings.common.select')},{value:'beginner',label:'Beginner'},{value:'intermediate',label:'Intermediate'},
                 {value:'advanced',label:'Advanced'},{value:'expert',label:'Expert'},
             ]},
         ], listKey: 'skills'},
@@ -832,7 +832,7 @@ function renderTabWorkHistory(container, fp) {
                 </div>
                 <div style="display:flex;gap:8px">
                     <button class="btn btn-primary btn-sm" id="wh-save-${type}">${isEdit ? t('actions.update') : t('settings.common.save')}</button>
-                    <button class="btn btn-secondary btn-sm" id="wh-cancel-${type}">Cancel</button>
+                    <button class="btn btn-secondary btn-sm" id="wh-cancel-${type}">${t('actions.cancel')}</button>
                 </div>
             </div>`;
 
@@ -881,7 +881,7 @@ function renderTabWorkHistory(container, fp) {
             const ok = await showModal({
                 title: t('settings.common.deleteEntry'),
                 message: t('settings.common.deleteEntryConfirm'),
-                confirmText: 'Delete',
+                confirmText: t('actions.delete'),
                 danger: true,
             });
             if (!ok) return;
@@ -1017,7 +1017,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                 ${settingsField(t('settings.jobSearch.minSalary'), 'js-sal-min', profile.desired_salary_min, 'number')}
                 ${settingsField(t('settings.jobSearch.maxSalary'), 'js-sal-max', profile.desired_salary_max, 'number')}
                 ${settingsSelect('Period', 'js-sal-period', profile.salary_period, [
-                    {value:'',label:'Select...'},{value:'annual',label:'Annual'},{value:'hourly',label:'Hourly'},
+                    {value:'',label:t('settings.common.select')},{value:'annual',label:'Annual'},{value:'hourly',label:'Hourly'},
                 ])}
             </div>
         </div>
@@ -1027,12 +1027,12 @@ function renderTabJobSearch(container, config, profile, customQA) {
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                 ${settingsField(t('settings.jobSearch.availableFrom'), 'js-avail-date', profile.availability_date, 'date')}
                 ${settingsSelect('Notice Period', 'js-notice', profile.notice_period, [
-                    {value:'',label:'Select...'},{value:'immediate',label:'Immediate'},
+                    {value:'',label:t('settings.common.select')},{value:'immediate',label:'Immediate'},
                     {value:'2_weeks',label:t('settings.jobSearch.twoWeeks')},{value:'1_month',label:t('settings.jobSearch.oneMonth')},
                     {value:'2_months',label:t('settings.jobSearch.twoMonths')},{value:'3_months',label:t('settings.jobSearch.threeMonths')},
                 ])}
                 ${settingsSelect(t('settings.jobSearch.willingToRelocate'), 'js-relocate', profile.willing_to_relocate, [
-                    {value:'',label:'Select...'},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},{value:'depends',label:'Depends'},
+                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},{value:'depends',label:'Depends'},
                 ])}
             </div>
         </div>
@@ -1040,7 +1040,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Other Defaults</h2>
             ${settingsSelect(t('settings.jobSearch.hearAboutUs'), 'js-how-heard', profile.how_heard_default, [
-                {value:'',label:'Select...'},{value:'job_board',label:t('settings.jobSearch.jobBoard')},{value:'linkedin',label:t('settings.profile.linkedin')},
+                {value:'',label:t('settings.common.select')},{value:'job_board',label:t('settings.jobSearch.jobBoard')},{value:'linkedin',label:t('settings.profile.linkedin')},
                 {value:'referral',label:t('settings.jobSearch.referral')},{value:'company_website',label:t('settings.jobSearch.companyWebsite')},
                 {value:'recruiter',label:'Recruiter'},{value:'other',label:t('settings.profile.genderOther')},
             ])}
@@ -1065,7 +1065,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                         </div>
                         <div style="display:flex;gap:6px;flex-shrink:0">
                             <button class="btn btn-ghost btn-sm qa-edit-btn" data-id="${q.id}">Edit</button>
-                            <button class="btn btn-danger btn-sm qa-del-btn" data-id="${q.id}">Delete</button>
+                            <button class="btn btn-danger btn-sm qa-del-btn" data-id="${q.id}">${t('actions.delete')}</button>
                         </div>
                     </div>
                 </div>
@@ -1166,7 +1166,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                 </div>
                 <div style="display:flex;gap:8px">
                     <button class="btn btn-primary btn-sm" id="qa-save-btn">${t('settings.common.save')}</button>
-                    <button class="btn btn-secondary btn-sm" id="qa-cancel-btn">Cancel</button>
+                    <button class="btn btn-secondary btn-sm" id="qa-cancel-btn">${t('actions.cancel')}</button>
                 </div>
             </div>`;
         document.getElementById('qa-save-btn').addEventListener('click', async () => {
@@ -1195,7 +1195,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
             const ok = await showModal({
                 title: t('settings.jobSearch.deleteQaTitle'),
                 message: t('settings.jobSearch.deleteQaConfirm'),
-                confirmText: 'Delete',
+                confirmText: t('actions.delete'),
                 danger: true,
             });
             if (!ok) return;

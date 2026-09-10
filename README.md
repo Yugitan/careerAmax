@@ -6,6 +6,8 @@ CareerPulse is a self-hosted job search automation platform. It scrapes 14 job b
 
 Your data stays on your machine. No SaaS subscription, no resume uploaded to a third-party server, no profile data leaving your network. Use Ollama for fully local AI inference, or bring your own API key for cloud providers.
 
+中文使用文档：[`docs/USAGE.md`](docs/USAGE.md)
+
 ## Features
 
 - **Multi-source scraping** — 14 sources with built-in exponential backoff, per-domain rate limiting, and randomized UA rotation: LinkedIn, Dice, Remotive, Hacker News, USA Jobs, Arbeitnow, Jobicy, Indeed, RemoteOK, Himalayas, Wellfound, BuiltIn, Greenhouse, Adzuna
@@ -399,20 +401,41 @@ The full REST API is auto-documented at:
 - `POST /api/clear-all` — Factory reset (deletes everything)
 - `GET /api/health` — Health check
 
+## Internationalization
+
+The interface ships in **Simplified Chinese (default)** and **English**.
+
+- Web: the `中文 / EN` control next to the theme button; the choice is stored in
+  `localStorage` (`careerpulse_lang`). Switching re-renders the current view and
+  asks before discarding unsaved form edits.
+- Chrome extension: the popup and the autofill overlay each expose their own
+  language control; the choice is stored in `chrome.storage.local` (`language`),
+  independent from the web app.
+- No browser-language auto detection; both sides default to `zh-CN`.
+- All interface copy goes through `t(key, params)` from `app/static/js/i18n.js`
+  (web) or `extension/i18n.js` (extension). Job descriptions, company names, AI
+  output and email bodies stay in their original language; amounts stay USD.
+- Backend errors return stable codes: `{ "code": "resume.not_found", "params": {} }`
+  — the client translates them.
+
+Full contract, glossary and maintenance rules: [`docs/i18n.md`](docs/i18n.md).
+
 ## Testing
 
 ```bash
-# Backend (655 tests)
+# Backend (679 tests)
 uv run pytest
 
-# Frontend (140 tests)
+# Frontend (233 tests)
 cd app/static && npx vitest run
 
-# Extension (453 tests)
+# Extension (506 tests)
 cd extension && npx vitest run
 ```
 
-**Total: 1,248 tests** across backend, frontend, and extension.
+**Total: 1,418 tests** across backend, frontend, and extension. Frontend and
+extension suites include the i18n unit tests, the web ⇄ extension key parity
+check and the static hardcoded-copy audits.
 
 Backend covers: scrapers, database, API endpoints, matcher, tailor, resume analyzer, AI client, contact finder, apply link finder, salary estimator, company research, digest, profile CRUD, autofill, custom Q&A, saved views, response tracking, alerts, application queue, follow-up templates, contacts CRM, career advisor, offers, predictions, interview rounds, and calendar events.
 

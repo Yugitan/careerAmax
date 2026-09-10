@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ensureExtensionI18n } from './setup.js';
 
 function createPopupDOM() {
   document.body.innerHTML = `
@@ -17,12 +18,20 @@ function createPopupDOM() {
           <button class="btn-small" id="saveUrlBtn">Save</button>
         </div>
       </div>
+      <div class="language-row">
+        <span class="language-label">Language</span>
+        <div id="lang-switch" class="lang-switch" role="group">
+          <button type="button" class="lang-option" data-lang="zh-CN" aria-pressed="true"></button>
+          <button type="button" class="lang-option" data-lang="en" aria-pressed="false"></button>
+        </div>
+      </div>
       <a class="settings-link" id="settingsLink" href="#">Open CareerPulse Settings</a>
     </div>
   `;
 }
 
 function loadPopup() {
+  ensureExtensionI18n(); // interface copy is English in tests
   createPopupDOM();
   // Prevent window.close() from destroying the jsdom document
   window.close = vi.fn();
@@ -42,9 +51,17 @@ describe('popup init and connection', () => {
       },
       storage: {
         local: {
-          get: vi.fn().mockResolvedValue({ serverUrl: 'http://localhost:8085' }),
-          set: vi.fn().mockResolvedValue(undefined),
+          get: vi.fn((query, callback) => {
+            const result = { serverUrl: 'http://localhost:8085', language: 'en' };
+            if (typeof callback === 'function') { callback(result); return undefined; }
+            return Promise.resolve(result);
+          }),
+          set: vi.fn((data, callback) => {
+            if (typeof callback === 'function') { callback(); return undefined; }
+            return Promise.resolve(undefined);
+          }),
         },
+        onChanged: { addListener: vi.fn() },
       },
       tabs: {
         query: vi.fn().mockResolvedValue([{ id: 1 }]),
@@ -131,9 +148,17 @@ describe('save URL', () => {
       },
       storage: {
         local: {
-          get: vi.fn().mockResolvedValue({ serverUrl: 'http://localhost:8085' }),
-          set: vi.fn().mockResolvedValue(undefined),
+          get: vi.fn((query, callback) => {
+            const result = { serverUrl: 'http://localhost:8085', language: 'en' };
+            if (typeof callback === 'function') { callback(result); return undefined; }
+            return Promise.resolve(result);
+          }),
+          set: vi.fn((data, callback) => {
+            if (typeof callback === 'function') { callback(); return undefined; }
+            return Promise.resolve(undefined);
+          }),
         },
+        onChanged: { addListener: vi.fn() },
       },
       tabs: {
         query: vi.fn().mockResolvedValue([{ id: 1 }]),
@@ -262,9 +287,17 @@ describe('fill button', () => {
       },
       storage: {
         local: {
-          get: vi.fn().mockResolvedValue({ serverUrl: 'http://localhost:8085' }),
-          set: vi.fn().mockResolvedValue(undefined),
+          get: vi.fn((query, callback) => {
+            const result = { serverUrl: 'http://localhost:8085', language: 'en' };
+            if (typeof callback === 'function') { callback(result); return undefined; }
+            return Promise.resolve(result);
+          }),
+          set: vi.fn((data, callback) => {
+            if (typeof callback === 'function') { callback(); return undefined; }
+            return Promise.resolve(undefined);
+          }),
         },
+        onChanged: { addListener: vi.fn() },
       },
       tabs: {
         query: vi.fn().mockResolvedValue([{ id: 42 }]),
@@ -354,9 +387,17 @@ describe('settings link', () => {
       },
       storage: {
         local: {
-          get: vi.fn().mockResolvedValue({ serverUrl: 'http://localhost:8085' }),
-          set: vi.fn().mockResolvedValue(undefined),
+          get: vi.fn((query, callback) => {
+            const result = { serverUrl: 'http://localhost:8085', language: 'en' };
+            if (typeof callback === 'function') { callback(result); return undefined; }
+            return Promise.resolve(result);
+          }),
+          set: vi.fn((data, callback) => {
+            if (typeof callback === 'function') { callback(); return undefined; }
+            return Promise.resolve(undefined);
+          }),
         },
+        onChanged: { addListener: vi.fn() },
       },
       tabs: {
         query: vi.fn().mockResolvedValue([{ id: 1 }]),

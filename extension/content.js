@@ -1543,7 +1543,7 @@
   }
 
   function showUploadHelper(fileInput, type) {
-    const label = type === 'cover-letter' ? 'Cover letter' : 'Tailored resume';
+    const label = type === 'cover-letter' ? t('upload.coverLetter') : t('upload.tailoredResume');
     const messageType = type === 'cover-letter' ? 'downloadCoverLetter' : 'downloadResume';
 
     // Highlight the file input
@@ -1555,11 +1555,11 @@
 
     const text = document.createElement('span');
     text.className = `${PREFIX}-upload-helper-text`;
-    text.textContent = `${label} ready -- download from CareerPulse, then upload here`;
+    text.textContent = t('upload.ready', { label });
 
     const btn = document.createElement('button');
     btn.className = `${PREFIX}-upload-helper-btn`;
-    btn.textContent = `Download ${label}`;
+    btn.textContent = t('upload.download', { label });
     btn.type = 'button';
 
     btn.addEventListener('click', async (e) => {
@@ -1567,12 +1567,12 @@
       e.stopPropagation();
 
       if (!currentJobId) {
-        text.textContent = 'No job ID available. Open this page from CareerPulse first.';
+        text.textContent = t('upload.noJobId');
         return;
       }
 
       btn.disabled = true;
-      btn.textContent = 'Downloading...';
+      btn.textContent = t('upload.downloading');
 
       try {
         const response = await chrome.runtime.sendMessage({
@@ -1582,17 +1582,17 @@
 
         if (response && response.ok) {
           helper.classList.add(`${PREFIX}-upload-helper-downloaded`);
-          text.textContent = 'Downloaded! Now upload it above.';
-          btn.textContent = 'Downloaded';
+          text.textContent = t('upload.downloadedHint');
+          btn.textContent = t('upload.downloaded');
         } else {
-          text.textContent = `Download failed: ${response?.error || 'unknown error'}`;
+          text.textContent = t('upload.downloadFailed', { error: extErrorMessage(response) });
           btn.disabled = false;
-          btn.textContent = `Retry Download`;
+          btn.textContent = t('upload.retryDownload');
         }
       } catch (err) {
-        text.textContent = `Download failed: ${err.message}`;
+        text.textContent = t('upload.downloadFailed', { error: extErrorMessage(err) });
         btn.disabled = false;
-        btn.textContent = `Retry Download`;
+        btn.textContent = t('upload.retryDownload');
       }
     });
 
@@ -1649,7 +1649,7 @@
 
         if (result.success && !result.skipped) {
           filledCount++;
-          updateOverlay('filling', `Filling ${filledCount}/${totalMappable} fields...`);
+          updateOverlay('filling', t('overlay.fillingFields', { done: filledCount, total: totalMappable }));
 
           try {
             const el = resolveElement(mapping.selector);
@@ -1686,7 +1686,7 @@
       const response = await withTimeout(
         chrome.runtime.sendMessage({ type: 'analyzeForm', formHtml }),
         API_TIMEOUT_MS,
-        'API form analysis'
+        'API form analysis' // i18n-audit-ignore: internal timeout label, not user copy
       );
       if (response && response.ok && response.data?.mappings) {
         return response.data.mappings;
@@ -1709,14 +1709,15 @@
     overlayEl.id = `${PREFIX}-overlay`;
     overlayEl.innerHTML = `
       <div class="${PREFIX}-overlay-header">
-        <span class="${PREFIX}-overlay-title">CareerPulse</span>
+        <span class="${PREFIX}-overlay-title">${t('overlay.brand')}</span>
         <div class="${PREFIX}-overlay-actions">
-          <button class="${PREFIX}-overlay-minimize" title="Minimize">&#x2013;</button>
-          <button class="${PREFIX}-overlay-close" title="Close">&#x2715;</button>
+          <button class="${PREFIX}-overlay-lang" title="${t('nav.languageSwitcher')}">${i18n.getLanguage() === 'zh-CN' ? t('nav.languageEn') : t('nav.languageZh')}</button>
+          <button class="${PREFIX}-overlay-minimize" title="${t('overlay.minimize')}">&#x2013;</button>
+          <button class="${PREFIX}-overlay-close" title="${t('overlay.close')}">&#x2715;</button>
         </div>
       </div>
       <div class="${PREFIX}-overlay-body">
-        <span class="${PREFIX}-overlay-status">Initializing...</span>
+        <span class="${PREFIX}-overlay-status">${t('overlay.initializing')}</span>
       </div>
     `;
 
@@ -1724,6 +1725,14 @@
 
     overlayEl.querySelector(`.${PREFIX}-overlay-close`).addEventListener('click', () => {
       removeOverlay();
+    });
+
+    // Independent language toggle for the injected overlay (chrome.storage.local).
+    overlayEl.querySelector(`.${PREFIX}-overlay-lang`).addEventListener('click', (e) => {
+      e.stopPropagation();
+      const next = i18n.getLanguage() === 'zh-CN' ? 'en' : 'zh-CN';
+      i18n.setLanguage(next);
+      refreshOverlayLabels();
     });
 
     overlayEl.querySelector(`.${PREFIX}-overlay-minimize`).addEventListener('click', () => {
@@ -1813,12 +1822,12 @@
     overlayMode = 'compact';
 
     const parts = [];
-    if (filled > 0) parts.push(`${filled} filled`);
-    if (review > 0) parts.push(`${review} review`);
-    if (!parts.length) parts.push('0 fields');
+    if (filled > 0) parts.push(t('overlay.pillFilled', { count: filled }));
+    if (review > 0) parts.push(t('overlay.pillReview', { count: review }));
+    if (!parts.length) parts.push(t('overlay.pillNoFields'));
 
     body.innerHTML = `
-      <div class="${PREFIX}-overlay-pill" title="Click to expand field list">
+      <div class="${PREFIX}-overlay-pill" title="${t('overlay.expandTitle')}">
         <span class="${PREFIX}-overlay-pill-check">&#x2713;</span>
         <span class="${PREFIX}-overlay-pill-text">${parts.join(' \u00B7 ')}</span>
         <span class="${PREFIX}-overlay-pill-expand">&#x25BC;</span>
@@ -1843,7 +1852,7 @@
 
     const entries = Array.from(originalValues.entries());
     if (!entries.length) {
-      body.innerHTML = `<span class="${PREFIX}-overlay-status">No fields tracked.</span>`;
+      body.innerHTML = `<span class="${PREFIX}-overlay-status">${t('overlay.noFieldsTracked')}</span>`;
       return;
     }
 
@@ -1854,7 +1863,7 @@
       const truncatedLabel = entry.label.length > 30 ? entry.label.slice(0, 27) + '...' : entry.label;
       const undoBtnHtml = entry.undone
         ? ''
-        : `<button class="${PREFIX}-undo-btn" data-selector="${escapeHtml(selector)}" title="Undo">&#x21A9;</button>`;
+        : `<button class="${PREFIX}-undo-btn" data-selector="${escapeHtml(selector)}" title="${t('overlay.undo')}">&#x21A9;</button>`;
 
       return `
         <div class="${PREFIX}-overlay-field-row" data-selector="${escapeHtml(selector)}">
@@ -1872,8 +1881,8 @@
       <div class="${PREFIX}-overlay-field-list">
         ${rows}
       </div>
-      <div class="${PREFIX}-overlay-collapse" title="Click to collapse">
-        <span>&#x25B2; Collapse</span>
+      <div class="${PREFIX}-overlay-collapse" title="${t('overlay.collapseTitle')}">
+        <span>&#x25B2; ${t('overlay.collapse')}</span>
       </div>
     `;
 
@@ -1988,23 +1997,23 @@
     promptEl.innerHTML = `
       <div class="${PREFIX}-learn-modal">
         <div class="${PREFIX}-learn-header">
-          <h3 class="${PREFIX}-learn-title">Save ${newData.length} new answer${newData.length > 1 ? 's' : ''} to CareerPulse?</h3>
-          <button class="${PREFIX}-learn-close" aria-label="Close">\u00d7</button>
+          <h3 class="${PREFIX}-learn-title">${t('overlay.learnTitle', { count: newData.length })}</h3>
+          <button class="${PREFIX}-learn-close" aria-label="${t('a11y.close')}">\u00d7</button>
         </div>
         <div class="${PREFIX}-learn-list">
           ${newData.map((item, i) => `
             <label class="${PREFIX}-learn-item">
               <input type="checkbox" checked data-index="${i}">
               <div class="${PREFIX}-learn-item-detail">
-                <span class="${PREFIX}-learn-item-label">${escapeHtml(item.label || item.name || 'Unknown field')}</span>
+                <span class="${PREFIX}-learn-item-label">${escapeHtml(item.label || item.name || t('overlay.learnUnknownField'))}</span>
                 <span class="${PREFIX}-learn-item-value">${escapeHtml(String(item.value).slice(0, 100))}</span>
               </div>
             </label>
           `).join('')}
         </div>
         <div class="${PREFIX}-learn-actions">
-          <button class="${PREFIX}-learn-save">Save Selected</button>
-          <button class="${PREFIX}-learn-dismiss">Dismiss</button>
+          <button class="${PREFIX}-learn-save">${t('overlay.learnSave')}</button>
+          <button class="${PREFIX}-learn-dismiss">${t('overlay.learnDismiss')}</button>
         </div>
       </div>
     `;
@@ -2095,7 +2104,7 @@
       const pageUrl = location.href;
       const result = await chrome.runtime.sendMessage({ type: 'markAppliedByUrl', url: pageUrl });
       if (result && result.ok) {
-        showToast('Job marked as applied in CareerPulse', 'success');
+        showToast(t('overlay.markedApplied'), 'success');
       }
     } catch (err) {
       console.warn('[CareerPulse] autoTrackApplied failed:', err.message);
@@ -2361,20 +2370,20 @@
             'Form analysis'
           );
         } catch (err) {
-          updateOverlay('error', `Timed out analyzing form. Is the server running?`);
+          updateOverlay('error', t('overlay.analysisTimeout'));
           return;
         }
 
         console.log('[CareerPulse] Analyze response:', JSON.stringify(response?.data?.mappings || [], null, 2));
 
         if (!response || !response.ok) {
-          updateOverlay('error', `Error: ${response?.error || 'Analysis failed'}`);
+          updateOverlay('error', t('errors.dynamic', { detail: extErrorMessage(response) }));
           return;
         }
 
         let mappings = response.data?.mappings || [];
         if (!mappings.length) {
-          updateOverlay('done', 'No fillable fields found');
+          updateOverlay('done', t('overlay.noFillableFields'));
           return;
         }
 
@@ -2387,9 +2396,9 @@
         const failedCount = result.results.filter(r => !r.success).length;
         let statusMsg = `Filled ${result.filledCount}/${result.total} fields.`;
         if (failedCount > 0) {
-          statusMsg += ` ${failedCount} field${failedCount > 1 ? 's' : ''} need manual review.`;
+          statusMsg += ' ' + t('overlay.fieldsNeedReview', { count: failedCount });
         } else {
-          statusMsg += ' Review highlighted fields.';
+          statusMsg += ' ' + t('overlay.reviewHighlighted');
         }
         updateOverlay('done', statusMsg);
 
@@ -2405,9 +2414,9 @@
       })(), OVERALL_TIMEOUT_MS, 'Autofill operation');
     } catch (err) {
       if (err.message && err.message.includes('timed out')) {
-        updateOverlay('error', 'Autofill timed out. The operation took too long — please try again or fill remaining fields manually.');
+        updateOverlay('error', t('overlay.autofillTimeout'));
       } else {
-        updateOverlay('error', `Error: ${err.message}`);
+        updateOverlay('error', t('errors.dynamic', { detail: extErrorMessage(err) }));
       }
     }
   }
@@ -2573,9 +2582,9 @@
           <line x1="16" y1="17" x2="8" y2="17"/>
           <polyline points="10 9 9 9 8 9"/>
         </svg>
-        Fill with CareerPulse
+        ${t('overlay.badgeFill')}
       </span>
-      <button class="cp-auto-badge-dismiss" title="Dismiss">\u00d7</button>
+      <button class="cp-auto-badge-dismiss" title="${t('overlay.badgeDismiss')}">\u00d7</button>
     `;
 
     document.body.appendChild(badgeEl);
@@ -2741,7 +2750,7 @@
 
     const badge = document.createElement('div');
     badge.id = `${PREFIX}-multipage-badge`;
-    badge.textContent = `Page ${pageNum} detected \u2014 fill?`;
+    badge.textContent = t('overlay.pageDetected', { page: pageNum });
     badge.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:2147483647;'
       + 'padding:10px 18px;background:#1a73e8;color:#fff;border-radius:8px;'
       + 'font:14px/1.4 -apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);';
@@ -2758,15 +2767,17 @@
     multiPageState.totalFilled += filledOnThisPage;
     const total = multiPageState.totalFilled;
     const pages = multiPageState.currentPage;
-    updateOverlay('done', `Filled ${total} fields across ${pages} page${pages > 1 ? 's' : ''}.`);
+    updateOverlay('done', t(pages > 1 ? 'overlay.filledFieldsPages' : 'overlay.filledFields', { count: total, pages }));
   }
 
   // ─── Queue fill orchestration (content side) ─────────────────
 
   let queueContext = null; // { queueItemId, jobId, jobTitle, company, position, total }
   let queueBannerEl = null;
+  let lastQueueBannerArgs = null;
 
   function showQueueBanner(position, total, jobTitle, company) {
+    lastQueueBannerArgs = { position, total, jobTitle, company };
     removeQueueBanner();
 
     queueBannerEl = document.createElement('div');
@@ -2774,16 +2785,16 @@
 
     const label = jobTitle
       ? `${jobTitle}${company ? ' at ' + company : ''}`
-      : `Application ${position} of ${total}`;
+      : t('overlay.queueApplicationOfTotal', { position, total });
 
     queueBannerEl.innerHTML = `
       <div class="${PREFIX}-queue-banner-inner">
         <span class="${PREFIX}-queue-banner-progress">${position}/${total}</span>
         <span class="${PREFIX}-queue-banner-label">${escapeHtml(label)}</span>
         <div class="${PREFIX}-queue-banner-actions">
-          <button class="${PREFIX}-queue-done-btn" title="Mark as submitted and move to next">Done</button>
-          <button class="${PREFIX}-queue-skip-btn" title="Skip this job and move to next">Skip</button>
-          <button class="${PREFIX}-queue-cancel-btn" title="Cancel the entire queue">Cancel</button>
+          <button class="${PREFIX}-queue-done-btn" title="${t('queue.doneTitle')}">${t('queue.done')}</button>
+          <button class="${PREFIX}-queue-skip-btn" title="${t('queue.skipTitle')}">${t('queue.skip')}</button>
+          <button class="${PREFIX}-queue-cancel-btn" title="${t('queue.cancelTitle')}">${t('queue.cancel')}</button>
         </div>
       </div>
     `;
@@ -2864,6 +2875,45 @@
     }
   }
 
+  // ─── Language ─────────────────────────────────────────────────
+
+  /** Re-render the overlay chrome in the current language. */
+  function refreshOverlayLabels() {
+    if (!overlayEl || !overlayEl.isConnected) return;
+    const title = overlayEl.querySelector(`.${PREFIX}-overlay-title`);
+    if (title) title.textContent = t('overlay.brand');
+    const langBtn = overlayEl.querySelector(`.${PREFIX}-overlay-lang`);
+    if (langBtn) {
+      langBtn.textContent = i18n.getLanguage() === 'zh-CN' ? t('nav.languageEn') : t('nav.languageZh');
+      langBtn.title = t('nav.languageSwitcher');
+    }
+    const minimize = overlayEl.querySelector(`.${PREFIX}-overlay-minimize`);
+    if (minimize) minimize.title = t('overlay.minimize');
+    const close = overlayEl.querySelector(`.${PREFIX}-overlay-close`);
+    if (close) close.title = t('overlay.close');
+    const collapse = overlayEl.querySelector(`.${PREFIX}-overlay-collapse`);
+    if (collapse) collapse.title = t('overlay.collapseTitle');
+    const pill = overlayEl.querySelector(`.${PREFIX}-overlay-pill`);
+    if (pill) pill.title = t('overlay.expandTitle');
+    // Re-render the queue banner so its prompts follow the language too.
+    if (queueBannerEl && queueBannerEl.isConnected && lastQueueBannerArgs) {
+      showQueueBanner(
+        lastQueueBannerArgs.position,
+        lastQueueBannerArgs.total,
+        lastQueueBannerArgs.jobTitle,
+        lastQueueBannerArgs.company,
+      );
+    }
+  }
+
+  // Read the stored language before the overlay can be rendered, and follow
+  // changes made in the popup while this page stays open.
+  if (typeof i18n !== 'undefined') {
+    i18n.init();
+    i18n.watchStorage();
+    i18n.onChange(() => refreshOverlayLabels());
+  }
+
   // ─── Message handler ──────────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -2926,7 +2976,7 @@
 
   const JOB_BOARD_CONFIGS = {
     'linkedin.com': {
-      name: 'LinkedIn',
+      name: 'LinkedIn', // i18n-audit-ignore: site name (proper noun), same in every language
       listingSelector: '.job-card-container, .jobs-search-results__list-item, .scaffold-layout__list-item',
       titleSelector: '.job-card-list__title, .job-card-container__link, a.job-card-list__title--link',
       companySelector: '.job-card-container__primary-description, .artdeco-entity-lockup__subtitle',
@@ -3028,15 +3078,15 @@
 
     const btn = document.createElement('button');
     btn.className = `${OVERLAY_PREFIX}-save-btn`;
-    btn.textContent = 'Save to CareerPulse';
-    btn.title = 'Save this job to CareerPulse';
+    btn.textContent = t('overlay.saveToCareerPulse');
+    btn.title = t('overlay.saveButtonTitle');
 
     btn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
 
       btn.disabled = true;
-      btn.textContent = 'Saving...';
+      btn.textContent = t('overlay.saving');
       btn.classList.add(`${OVERLAY_PREFIX}-saving`);
 
       try {
@@ -3046,7 +3096,7 @@
         });
 
         if (response && response.ok) {
-          btn.textContent = 'Saved';
+          btn.textContent = t('overlay.saved');
           btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
           btn.classList.add(`${OVERLAY_PREFIX}-saved`);
           btn.disabled = true;
@@ -3055,13 +3105,13 @@
             showScoreBadge(card, response.data.score);
           }
         } else {
-          btn.textContent = 'Error — Retry';
+          btn.textContent = t('overlay.errorRetry');
           btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
           btn.classList.add(`${OVERLAY_PREFIX}-error`);
           btn.disabled = false;
         }
       } catch {
-        btn.textContent = 'Error — Retry';
+        btn.textContent = t('overlay.errorRetry');
         btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
         btn.classList.add(`${OVERLAY_PREFIX}-error`);
         btn.disabled = false;
@@ -3124,7 +3174,7 @@
 
         if (lookupResp && lookupResp.ok && lookupResp.data) {
           const btn = createSaveButton(jobData, card);
-          btn.textContent = 'Saved';
+          btn.textContent = t('overlay.saved');
           btn.classList.add(`${OVERLAY_PREFIX}-saved`);
           btn.disabled = true;
 

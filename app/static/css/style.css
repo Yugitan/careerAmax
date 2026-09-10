@@ -1702,6 +1702,23 @@ a:hover {
 
     .nav-actions {
         gap: 4px;
+        min-width: 0;
+    }
+
+    /* Keep the top bar on one line: compact controls on narrow screens. */
+    .nav-actions .btn-sm,
+    .nav-actions .btn {
+        padding: 6px 8px;
+        font-size: 0.75rem;
+    }
+
+    .lang-option {
+        padding: 5px 7px;
+        font-size: 0.6875rem;
+    }
+
+    .nav-brand h1 {
+        font-size: 1rem;
     }
 
     .container {
@@ -3276,4 +3293,60 @@ kbd {
 .scrape-modal-errors ul {
     margin: 6px 0 0;
     padding-left: 18px;
+}
+
+/* === Narrow phones: keep the top bar on one line === */
+@media (max-width: 480px) {
+    /* The logo alone identifies the app; the wordmark yields space to the
+       language switch, scrape button and theme toggle. */
+    .nav-brand h1 {
+        display: none;
+    }
+
+    .navbar {
+        padding: 0 10px;
+        gap: 8px;
+    }
+
+    .lang-option {
+        padding: 5px 6px;
+    }
+
+    #scrape-btn {
+        max-width: 92px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* === Dashboard header: keep the action buttons inside the viewport === */
+.stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.stats-header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.calendar-header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+    /* Long month names (e.g. "September 2026") must not push the buttons out. */
+    #cal-month-label {
+        min-width: 120px;
+    }
 }

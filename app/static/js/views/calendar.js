@@ -45,13 +45,13 @@ async function renderCalendarView(container, viewDate) {
 
     container.innerHTML = `
         <div class="calendar-header">
-            <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">Calendar</h1>
-            <div style="display:flex;gap:8px;align-items:center">
+            <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">${t('calendar.title')}</h1>
+            <div class="calendar-header-controls">
                 <button id="cal-prev" class="btn btn-ghost btn-sm" aria-label="${t('calendar.previousMonth')}">&larr;</button>
                 <span id="cal-month-label" style="font-weight:600;min-width:160px;text-align:center">${escapeHtml(monthLabel)}</span>
                 <button id="cal-next" class="btn btn-ghost btn-sm" aria-label="${t('calendar.nextMonth')}">&rarr;</button>
-                <button id="cal-today" class="btn btn-secondary btn-sm">Today</button>
-                <button id="cal-subscribe" class="btn btn-ghost btn-sm" title="Subscribe via iCal">Subscribe</button>
+                <button id="cal-today" class="btn btn-secondary btn-sm">${t('a11y.today')}</button>
+                <button id="cal-subscribe" class="btn btn-ghost btn-sm" title="${t('calendar.subscribeTitle')}">${t('calendar.subscribe')}</button>
             </div>
         </div>
         <div class="calendar-layout">

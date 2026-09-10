@@ -104,7 +104,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                     <h3>Actions</h3>
                     ${resumes.length > 1 ? `
                     <div style="margin-bottom:10px">
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Resume</label>
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('fields.resume')}</label>
                         <select class="filter-select" id="resume-select" style="width:100%">
                             ${resumes.map(r => `<option value="${r.id}"${r.is_default ? ' selected' : ''}>${escapeHtml(r.name)}${r.is_default ? ' (default)' : ''}</option>`).join('')}
                         </select>
@@ -135,7 +135,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                         </div>
                     `}
                     <div class="mt-16">
-                        <label class="mb-8" style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary)">Status</label>
+                        <label class="mb-8" style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary)">${t('fields.status')}</label>
                         <select class="status-select" id="status-select">
                             ${[t('detail.status.interested'), t('detail.status.prepared'), t('detail.status.applied'), t('detail.status.interviewing'), t('detail.status.rejected')].map(s =>
                                 `<option value="${s}" ${s === appStatus ? 'selected' : ''}>${s}</option>`
@@ -193,12 +193,12 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
                 })()}
                 ${(() => {
                     const profileFields = [
-                        {label: 'Name', key: 'full_name'},
-                        {label: 'Email', key: 'email'},
-                        {label: 'Phone', key: 'phone'},
-                        {label: 'Location', key: 'location'},
-                        {label: 'LinkedIn', key: 'linkedin_url'},
-                        {label: 'GitHub', key: 'github_url'},
+                        {label: t('fields.fullName'), key: 'full_name'},
+                        {label: t('fields.email'), key: 'email'},
+                        {label: t('fields.phone'), key: 'phone'},
+                        {label: t('fields.location'), key: 'location'},
+                        {label: t('detail.contact.linkedin'), key: 'linkedin_url'},
+                        {label: t('detail.contact.github'), key: 'github_url'},
                         {label: t('detail.portfolioLabel'), key: 'portfolio_url'},
                     ];
                     const hasProfile = profile && Object.values(profile).some(v => v && v !== '');
@@ -584,7 +584,7 @@ function renderJobDetailContent(container, job, profile = {}, companyInfo = null
             const ok = await showModal({
                 title: t('detail.dismissSimilarTitle'),
                 message: t('detail.dismissSimilarMessage'),
-                confirmText: 'Dismiss',
+                confirmText: t('actions.dismiss'),
                 danger: true,
             });
             if (!ok) return;
@@ -684,7 +684,7 @@ function renderTimeline(events) {
                     </div>`;
                 } else {
                     detail = `<div class="timeline-structured">
-                        <span class="timeline-tag">Email</span>
+                        <span class="timeline-tag">${t('detail.timeline.email')}</span>
                         ${d.direction ? `<span class="timeline-meta">${escapeHtml(d.direction)}</span>` : ''}
                         ${d.subject ? `<div class="timeline-notes"><strong>${escapeHtml(d.subject)}</strong></div>` : ''}
                         ${d.notes ? `<div class="timeline-notes">${escapeHtml(d.notes)}</div>` : ''}
@@ -743,7 +743,7 @@ function getCrmFormHtml(action) {
                 <div class="crm-form-row">
                     <input type="text" class="search-input crm-field" name="who" placeholder="${t('detail.crm.callWhoPlaceholder')}">
                     <select class="filter-select crm-field" name="duration" style="width:auto;min-width:90px">
-                        <option value="">Duration</option>
+                        <option value="">${t('detail.crm.duration')}</option>
                         <option value="5 min">${t('detail.crm.durationMin', { n: 5 })}</option>
                         <option value="10 min">${t('detail.crm.durationMin', { n: 10 })}</option>
                         <option value="15 min">${t('detail.crm.durationMin', { n: 15 })}</option>
@@ -755,7 +755,7 @@ function getCrmFormHtml(action) {
                 <textarea class="search-input crm-field" name="notes" placeholder="${t('detail.crm.callNotesPlaceholder')}" rows="2" style="resize:vertical"></textarea>
                 <div class="crm-form-footer">
                     <button class="btn btn-primary btn-sm crm-submit-btn">Log Call</button>
-                    <button class="btn btn-secondary btn-sm crm-cancel-btn">Cancel</button>
+                    <button class="btn btn-secondary btn-sm crm-cancel-btn">${t('actions.cancel')}</button>
                 </div>
             </div>
         `;
@@ -773,7 +773,7 @@ function getCrmFormHtml(action) {
                 <textarea class="search-input crm-field" name="notes" placeholder="${t('detail.crm.emailNotesPlaceholder')}" rows="2" style="resize:vertical"></textarea>
                 <div class="crm-form-footer">
                     <button class="btn btn-primary btn-sm crm-submit-btn">${t('detail.crm.logEmail')}</button>
-                    <button class="btn btn-secondary btn-sm crm-cancel-btn">Cancel</button>
+                    <button class="btn btn-secondary btn-sm crm-cancel-btn">${t('actions.cancel')}</button>
                 </div>
             </div>
         `;
@@ -1093,13 +1093,13 @@ function renderPreparedSection(data, jobId) {
                 <div class="pdf-download-card">
                     <a href="/api/jobs/${jobId}/resume.pdf" download class="pdf-file-link" draggable="true">
                         <span class="pdf-icon">PDF</span>
-                        <span class="pdf-label">Resume</span>
+                        <span class="pdf-label">${t('detail.tailoredResume')}</span>
                     </a>
                 </div>
                 <div class="pdf-download-card">
                     <a href="/api/jobs/${jobId}/resume.docx" download class="pdf-file-link docx-file-link" draggable="true">
                         <span class="pdf-icon docx-icon">DOCX</span>
-                        <span class="pdf-label">Resume</span>
+                        <span class="pdf-label">${t('detail.tailoredResume')}</span>
                     </a>
                 </div>
             </div>
@@ -1322,7 +1322,7 @@ function renderInterviewTimeline(rounds, jobId) {
                                     <div style="display:flex;gap:4px;flex-shrink:0">
                                         <button class="btn btn-ghost btn-sm interview-view-btn" data-round-id="${round.id}" data-job-id="${jobId}" title="${t('detail.viewDetailsTitle')}" style="padding:4px 8px">View</button>
                                         <button class="btn btn-ghost btn-sm interview-edit-btn" data-round-id="${round.id}" title="Edit" style="padding:4px 8px">Edit</button>
-                                        <button class="btn btn-ghost btn-sm interview-delete-btn" data-round-id="${round.id}" title="Delete" style="padding:4px 8px;color:var(--danger)">Del</button>
+                                        <button class="btn btn-ghost btn-sm interview-delete-btn" data-round-id="${round.id}" title="${t('actions.delete')}" style="padding:4px 8px;color:var(--danger)">Del</button>
                                     </div>
                                 </div>
                             </div>
@@ -1371,7 +1371,7 @@ function wireInterviewTimelineEvents(timelineContainer, jobId, container, profil
             const ok = await showModal({
                 title: t('detail.deleteRoundTitle'),
                 message: t('detail.deleteRoundMessage'),
-                confirmText: 'Delete',
+                confirmText: t('actions.delete'),
                 danger: true,
             });
             if (!ok) return;
@@ -1429,8 +1429,8 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
     formContainer.innerHTML = `
         <div class="iv-form-panel">
             <div class="iv-form-header">
-                <h3>${isEdit ? 'Edit' : 'Add'} Interview Round</h3>
-                <button type="button" class="btn btn-ghost btn-sm" id="cancel-interview-form" aria-label="Close">&times;</button>
+                <h3>${isEdit ? t('detail.interview.editTitle') : t('detail.interview.addTitle')}</h3>
+                <button type="button" class="btn btn-ghost btn-sm" id="cancel-interview-form" aria-label="${t('a11y.close')}">&times;</button>
             </div>
             <form id="interview-round-form">
                 <div class="iv-form-section">
@@ -1446,7 +1446,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                     </div>
                     ${isEdit ? `
                     <div class="iv-form-section" style="flex:0.8">
-                        <label class="iv-form-label">Status</label>
+                        <label class="iv-form-label">${t('fields.status')}</label>
                         <select name="status" class="filter-select" style="width:100%">
                             ${['scheduled', 'completed', 'cancelled', 'no_show'].map(s =>
                                 `<option value="${s}" ${(existingRound?.status || 'scheduled') === s ? 'selected' : ''}>${t('detail.interview.status.' + s)}</option>`
@@ -1457,7 +1457,7 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                 </div>
 
                 <div class="iv-form-section">
-                    <label class="iv-form-label">Duration</label>
+                    <label class="iv-form-label">${t('fields.duration')}</label>
                     <div class="iv-duration-pills">${durationOptions}</div>
                     <input type="hidden" name="duration_min" id="iv-duration-val" value="${existingRound?.duration_min || 60}">
                 </div>
@@ -1480,13 +1480,13 @@ function showInterviewForm(timelineContainer, jobId, existingRound, container, p
                 </div>
 
                 <div class="iv-form-section">
-                    <label class="iv-form-label">Notes</label>
+                    <label class="iv-form-label">${t('fields.notes')}</label>
                     <textarea name="notes" class="search-input" rows="2" style="resize:vertical;min-height:48px" placeholder="Prep topics, questions to ask, things to remember...">${escapeHtml(existingRound?.notes || '')}</textarea>
                 </div>
 
                 <div class="iv-form-actions">
                     <button type="submit" class="btn btn-primary btn-sm" id="iv-form-submit">${isEdit ? t('detail.interview.submitSave') : t('detail.interview.submitAdd')}</button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="cancel-interview-form-bottom">Cancel</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="cancel-interview-form-bottom">${t('actions.cancel')}</button>
                 </div>
             </form>
         </div>

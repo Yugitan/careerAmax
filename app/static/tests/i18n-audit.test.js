@@ -35,6 +35,7 @@ const SKIP_LINE_PATTERNS = [
     /i18n-audit-ignore/,              // explicit, documented opt-out
     /^\s*\/\//,                       // comment
     /^\s*\*/,                         // block comment continuation
+    /^\s*\/\*/,                        // block comment start
     /\bconsole\.(log|warn|error|info|debug)\b/,
     /\b(getElementById|querySelector|querySelectorAll|closest|matches|createElement)\s*\(/,
     /\b(classList|dataset|setAttribute|removeAttribute|getAttribute|insertAdjacentHTML)\b/,
@@ -53,7 +54,8 @@ const NON_COPY_LITERAL = new RegExp([
     '^[a-z0-9_-]+$',                       // single lowercase token
     '^[A-Z][A-Z0-9_]*$',                   // CONSTANT
     '^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9]+)+$', // translation key (nav.jobs)
-    '^#?[\\w./-]*$',                       // route hash / path
+    '^#/[\\w./-]*$',                     // route hash
+    '^/[\\w./-]*$',                      // URL path                       // route hash / path
     '^\\d+(\\.\\d+)?(px|rem|em|%|s|ms)?$',
     '^#[0-9a-fA-F]{3,8}$',
     '^rgba?\\([^)]*\\)$',
@@ -79,7 +81,7 @@ function stripTranslationCalls(line) {
  */
 function stripDataAttributes(line) {
     return line
-        .replace(/\b(?:class|id|name|for|value|type|href|src|style|role|method|action|target|rel|rows|min|max|step|width|height|tabindex|autocomplete|inputmode|pattern|accept|spellcheck|contenteditable|data-[\w-]+)\s*=\s*("[^"]*"|'[^']*'|\{[^}]*\})/g, '');
+        .replace(/\b(?:class|id|name|for|value|type|href|src|style|role|method|action|target|rel|rows|min|max|step|width|height|tabindex|autocomplete|inputmode|pattern|accept|spellcheck|contenteditable|data-[\w-]+|aria-(?!label[=])[\w-]+)\s*=\s*("[^"]*"|'[^']*'|\{[^}]*\})/g, '');
 }
 
 function looksLikeCopy(literal) {

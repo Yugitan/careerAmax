@@ -52,7 +52,7 @@ async function renderNetwork(container) {
                     <div style="margin-top:12px"><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.notes')}</label><textarea class="textarea-styled textarea-notes" id="contact-notes"></textarea></div>
                     <div style="display:flex;gap:8px;margin-top:12px">
                         <button class="btn btn-primary btn-sm" id="contact-save-btn">Save</button>
-                        <button class="btn btn-secondary btn-sm" id="contact-cancel-btn">Cancel</button>
+                        <button class="btn btn-secondary btn-sm" id="contact-cancel-btn">${t('actions.cancel')}</button>
                     </div>
                 </div>
             </div>
@@ -128,15 +128,15 @@ async function renderNetwork(container) {
                                 </div>
                                 <div style="display:flex;gap:6px">
                                     <button class="btn btn-secondary btn-sm" id="edit-contact-btn">Edit</button>
-                                    <button class="btn btn-danger btn-sm" id="delete-contact-btn">Delete</button>
+                                    <button class="btn btn-danger btn-sm" id="delete-contact-btn">${t('actions.delete')}</button>
                                 </div>
                             </div>
                             <h3 style="font-size:0.875rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Interactions</h3>
                             <div style="display:flex;gap:6px;margin-bottom:12px">
                                 <input type="text" class="search-input" id="interaction-notes" placeholder="${t('network.interactionPlaceholder')}" style="flex:1">
                                 <select class="filter-select" id="interaction-type" style="width:auto">
-                                    <option value="note">Note</option>
-                                    <option value="email">Email</option>
+                                    <option value="note">${t('network.interactionType.note')}</option>
+                                    <option value="email">${t('network.interactionType.email')}</option>
                                     <option value="call">${t('network.interactionType.call')}</option>
                                     <option value="meeting">${t('network.interactionType.meeting')}</option>
                                     <option value="linkedin">${t('network.linkedin')}</option>
@@ -174,8 +174,8 @@ async function renderNetwork(container) {
                     document.getElementById('delete-contact-btn').addEventListener('click', async () => {
                         const ok = await showModal({
                             title: t('network.deleteTitle'),
-                            message: `Delete ${contact.name}?`,
-                            confirmText: 'Delete',
+                            message: t('network.deleteConfirm', { name: contact.name }),
+                            confirmText: t('actions.delete'),
                             danger: true,
                         });
                         if (!ok) return;
