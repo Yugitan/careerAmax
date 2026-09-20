@@ -100,7 +100,7 @@ function renderInterviewPanelLeft(panel, round, job) {
     panel.innerHTML = `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
             <span class="round-badge">${t('interviews.interviewDrawer.roundBadge', { number: round.round_number })}${round.label ? ' — ' + escapeHtml(round.label) : ''}</span>
-            <span class="interview-status-badge" data-status="${round.status}" style="background:${statusColor}18;color:${statusColor}">${round.status}</span>
+            <span class="interview-status-badge" data-status="${round.status}" style="background:${statusColor}18;color:${statusColor}">${t(`detail.interview.status.${round.status}`)}</span>
         </div>
 
         <div style="margin-bottom:20px">
@@ -117,7 +117,7 @@ function renderInterviewPanelLeft(panel, round, job) {
             ` : ''}
             ${round.duration_min ? `
                 <span class="detail-label">${t('interviews.interviewDrawer.duration')}</span>
-                <span class="detail-value">${round.duration_min} min</span>
+                <span class="detail-value">${t('detail.interview.durationMin', { n: round.duration_min })}</span>
             ` : ''}
             ${round.interviewer_name ? `
                 <span class="detail-label">${t('interviews.interviewDrawer.interviewer')}</span>
@@ -144,7 +144,7 @@ function renderInterviewPanelLeft(panel, round, job) {
         ` : ''}
 
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
-            <a href="#/job/${job.id}" class="iv-panel-job-link" id="iv-panel-view-job" style="color:var(--accent);font-size:0.875rem;font-weight:500">View Full Job Detail &rarr;</a>
+            <a href="#/job/${job.id}" class="iv-panel-job-link" id="iv-panel-view-job" style="color:var(--accent);font-size:0.875rem;font-weight:500">${t('interviews.interviewDrawer.viewJob')}</a>
         </div>
     `;
 
@@ -161,7 +161,7 @@ function renderInterviewPanelLeft(panel, round, job) {
             } catch (err) {
                 showToast(apiErrorMessage(err), 'error');
                 completeBtn.disabled = false;
-                completeBtn.textContent = 'Mark Complete';
+                completeBtn.textContent = t('interviews.interviewDrawer.markComplete');
             }
         });
     }

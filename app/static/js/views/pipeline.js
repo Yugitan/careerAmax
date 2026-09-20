@@ -4,11 +4,8 @@ let pipelineActiveTab = 'board';
 async function renderPipeline(container) {
     container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('pipeline.loading')}</span></div>`;
 
-    const statuses = ['interested', 'prepared', 'applied', 'interviewing', 'offered', 'rejected'];
-    const statusLabels = {
-        interested: t('pipeline.stage.interested'), prepared: t('pipeline.stage.prepared'), applied: t('pipeline.stage.applied'),
-        interviewing: t('pipeline.stage.interviewing'), offered: t('pipeline.stage.offered'), rejected: t('pipeline.stage.rejected')
-    };
+    const statuses = APPLICATION_STATUSES;
+    const statusLabels = Object.fromEntries(APPLICATION_STATUSES.map((s) => [s, applicationStatusLabel(s)]));
     const statusColors = {
         interested: 'var(--text-secondary)', prepared: 'var(--accent)',
         applied: 'var(--score-green)', interviewing: 'var(--score-amber)',
@@ -26,12 +23,12 @@ async function renderPipeline(container) {
         const hasOfferedJobs = results[offeredIdx] && results[offeredIdx].count > 0;
 
         container.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">${t('pipeline.title')}</h1>
-                <div style="display:flex;align-items:center;gap:12px">
+            <div class="page-header">
+                <h1 class="page-title">${t('pipeline.title')}</h1>
+                <div class="page-actions">
                     <button id="add-external-job-btn" class="btn btn-primary btn-sm">${t('pipeline.addJobShort')}</button>
                     <div class="tab-bar">
-                        <button class="tab-btn ${pipelineActiveTab === 'board' ? 'active' : ''}" data-pipeline-tab="board">Board</button>
+                        <button class="tab-btn ${pipelineActiveTab === 'board' ? 'active' : ''}" data-pipeline-tab="board">${t('pipeline.tab.board')}</button>
                         <button class="tab-btn ${pipelineActiveTab === 'offers' ? 'active' : ''}" data-pipeline-tab="offers">
                             Offers${hasOffers ? ` <span class="badge badge-sm">${offersData.offers.length}</span>` : ''}
                         </button>
@@ -85,7 +82,7 @@ function renderPipelineBoard(tabContent, results, statuses, statusLabels, status
                                     ${job.match_score ? `<span class="score-badge ${getScoreClass(job.match_score)}" style="font-size:0.7rem">${job.match_score}</span>` : ''}
                                     ${status === 'interviewing' ? `
                                     <div class="pipeline-quick-actions" onclick="event.stopPropagation()">
-                                        <button class="pipeline-qa-btn" data-qa="call" data-job-id="${job.id}" title="Log call">\u{1F4DE}</button>
+                                        <button class="pipeline-qa-btn" data-qa="call" data-job-id="${job.id}" title="${t('pipeline.quickAction.call')}">\u{1F4DE}</button>
                                         <button class="pipeline-qa-btn" data-qa="email" data-job-id="${job.id}" title="${t('pipeline.quickAction.email')}">\u{1F4E7}</button>
                                         <button class="pipeline-qa-btn" data-qa="note" data-job-id="${job.id}" title="${t('pipeline.quickAction.note')}">\u{1F4DD}</button>
                                     </div>` : ''}
@@ -199,7 +196,7 @@ function showPipelineQuickAction(card, jobId, action) {
         formHtml = `
             <div class="pipeline-qa-form" onclick="event.stopPropagation()">
                 <select class="filter-select" name="direction" style="font-size:0.75rem;padding:4px">
-                    <option value="Sent">Sent</option><option value="Received">Received</option>
+                    <option value="Sent">${t('detail.crm.direction.sent')}</option><option value="Received">${t('detail.crm.direction.received')}</option>
                 </select>
                 <input type="text" class="search-input" name="subject" placeholder="${t('pipeline.subjectPlaceholder')}" style="font-size:0.75rem">
                 <textarea class="search-input" name="notes" placeholder="${t('pipeline.notesPlaceholder')}" rows="2" style="font-size:0.75rem;resize:vertical"></textarea>
@@ -312,15 +309,15 @@ function renderOffersList(tabContent, offers, jobMap) {
                         <div style="color:var(--text-secondary);font-size:0.85rem">${escapeHtml(job.company || '')}${offer.location ? ` \u2022 ${escapeHtml(offer.location)}` : ''}</div>
                     </div>
                     <div style="display:flex;gap:6px">
-                        <button class="btn btn-ghost btn-sm offer-edit-btn" data-offer-id="${offer.id}" title="Edit">Edit</button>
+                        <button class="btn btn-ghost btn-sm offer-edit-btn" data-offer-id="${offer.id}" title="${t('actions.edit')}">${t('actions.edit')}</button>
                         <button class="btn btn-ghost btn-sm offer-delete-btn" data-offer-id="${offer.id}" title="${t('actions.delete')}" style="color:var(--danger)">${t('actions.delete')}</button>
                     </div>
                 </div>
                 <div class="offer-comp-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:12px">
-                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">Base</div><div style="font-weight:600">${formatCurrency(base)}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">Bonus</div><div style="font-weight:600">${formatCurrency(bonus)}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">Equity</div><div style="font-weight:600">${formatCurrency(equity)}</div></div>
-                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">Total Cash</div><div style="font-weight:600;color:var(--accent)">${formatCurrency(totalCash)}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.base')}</div><div style="font-weight:600">${formatCurrency(base)}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.bonus')}</div><div style="font-weight:600">${formatCurrency(bonus)}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.equity')}</div><div style="font-weight:600">${formatCurrency(equity)}</div></div>
+                    <div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.totalCash')}</div><div style="font-weight:600;color:var(--accent)">${formatCurrency(totalCash)}</div></div>
                     ${offer.pto_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.ptoShort')}</div><div style="font-weight:600">${t('pipeline.offers.fields.ptoDays', { n: offer.pto_days })}</div></div>` : ''}
                     ${offer.remote_days ? `<div><div style="font-size:0.75rem;color:var(--text-secondary)">${t('pipeline.offers.fields.remote')}</div><div style="font-weight:600">${t('pipeline.offers.fields.remoteDays', { n: offer.remote_days })}</div></div>` : ''}
                 </div>
@@ -375,9 +372,9 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
         <div class="card" style="padding:20px;margin-bottom:16px;border:2px solid var(--accent)">
             <h3 style="margin:0 0 16px;font-size:1rem">${isEdit ? t('actions.edit') : t('actions.add')} Offer</h3>
             <form id="offer-form">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-grid">
                     <div style="grid-column:1/-1">
-                        <label class="form-label">Job</label>
+                        <label class="form-label">${t('fields.jobTitle')}</label>
                         <select name="job_id" class="form-input" required>${jobOptions}</select>
                     </div>
                     <div>
@@ -389,32 +386,24 @@ function showOfferForm(tabContent, existingOffer, availableJobs, offers, jobMap)
                         <input type="number" name="bonus" class="form-input" value="${existingOffer?.bonus || ''}" placeholder="15000">
                     </div>
                     <div>
-                        <label class="form-label">Equity ($/yr)</label>
-                        <input type="number" name="equity" class="form-input" value="${existingOffer?.equity || ''}" placeholder="25000">
-                    </div>
-                    <div>
-                        <label class="form-label">Health Value ($/yr)</label>
-                        <input type="number" name="health_value" class="form-input" value="${existingOffer?.health_value || ''}" placeholder="8000">
-                    </div>
-                    <div>
-                        <label class="form-label">Retirement Match (%)</label>
-                        <input type="number" name="retirement_match" class="form-input" step="0.1" value="${existingOffer?.retirement_match || ''}" placeholder="6">
+                        <label class="form-label">${t('pipeline.offers.form.equity')}</label>
+                        <input type="number" name="equity" class="form-input" value="${existingOffer?.equity || ''}" placeholder="">
                     </div>
                     <div>
                         <label class="form-label">${t('pipeline.offers.form.relocation')}</label>
-                        <input type="number" name="relocation" class="form-input" value="${existingOffer?.relocation || ''}" placeholder="5000">
+                        <input type="number" name="relocation" class="form-input" value="${existingOffer?.relocation || ''}" placeholder="">
                     </div>
                     <div>
                         <label class="form-label">${t('pipeline.offers.form.ptoDays')}</label>
-                        <input type="number" name="pto_days" class="form-input" value="${existingOffer?.pto_days || ''}" placeholder="20">
+                        <input type="number" name="pto_days" class="form-input" value="${existingOffer?.pto_days || ''}" placeholder="">
                     </div>
                     <div>
-                        <label class="form-label">Remote Days/Week</label>
-                        <input type="number" name="remote_days" class="form-input" value="${existingOffer?.remote_days || ''}" placeholder="3">
+                        <label class="form-label">${t('pipeline.offers.form.remoteDays')}</label>
+                        <input type="number" name="remote_days" class="form-input" value="${existingOffer?.remote_days || ''}" placeholder="">
                     </div>
                     <div style="grid-column:1/-1">
                         <label class="form-label">${t('fields.location')}</label>
-                        <input type="text" name="location" class="form-input" value="${escapeHtml(existingOffer?.location || '')}" placeholder="City, State">
+                        <input type="text" name="location" class="form-input" value="${escapeHtml(existingOffer?.location || '')}" placeholder="${t('pipeline.offers.cityStatePlaceholder')}">
                     </div>
                     <div style="grid-column:1/-1">
                         <label class="form-label">${t('fields.notes')}</label>
@@ -492,15 +481,11 @@ async function showOfferComparison(tabContent) {
 
         const compFields = [
             { key: 'base', label: t('pipeline.offers.fields.base') },
-            { key: 'bonus', label: 'Bonus' },
-            { key: 'equity', label: 'Equity' },
-            { key: 'health_value', label: t('pipeline.offers.fields.health') },
-            { key: 'retirement_value', label: t('pipeline.offers.fields.retirement') },
+            { key: 'bonus', label: t('pipeline.offers.fields.bonus') },
+            { key: 'equity', label: t('pipeline.offers.fields.equity') },
             { key: 'relocation', label: t('pipeline.offers.fields.relocation') },
-            { key: 'pto_value', label: t('pipeline.offers.fields.pto') },
             { key: 'total_cash', label: t('pipeline.offers.fields.totalCash') },
             { key: 'total_comp', label: t('pipeline.offers.fields.totalComp') },
-            { key: 'total_with_pto', label: t('pipeline.offers.fields.totalWithPto') },
         ];
 
         const bestTotal = comparison[0]?.total_comp || 0;
@@ -514,11 +499,11 @@ async function showOfferComparison(tabContent) {
                 <table class="comparison-table" style="width:100%">
                     <thead>
                         <tr>
-                            <th style="text-align:left;padding:8px 12px;min-width:140px">Component</th>
+                            <th style="text-align:left;padding:8px 12px;min-width:140px">${t('pipeline.offers.component')}</th>
                             ${comparison.map((c, i) => `
                                 <th style="text-align:right;padding:8px 12px;min-width:140px">
                                     <div style="font-weight:600">${escapeHtml(c.location || t('pipeline.offers.label', { n: i + 1 }))}</div>
-                                    ${i === 0 ? '<span class="badge badge-sm" style="background:var(--score-green);color:#fff;font-size:0.65rem">Best</span>' : ''}
+                                    ${i === 0 ? `<span class="badge badge-sm" style="background:var(--score-green);color:#fff;font-size:0.65rem">${t('pipeline.offers.best')}</span>` : ''}
                                 </th>
                             `).join('')}
                         </tr>
@@ -538,7 +523,7 @@ async function showOfferComparison(tabContent) {
                             `;
                         }).join('')}
                         <tr style="border-top:2px solid var(--border)">
-                            <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.85rem">vs Best</td>
+                            <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.85rem">${t('pipeline.offers.vsBest')}</td>
                             ${comparison.map(c => {
                                 const diff = c.vs_best || 0;
                                 const color = diff === 0 ? 'var(--score-green)' : 'var(--danger)';
@@ -550,15 +535,15 @@ async function showOfferComparison(tabContent) {
 
                 ${comparison.length > 0 ? `
                     <div style="margin-top:20px">
-                        <h4 style="font-size:0.9rem;margin-bottom:12px">Compensation Breakdown</h4>
+                        <h4 style="font-size:0.9rem;margin-bottom:12px">${t('pipeline.offers.compensationBreakdown')}</h4>
                         <div style="display:flex;gap:16px;flex-wrap:wrap">
                             ${comparison.map((c, i) => {
                                 const total = c.total_comp || 1;
                                 const segments = [
                                     { label: t('pipeline.offers.segments.base'), val: c.base, color: 'var(--accent)' },
-                                    { label: 'Bonus', val: c.bonus, color: 'var(--score-green)' },
-                                    { label: 'Equity', val: c.equity, color: 'var(--score-amber)' },
-                                    { label: t('pipeline.offers.segments.benefits'), val: (c.health_value || 0) + (c.retirement_value || 0) + (c.relocation || 0), color: '#8b5cf6' },
+                                    { label: t('pipeline.offers.fields.bonus'), val: c.bonus, color: 'var(--score-green)' },
+                                    { label: t('pipeline.offers.fields.equity'), val: c.equity, color: 'var(--score-amber)' },
+                                    { label: t('pipeline.offers.fields.relocation'), val: c.relocation || 0, color: '#8b5cf6' },
                                 ];
                                 return `
                                     <div style="flex:1;min-width:200px">
@@ -614,7 +599,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('add-job-modal')?.remove()">${t('actions.close')}</button>
                 </div>
                 <form id="add-job-form">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-grid">
                         <div style="grid-column:1/-1">
                             <label class="form-label">${t('pipeline.addJobModal.jobUrl')}</label>
                             <input type="url" name="url" class="form-input" id="add-job-url" placeholder="https://..." autocomplete="off">
@@ -647,19 +632,19 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                         <div style="display:flex;align-items:flex-end">
                             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.875rem">
                                 <input type="checkbox" id="add-job-interview-toggle" style="width:16px;height:16px">
-                                Add First Interview
+                                ${t('pipeline.addJobModal.addFirstInterview')}
                             </label>
                         </div>
                     </div>
                     <div id="add-job-interview-fields" style="display:none;margin-top:12px;padding:12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm)">
                         <div style="font-size:0.8125rem;font-weight:600;margin-bottom:8px">${t('pipeline.addJobModal.interviewDetails')}</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        <div class="form-grid">
                             <div>
-                                <label class="form-label">Round Label</label>
+                                <label class="form-label">${t('detail.interview.roundType')}</label>
                                 <input type="text" name="interview_label" class="form-input" placeholder="${t('pipeline.addJobModal.roundPlaceholder')}">
                             </div>
                             <div>
-                                <label class="form-label">Date & Time</label>
+                                <label class="form-label">${t('detail.interview.dateTime')}</label>
                                 <input type="datetime-local" name="interview_date" class="form-input">
                             </div>
                             <div>
@@ -668,7 +653,7 @@ function showAddExternalJobModal(container, statuses, statusLabels) {
                             </div>
                             <div>
                                 <label class="form-label">${t('pipeline.addJobModal.interviewerName')}</label>
-                                <input type="text" name="interviewer_name" class="form-input" placeholder="Optional">
+                                <input type="text" name="interviewer_name" class="form-input" placeholder="${t('fields.optional')}">
                             </div>
                         </div>
                     </div>

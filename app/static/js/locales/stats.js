@@ -1,6 +1,6 @@
 // === Interface copy: dashboard / stats ===
 //
-// Money shown here is USD; amounts are never converted.
+// Money shown here is CNY; amounts are never converted.
 
 i18n.register('stats', {
     en: {
@@ -13,6 +13,7 @@ i18n.register('stats', {
             digest: 'Daily Digest',
             reminders: 'Follow-Up Reminders',
             skillGaps: 'Skill Gap Analysis',
+            skillGapsDesc: 'Skills that would unlock more job matches (from jobs scoring 50-80).',
             analytics: 'Application Analytics',
             responseTracking: 'Response Tracking',
             careerAdvisor: 'Career Advisor',
@@ -51,6 +52,7 @@ i18n.register('stats', {
         digest: {
             empty: 'No new matches',
             emptyDesc: 'Check back after the next scrape cycle.',
+            matchCount: '1 new match in the last 24 hours|{count} new matches in the last 24 hours',
             loadFailed: 'Could not load digest',
             copied: 'Digest copied to clipboard',
         },
@@ -58,8 +60,10 @@ i18n.register('stats', {
             empty: 'No pending reminders',
             emptyDesc: 'Follow-up reminders appear after you apply to jobs.',
             loadFailed: 'Could not load reminders',
+            overdue: 'overdue',
         },
         skills: {
+            jobsInRange: 'jobs in this range',
             empty: 'No skill data yet',
             emptyDesc: 'Score some jobs first to see skill gap analysis.',
             loadFailed: 'Could not load skill gaps',
@@ -88,6 +92,8 @@ i18n.register('stats', {
             types: 'Response Types',
             byScore: 'Response Rate by Score',
             invites: 'Interview Invites',
+            applied: 'Applied',
+            responded: 'Responded',
         },
         career: {
             desc: 'AI-powered career trajectory analysis with actionable suggestions.',
@@ -108,6 +114,7 @@ i18n.register('stats', {
             digest: '每日摘要',
             reminders: '跟进提醒',
             skillGaps: '技能差距分析',
+            skillGapsDesc: '补充这些技能可以解锁更多职位匹配（基于匹配分 50–80 的职位）。',
             analytics: '申请数据分析',
             responseTracking: '回复跟踪',
             careerAdvisor: '职业顾问',
@@ -146,6 +153,7 @@ i18n.register('stats', {
         digest: {
             empty: '暂无新匹配',
             emptyDesc: '下一次抓取后可以再来查看。',
+            matchCount: '最近 24 小时有 {count} 个新匹配职位',
             loadFailed: '无法加载摘要',
             copied: '摘要已复制到剪贴板',
         },
@@ -153,8 +161,10 @@ i18n.register('stats', {
             empty: '暂无待跟进提醒',
             emptyDesc: '提交申请后会自动生成跟进提醒。',
             loadFailed: '无法加载提醒',
+            overdue: '已逾期',
         },
         skills: {
+            jobsInRange: '个职位在此匹配区间',
             empty: '暂无技能数据',
             emptyDesc: '先为职位评分，即可查看技能差距分析。',
             loadFailed: '无法加载技能差距',
@@ -183,6 +193,8 @@ i18n.register('stats', {
             types: '回复类型',
             byScore: '按评分看回复率',
             invites: '面试邀请',
+            applied: '已申请',
+            responded: '已回复',
         },
         career: {
             desc: '基于 AI 的职业发展路径分析，并给出可执行的建议。',

@@ -449,6 +449,7 @@ i18n.register('a11y', {
         unreadCount: '{count} unread',
         sortBy: 'Sort by',
         required: 'Required field',
+        matchScoreTitle: 'CareerPulse match score: {score}%',
     },
     'zh-CN': {
         close: '关闭',
@@ -467,6 +468,7 @@ i18n.register('a11y', {
         unreadCount: '{count} 条未读',
         sortBy: '排序方式',
         required: '必填项',
+        matchScoreTitle: 'CareerPulse 匹配分：{score}%',
     },
 });
 

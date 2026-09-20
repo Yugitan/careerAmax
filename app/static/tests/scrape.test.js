@@ -51,6 +51,8 @@ beforeEach(() => {
     document.getElementById('toast-container').innerHTML = '';
     document.getElementById('app-modal')?.remove();
     document.querySelectorAll('.scrape-cancel-link').forEach(el => el.remove());
+    stopCapturePoll();
+    activeCancelHandler = null;
 
     const btn = document.getElementById('scrape-btn');
     btn.disabled = false;
@@ -165,86 +167,332 @@ describe('renderScrapeButtonState', () => {
     });
 });
 
-describe('handleScrape', () => {
-    it('handles 202 started response and starts polling with task_id', async () => {
-        let progressCalls = 0;
-        globalThis.fetch = vi.fn(async (url, opts) => {
-            if (url === '/api/scrape' && opts?.method === 'POST') {
-                return {
-                    ok: true, status: 202,
-                    json: async () => ({ task_id: 'abc', status: 'started' }),
-                };
-            }
-            if (url === '/api/scrape/progress') {
-                progressCalls += 1;
-                return {
-                    ok: true, status: 200,
-                    json: async () => ({
-                        active: true, phase: 'scraping', task_id: 'abc',
-                        completed: 0, total: 5, current: null,
-                        server_now: 100, last_updated_at: 100,
-                        sources: [], scoring: { scored: 0, total: 0, skipped_reason: null },
-                        errors: [],
-                    }),
-                };
-            }
-            return { ok: false, status: 404, json: async () => ({}) };
-        });
-
-        await handleScrape();
-        expect(currentScrapeTaskId).toBe('abc');
-        expect(scrapePollInterval).not.toBeNull();
-        expect(document.getElementById('toast-container').children.length).toBe(0);
-
-        stopScrapePoll();
+// 一键抓取：网页只负责发起请求，真正的采集在用户浏览器里由扩展执行（PRD D1）。
+describe('handleScrape — extension capture', () => {
+    const captureState = (overrides = {}) => ({
+        request_id: 'req-1',
+        status: 'waiting',
+        active: true,
+        total: 0, saved: 0, skipped: 0, failed: 0,
+        extension_seen: false,
+        server_now: 0,
+        ...overrides,
     });
 
-    it('handles 409 already_running silently and polls with returned task_id', async () => {
+    function mockFetch(handler) {
         globalThis.fetch = vi.fn(async (url, opts) => {
-            if (url === '/api/scrape' && opts?.method === 'POST') {
-                return {
-                    ok: false, status: 409,
-                    json: async () => ({ error: 'scrape_already_running', task_id: 'xyz' }),
-                };
-            }
-            if (url === '/api/scrape/progress') {
-                return {
-                    ok: true, status: 200,
-                    json: async () => ({
-                        active: true, phase: 'scraping', task_id: 'xyz',
-                        completed: 1, total: 5, current: 'dice',
-                        server_now: 100, last_updated_at: 100,
-                        sources: [], scoring: {}, errors: [],
-                    }),
-                };
-            }
+            const result = handler(url, opts);
+            if (result) return result;
             return { ok: false, status: 404, json: async () => ({}) };
+        });
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        stopCapturePoll();
+        activeCancelHandler = null;
+    });
+
+    afterEach(() => {
+        stopCapturePoll();
+        vi.useRealTimers();
+    });
+
+    it('asks the server for a capture request and waits for the extension', async () => {
+        let requestCalls = 0;
+        mockFetch((url, opts) => {
+            if (url === '/api/capture/request') {
+                if (opts?.method === 'POST') requestCalls += 1;
+                return { ok: true, status: 200, json: async () => captureState() };
+            }
+            return null;
         });
 
         await handleScrape();
-        expect(currentScrapeTaskId).toBe('xyz');
-        // Silent: no error toast surfaced
+        expect(requestCalls).toBe(1);
+        expect(capturePollInterval).not.toBeNull();
+        await vi.advanceTimersByTimeAsync(0);  // 第一次轮询落地
+
+        const btn = document.getElementById('scrape-btn');
+        expect(btn.disabled).toBe(true);
+        expect(btn.textContent).toContain('Waiting for the extension');
+        expect(btn.querySelector('.spinner')).not.toBeNull();
+        // 等待阶段可以取消，按钮不会永远转圈
+        expect(document.querySelector('.scrape-cancel-link')).not.toBeNull();
+        expect(document.querySelectorAll('.toast-error').length).toBe(0);
+    });
+
+    it('surfaces a no-extension hint and resets the button when nobody claims the request', async () => {
+        const cancelled = [];
+        mockFetch((url, opts) => {
+            if (url === '/api/capture/request' && opts?.method === 'POST') {
+                return { ok: true, status: 200, json: async () => captureState() };
+            }
+            if (url === '/api/capture/cancel') {
+                cancelled.push(true);
+                return { ok: true, status: 200, json: async () => captureState({ status: 'cancelled' }) };
+            }
+            if (url === '/api/capture/request') {
+                return { ok: true, status: 200, json: async () => captureState() };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(16000);
+
+        expect(cancelled.length).toBe(1);
         const errorToasts = document.querySelectorAll('.toast-error');
-        expect(errorToasts.length).toBe(0);
-        stopScrapePoll();
+        expect(errorToasts.length).toBe(1);
+        expect(errorToasts[0].textContent).toContain('extension');
+        const btn = document.getElementById('scrape-btn');
+        expect(btn.disabled).toBe(false);
+        expect(btn.textContent).toBe('Scrape Now');
+        expect(capturePollInterval).toBeNull();
     });
 
-    it('shows error toast and resets button when trigger throws', async () => {
-        globalThis.fetch = vi.fn(async (url, opts) => {
-            if (url === '/api/scrape' && opts?.method === 'POST') {
+    it('reports the capture result once the extension completes', async () => {
+        let phase = 'capturing';
+        mockFetch((url) => {
+            if (url.startsWith('/api/capture/request')) {
+                const body = phase === 'done'
+                    ? captureState({ status: 'done', active: false, total: 12, saved: 9, skipped: 3 })
+                    : captureState({ status: 'capturing' });
+                return { ok: true, status: 200, json: async () => body };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(0);
+        const btn = document.getElementById('scrape-btn');
+        expect(btn.textContent).toContain('Capturing');
+
+        phase = 'done';
+        await vi.advanceTimersByTimeAsync(1000);
+
+        const toasts = document.querySelectorAll('.toast-success');
+        expect(toasts.length).toBe(1);
+        expect(toasts[0].textContent).toContain('9 new jobs');
+        expect(toasts[0].textContent).toContain('3 already tracked');
+        expect(btn.disabled).toBe(false);
+        expect(btn.textContent).toBe('Scrape Now');
+        expect(capturePollInterval).toBeNull();
+    });
+
+    it('explains an empty capture instead of claiming jobs were found', async () => {
+        mockFetch((url) => {
+            if (url.startsWith('/api/capture/request')) {
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({ status: 'done', active: false, total: 0 }),
+                };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        const toasts = document.querySelectorAll('.toast-info');
+        expect(toasts.length).toBe(1);
+        expect(toasts[0].textContent).toContain('No new jobs on the open page');
+    });
+
+    it('points at the missing job list when the extension is alive but not on a list page', async () => {
+        const cancelled = [];
+        mockFetch((url) => {
+            if (url === '/api/capture/request') {
+                // 扩展在轮询（extension_seen），但它打开的页面没有职位卡片
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({ extension_seen: true, listing_seen: false }),
+                };
+            }
+            if (url === '/api/capture/cancel') {
+                cancelled.push(true);
+                return { ok: true, status: 200, json: async () => captureState({ status: 'cancelled', active: false }) };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(16000);
+
+        expect(cancelled.length).toBe(1);
+        const errorToasts = document.querySelectorAll('.toast-error');
+        expect(errorToasts.length).toBe(1);
+        // 提示具体该怎么做，而不是笼统的「没等到扩展」
+        expect(errorToasts[0].textContent).toContain('No job list found');
+    });
+
+    it('shows how far along a capture is instead of a bare spinner', async () => {
+        mockFetch((url) => {
+            if (url.startsWith('/api/capture/request')) {
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({
+                        status: 'capturing', claimed_at: 0, progress_at: 0, server_now: 1,
+                        total: 45, saved: 12, skipped: 3, failed: 0,
+                    }),
+                };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(document.querySelector('.scrape-btn-label').textContent).toContain('15/45');
+    });
+
+    it('keeps waiting while the capture is actually making progress', async () => {
+        const cancelled = [];
+        let clock = 0;
+        let saved = 0;
+        mockFetch((url) => {
+            if (url.startsWith('/api/capture/request')) {
+                clock += 10;
+                saved += 5;
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({
+                        status: 'capturing',
+                        claimed_at: 0,
+                        progress_at: clock,  // 进度一直在前进
+                        server_now: clock,
+                        total: 60, saved, skipped: 0, failed: 0,
+                    }),
+                };
+            }
+            if (url === '/api/capture/cancel') {
+                cancelled.push(true);
+                return { ok: true, status: 200, json: async () => captureState({ status: 'cancelled', active: false }) };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(120000);  // 两分钟，远超旧的 60 秒硬上限
+
+        // 采集慢不是错误：只要还在前进就不能杀掉它
+        expect(cancelled.length).toBe(0);
+        expect(capturePollInterval).not.toBeNull();
+        expect(document.querySelectorAll('.toast-error').length).toBe(0);
+        expect(document.getElementById('scrape-btn').querySelector('.spinner')).not.toBeNull();
+    });
+
+    it('gives up only when a claimed capture stops making progress', async () => {
+        const cancelled = [];
+        mockFetch((url, opts) => {
+            if (url === '/api/capture/request') {
+                // 认领后 900 秒没有任何进度前进（页面被关掉、采集卡死）
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({
+                        status: 'capturing', claimed_at: 100, progress_at: 100, server_now: 1000,
+                        total: 60,
+                    }),
+                };
+            }
+            if (url === '/api/capture/cancel') {
+                cancelled.push(true);
+                return { ok: true, status: 200, json: async () => captureState({ status: 'cancelled', active: false }) };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(cancelled.length).toBe(1);
+        const errorToasts = document.querySelectorAll('.toast-error');
+        expect(errorToasts.length).toBe(1);
+        expect(errorToasts[0].textContent).toContain('stopped responding');
+        expect(capturePollInterval).toBeNull();
+    });
+
+    it('explains a capture that found no job list, from the extension result', async () => {
+        mockFetch((url) => {
+            if (url.startsWith('/api/capture/request')) {
+                return {
+                    ok: true, status: 200,
+                    json: async () => captureState({ status: 'done', active: false, total: 0, reason: 'no_listing' }),
+                };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        const toasts = document.querySelectorAll('.toast-info');
+        expect(toasts.length).toBe(1);
+        expect(toasts[0].textContent).toContain('No job list found');
+    });
+
+    it('shows an error toast and resets the button when the request fails', async () => {
+        mockFetch((url, opts) => {
+            if (url === '/api/capture/request' && opts?.method === 'POST') {
                 return {
                     ok: false, status: 500,
                     json: async () => ({ detail: 'Internal error' }),
                 };
             }
-            return { ok: false, status: 404, json: async () => ({}) };
+            return null;
         });
 
         await handleScrape();
-        expect(currentScrapeTaskId).toBeNull();
-        expect(scrapePollInterval).toBeNull();
+        expect(capturePollInterval).toBeNull();
         const errorToasts = document.querySelectorAll('.toast-error');
         expect(errorToasts.length).toBe(1);
+        const btn = document.getElementById('scrape-btn');
+        expect(btn.disabled).toBe(false);
+        expect(btn.textContent).toBe('Scrape Now');
+    });
+
+    it('tells the user to hard-refresh when a cached api.js predates the page', async () => {
+        // 浏览器缓存了旧版 api.js：与其抛 `api.requestCapture is not a function`
+        // 这种看不懂的 TypeError，不如直接让他刷新
+        const original = api.requestCapture;
+        delete api.requestCapture;
+        try {
+            await handleScrape();
+        } finally {
+            api.requestCapture = original;
+        }
+
+        const errorToasts = document.querySelectorAll('.toast-error');
+        expect(errorToasts.length).toBe(1);
+        expect(errorToasts[0].textContent).toContain('Hard refresh');
+        const btn = document.getElementById('scrape-btn');
+        expect(btn.disabled).toBe(false);
+        expect(capturePollInterval).toBeNull();
+    });
+
+    it('lets the user cancel a pending capture request', async () => {
+        let cancelCalls = 0;
+        mockFetch((url, opts) => {
+            if (url === '/api/capture/request' && opts?.method === 'POST') {
+                return { ok: true, status: 200, json: async () => captureState() };
+            }
+            if (url === '/api/capture/cancel') {
+                cancelCalls += 1;
+                return { ok: true, status: 200, json: async () => captureState({ status: 'cancelled', active: false }) };
+            }
+            if (url.startsWith('/api/capture/request')) {
+                return { ok: true, status: 200, json: async () => captureState() };
+            }
+            return null;
+        });
+
+        await handleScrape();
+        await vi.advanceTimersByTimeAsync(0);
+        document.querySelector('.scrape-cancel-link').dispatchEvent(new MouseEvent('click'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(cancelCalls).toBe(1);
+        expect(capturePollInterval).toBeNull();
         const btn = document.getElementById('scrape-btn');
         expect(btn.disabled).toBe(false);
         expect(btn.textContent).toBe('Scrape Now');

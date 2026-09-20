@@ -1,240 +1,14 @@
-// === Salary Calculator ===
-// Calculation engine, UI rendering, Chart.js integration
+// === 到手工资计算器（中国口径）===
+//
+// 金额一律为人民币月薪口径（元/月），不做任何币种换算。
+// 五险一金与个税累计预扣的算法在 app/salary.py 中实现，界面只负责收集输入
+// 并展示 /api/salary/calculate 的返回结果，避免前后端两套口径。
 
 const CALC_STORAGE_KEY = 'careerpulse_calc_settings';
 
-// --- Calculation Engine ---
-
-function calcFederalTax(taxableIncome, filingStatus) {
-    if (taxableIncome <= 0) return { total: 0, breakdown: [] };
-    const brackets = TAX_DATA.federal.brackets[filingStatus] || TAX_DATA.federal.brackets.single;
-    let remaining = taxableIncome;
-    let total = 0;
-    const breakdown = [];
-    for (const b of brackets) {
-        if (remaining <= 0) break;
-        const width = b.max === Infinity ? remaining : b.max - b.min;
-        const taxable = Math.min(remaining, width);
-        const tax = taxable * b.rate;
-        total += tax;
-        if (tax > 0) breakdown.push({ bracket: `${(b.rate * 100).toFixed(0)}%`, amount: tax, taxable });
-        remaining -= taxable;
-    }
-    return { total, breakdown };
-}
-
-function calcStateTax(taxableIncome, stateCode) {
-    if (taxableIncome <= 0 || !stateCode) return 0;
-    const state = TAX_DATA.states[stateCode];
-    if (!state || state.type === 'none') return 0;
-    if (state.type === 'flat') return taxableIncome * state.rate;
-    let remaining = taxableIncome;
-    let total = 0;
-    for (const b of state.brackets) {
-        if (remaining <= 0) break;
-        const width = b.max === Infinity ? remaining : b.max - b.min;
-        const taxable = Math.min(remaining, width);
-        total += taxable * b.rate;
-        remaining -= taxable;
-    }
-    return total;
-}
-
-function calcFICA(grossIncome, employmentType) {
-    const fica = TAX_DATA.fica;
-    if (employmentType === '1099') {
-        const netEarnings = grossIncome * fica.selfEmployment.netEarningsMultiplier;
-        const ssTaxable = Math.min(netEarnings, fica.socialSecurity.cap);
-        const ss = ssTaxable * fica.socialSecurity.rate * 2;
-        const medicare = netEarnings * fica.medicare.rate * 2;
-        const additionalMedicare = grossIncome > fica.medicare.additionalThreshold
-            ? (grossIncome - fica.medicare.additionalThreshold) * fica.medicare.additionalRate
-            : 0;
-        const seTax = ss + medicare + additionalMedicare;
-        return { ss, medicare: medicare + additionalMedicare, seTax, deductibleHalf: seTax * fica.selfEmployment.deductibleHalf, total: seTax };
-    }
-    // W2 or C2C (on salary portion)
-    const ssTaxable = Math.min(grossIncome, fica.socialSecurity.cap);
-    const ss = ssTaxable * fica.socialSecurity.rate;
-    const medicare = grossIncome * fica.medicare.rate;
-    const additionalMedicare = grossIncome > fica.medicare.additionalThreshold
-        ? (grossIncome - fica.medicare.additionalThreshold) * fica.medicare.additionalRate
-        : 0;
-    return { ss, medicare: medicare + additionalMedicare, seTax: 0, deductibleHalf: 0, total: ss + medicare + additionalMedicare };
-}
-
-function calculateSalary(input) {
-    const { gross, state, filingStatus, employmentType, deductions = {}, c2cMargin = 0, c2cSalarySplit = 0.6 } = input;
-    if (!gross || gross <= 0) return null;
-
-    const stdDeduction = TAX_DATA.federal.standardDeduction[filingStatus] || TAX_DATA.federal.standardDeduction.single;
-
-    if (employmentType === 'w2') {
-        const ficaResult = calcFICA(gross, 'w2');
-        const taxableIncome = Math.max(0, gross - stdDeduction);
-        const federal = calcFederalTax(taxableIncome, filingStatus);
-        const stateTax = calcStateTax(taxableIncome, state);
-        const totalTax = federal.total + stateTax + ficaResult.total;
-        const takeHome = gross - totalTax;
-        return {
-            type: 'w2', gross, federal: federal.total, federalBreakdown: federal.breakdown,
-            state: stateTax, ss: ficaResult.ss, medicare: ficaResult.medicare, seTax: 0,
-            totalTax, takeHome, effectiveRate: totalTax / gross,
-            hourly: null // filled by caller
-        };
-    }
-
-    if (employmentType === '1099') {
-        const bizDeductions = (deductions.health || 0) + (deductions.retirement || 0) + (deductions.equipment || 0) + (deductions.other || 0);
-        const ficaResult = calcFICA(gross, '1099');
-        const agi = gross - bizDeductions - ficaResult.deductibleHalf;
-        const taxableIncome = Math.max(0, agi - stdDeduction);
-        const federal = calcFederalTax(taxableIncome, filingStatus);
-        const stateTax = calcStateTax(taxableIncome, state);
-        const totalTax = federal.total + stateTax + ficaResult.total;
-        const takeHome = gross - totalTax - bizDeductions;
-        return {
-            type: '1099', gross, federal: federal.total, federalBreakdown: federal.breakdown,
-            state: stateTax, ss: 0, medicare: 0, seTax: ficaResult.seTax,
-            bizDeductions, deductibleHalf: ficaResult.deductibleHalf,
-            totalTax, takeHome, effectiveRate: totalTax / gross,
-            hourly: null
-        };
-    }
-
-    // C2C — S-Corp model
-    const netAfterMargin = gross * (1 - (c2cMargin / 100));
-    const bizDeductions = (deductions.health || 0) + (deductions.retirement || 0) + (deductions.equipment || 0) + (deductions.other || 0);
-    const distributable = netAfterMargin - bizDeductions;
-    const salaryPortion = distributable * c2cSalarySplit;
-    const distribution = distributable - salaryPortion;
-    const ficaResult = calcFICA(salaryPortion, 'w2');
-    const totalIncome = salaryPortion + distribution;
-    const taxableIncome = Math.max(0, totalIncome - stdDeduction);
-    const federal = calcFederalTax(taxableIncome, filingStatus);
-    const stateTax = calcStateTax(taxableIncome, state);
-    const totalTax = federal.total + stateTax + ficaResult.total;
-    const takeHome = distributable - totalTax;
-    return {
-        type: 'c2c', gross, netAfterMargin, salaryPortion, distribution,
-        federal: federal.total, federalBreakdown: federal.breakdown,
-        state: stateTax, ss: ficaResult.ss, medicare: ficaResult.medicare, seTax: 0,
-        bizDeductions, totalTax, takeHome, effectiveRate: totalTax / gross,
-        hourly: null
-    };
-}
-
-function compareEmploymentTypes(gross, state, filingStatus, deductions, c2cMargin) {
-    const base = { gross, state, filingStatus, deductions };
-    return {
-        w2: calculateSalary({ ...base, employmentType: 'w2' }),
-        '1099': calculateSalary({ ...base, employmentType: '1099' }),
-        c2c: calculateSalary({ ...base, employmentType: 'c2c', c2cMargin: c2cMargin || 0 })
-    };
-}
-
-// --- Chart Management ---
-
-let donutChart = null;
-let barChart = null;
-
-function getChartColors() {
-    const style = getComputedStyle(document.documentElement);
-    const isDark = document.documentElement.dataset.theme === 'dark';
-    return {
-        federal: '#6366f1',
-        state: '#f59e0b',
-        ss: '#10b981',
-        medicare: '#3b82f6',
-        seTax: '#ef4444',
-        takeHome: isDark ? '#22c55e' : '#16a34a',
-        text: style.getPropertyValue('--text-primary').trim() || (isDark ? '#e2e8f0' : '#1e293b'),
-        textSecondary: style.getPropertyValue('--text-secondary').trim() || (isDark ? '#94a3b8' : '#64748b'),
-        grid: style.getPropertyValue('--border').trim() || (isDark ? '#334155' : '#e2e8f0'),
-        surface: style.getPropertyValue('--bg-surface').trim() || (isDark ? '#1e293b' : '#fff')
-    };
-}
-
-function renderDonutChart(canvas, result) {
-    if (donutChart) donutChart.destroy();
-    if (!result) return;
-    const colors = getChartColors();
-    const segments = [
-        { label: t('calculator.rows.federalTax'), value: result.federal, color: colors.federal },
-        { label: t('calculator.rows.stateTax'), value: result.state, color: colors.state },
-        { label: t('calculator.rows.socialSecurity'), value: result.ss, color: colors.ss },
-        { label: t('calculator.rows.medicare'), value: result.medicare, color: colors.medicare }
-    ];
-    if (result.seTax > 0) segments.push({ label: t('calculator.rows.seTax'), value: result.seTax, color: colors.seTax });
-    segments.push({ label: 'Take-Home', value: Math.max(0, result.takeHome), color: colors.takeHome });
-    const filtered = segments.filter(s => s.value > 0);
-
-    donutChart = new Chart(canvas, {
-        type: 'doughnut',
-        data: {
-            labels: filtered.map(s => s.label),
-            datasets: [{
-                data: filtered.map(s => s.value),
-                backgroundColor: filtered.map(s => s.color),
-                borderWidth: 2,
-                borderColor: colors.surface
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '60%',
-            animation: { animateRotate: true, duration: 800, easing: 'easeOutQuart' },
-            plugins: {
-                legend: { position: 'bottom', labels: { color: colors.text, padding: 12, usePointStyle: true, pointStyleWidth: 10, font: { size: 12 } } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => t('calculator.chart.tooltip', { label: ctx.label, amount: formatCurrency(ctx.raw), pct: ((ctx.raw / result.gross) * 100).toFixed(1) })
-                    }
-                }
-            }
-        }
-    });
-}
-
-function renderBarChart(canvas, comparison) {
-    if (barChart) barChart.destroy();
-    if (!comparison || !comparison.w2) return;
-    const colors = getChartColors();
-    const types = ['w2', '1099', 'c2c'];
-    const labels = ['W-2', '1099', 'C2C'];
-
-    const datasets = [
-        { label: t('calculator.rows.federalTax'), backgroundColor: colors.federal, data: types.map(t => comparison[t]?.federal || 0) },
-        { label: t('calculator.rows.stateTax'), backgroundColor: colors.state, data: types.map(t => comparison[t]?.state || 0) },
-        { label: t('calculator.chart.ssMedicare'), backgroundColor: colors.ss, data: types.map(t => (comparison[t]?.ss || 0) + (comparison[t]?.medicare || 0) + (comparison[t]?.seTax || 0)) },
-        { label: 'Take-Home', backgroundColor: colors.takeHome, data: types.map(t => Math.max(0, comparison[t]?.takeHome || 0)) }
-    ];
-
-    barChart = new Chart(canvas, {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 600, easing: 'easeOutQuart' },
-            scales: {
-                x: { stacked: true, ticks: { color: colors.text }, grid: { display: false } },
-                y: {
-                    stacked: true,
-                    ticks: { color: colors.textSecondary, callback: v => formatCurrency(v) },
-                    grid: { color: colors.grid }
-                }
-            },
-            plugins: {
-                legend: { position: 'bottom', labels: { color: colors.text, padding: 12, usePointStyle: true, pointStyleWidth: 10, font: { size: 12 } } },
-                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.raw)}` } }
-            }
-        }
-    });
-}
-
-// --- localStorage ---
+let calcCities = [];
+let calcDonutChart = null;
+let calcBarChart = null;
 
 function loadCalcSettings() {
     try {
@@ -243,361 +17,469 @@ function loadCalcSettings() {
 }
 
 function saveCalcSettings(settings) {
-    localStorage.setItem(CALC_STORAGE_KEY, JSON.stringify(settings));
+    try {
+        localStorage.setItem(CALC_STORAGE_KEY, JSON.stringify(settings));
+    } catch { /* storage unavailable */ }
 }
 
-// --- UI ---
+async function fetchSalaryCities() {
+    // Fetched on every render so a refreshed city dataset is picked up without
+    // a full page reload; the payload is small.
+    const res = await api.request('GET', '/api/salary/cities');
+    calcCities = res.cities || [];
+    return calcCities;
+}
 
-function gatherInputs(container) {
-    const val = (id, fallback) => {
-        const el = container.querySelector(`#${id}`);
-        return el ? (el.value || fallback) : fallback;
-    };
-    const num = (id) => {
-        const el = container.querySelector(`#${id}`);
-        return el ? parseFloat(el.value) || 0 : 0;
-    };
-    const activeToggle = (name) => {
-        const btn = container.querySelector(`.calc-toggle-btn[data-group="${name}"].active`);
-        return btn ? btn.dataset.value : null;
-    };
+function calcMoney(value) {
+    return formatCurrency(Math.round(Number(value) || 0));
+}
 
-    const payType = activeToggle('payType') || 'salary';
-    const employmentType = activeToggle('empType') || 'w2';
-    const filingStatus = activeToggle('filing') || 'single';
-    const state = val('calc-state', 'TX');
+function calcPercent(value) {
+    return i18n.formatPercent(Number(value) || 0);
+}
 
-    const hpw = num('calc-hpw') || 40;
-    const wpy = num('calc-wpy') || 52;
-    let gross;
-    if (payType === 'hourly') {
-        const rate = num('calc-rate');
-        gross = rate * hpw * wpy;
-    } else {
-        gross = num('calc-salary');
+/** 城市下拉框：显示城市名，值为 city_code。 */
+function buildCityOptions(cities, selected) {
+    return cities.map((city) => {
+        const chosen = city.city_code === selected ? ' selected' : '';
+        return `<option value="${escapeHtml(city.city_code)}"${chosen}>${escapeHtml(city.city_name)}</option>`;
+    }).join('');
+}
+
+/** 公积金比例下拉框：按城市允许的区间生成。 */
+function buildFundRateOptions(city, selected) {
+    const min = Math.round((city?.housing_fund_rate_min ?? 0.05) * 100);
+    const max = Math.round((city?.housing_fund_rate_max ?? 0.12) * 100);
+    const options = [];
+    for (let rate = min; rate <= max; rate += 1) {
+        options.push(`<option value="${rate}"${rate === selected ? ' selected' : ''}>${rate}%</option>`);
     }
+    if (!options.length) options.push(`<option value="${min}" selected>${min}%</option>`);
+    return options.join('');
+}
 
-    const deductions = {
-        health: num('calc-ded-health'),
-        retirement: num('calc-ded-retirement'),
-        equipment: num('calc-ded-equipment'),
-        other: num('calc-ded-other')
+function renderCalcSelect(id, label, options, hint) {
+    return `
+        <div class="calc-input-group">
+            <label for="${id}">${label}</label>
+            <select id="${id}">${options}</select>
+            ${hint ? `<div class="calc-hint">${hint}</div>` : ''}
+        </div>`;
+}
+
+function renderCalcNumber(id, label, value, opts = {}) {
+    const placeholder = opts.placeholder ? ` placeholder="${escapeHtml(opts.placeholder)}"` : '';
+    const suffix = opts.suffix ? `<span class="calc-suffix">${opts.suffix}</span>` : '';
+    return `
+        <div class="calc-input-group">
+            <label for="${id}">${label}</label>
+            <div class="calc-input-wrap">
+                <input type="number" id="${id}" min="0" step="${opts.step || 100}" value="${escapeHtml(String(value ?? ''))}"${placeholder}>
+                ${suffix}
+            </div>
+        </div>`;
+}
+
+function getCalcNumber(container, id) {
+    const el = container.querySelector(`#${id}`);
+    if (!el) return 0;
+    const value = parseFloat(el.value);
+    return Number.isFinite(value) ? value : 0;
+}
+
+function gatherCalcInputs(container) {
+    const cityEl = container.querySelector('#calc-city');
+    const fundEl = container.querySelector('#calc-fund-rate');
+    const monthsEl = container.querySelector('#calc-months');
+    return {
+        city_code: cityEl ? cityEl.value : 'shanghai',
+        monthly_salary: getCalcNumber(container, 'calc-salary'),
+        months_per_year: monthsEl ? parseInt(monthsEl.value, 10) || 12 : 12,
+        housing_fund_rate: fundEl ? (parseInt(fundEl.value, 10) || 0) / 100 : null,
+        social_insurance_base: getCalcNumber(container, 'calc-si-base') || null,
+        special_additional_deduction: getCalcNumber(container, 'calc-special'),
+        year_end_bonus: getCalcNumber(container, 'calc-bonus'),
+        equity_annual: getCalcNumber(container, 'calc-equity'),
+        sign_on_bonus: getCalcNumber(container, 'calc-signon'),
+        subsidy_annual: getCalcNumber(container, 'calc-subsidy'),
     };
-    const c2cMargin = num('calc-c2c-margin');
-
-    return { payType, employmentType, filingStatus, state, gross, deductions, c2cMargin, hoursPerYear: hpw * wpy };
 }
 
-function buildToggleGroup(name, options, defaultValue) {
-    return `<div class="calc-toggle-group">${options.map(o =>
-        `<button class="calc-toggle-btn${o.value === defaultValue ? ' active' : ''}" data-group="${name}" data-value="${o.value}">${o.label}</button>`
-    ).join('')}</div>`;
-}
+const CALC_INPUT_IDS = [
+    'calc-city', 'calc-salary', 'calc-months', 'calc-fund-rate', 'calc-si-base',
+    'calc-special', 'calc-bonus', 'calc-equity', 'calc-signon', 'calc-subsidy',
+];
 
-function buildStateDropdown(selected) {
-    const states = Object.entries(TAX_DATA.states).sort((a, b) => a[1].name.localeCompare(b[1].name));
-    return `<select id="calc-state">${states.map(([code, s]) =>
-        `<option value="${code}"${code === selected ? ' selected' : ''}>${s.name}${s.type === 'none' ? ' (no tax)' : ''}</option>`
-    ).join('')}</select>`;
+function persistCalcInputs(container) {
+    const saved = {};
+    CALC_INPUT_IDS.forEach((id) => {
+        const el = container.querySelector(`#${id}`);
+        if (el) saved[id] = el.value;
+    });
+    saveCalcSettings(saved);
 }
 
 async function renderSalaryCalculator(container) {
     const saved = loadCalcSettings();
-    const defaults = {
-        payType: saved.payType || 'salary',
-        empType: saved.empType || 'w2',
-        filing: saved.filing || 'single',
-        state: saved.state || 'TX',
-        salary: saved.salary || '',
-        rate: saved.rate || '',
-        hpw: saved.hpw || 40,
-        wpy: saved.wpy || 52,
-        dedHealth: saved.dedHealth || '',
-        dedRetirement: saved.dedRetirement || '',
-        dedEquipment: saved.dedEquipment || '',
-        dedOther: saved.dedOther || '',
-        c2cMargin: saved.c2cMargin || 10
-    };
-    const showHourly = defaults.payType === 'hourly';
-    const showDeductions = defaults.empType !== 'w2';
-
-    // Load offers for import dropdown
-    let offers = [];
+    let cities = [];
     try {
-        const res = await api.request('GET', '/api/offers');
-        offers = res.offers || [];
-    } catch { /* no offers available */ }
+        cities = await fetchSalaryCities();
+    } catch { /* handled below */ }
+
+    if (!cities.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('calculator.title')}</div><div class="empty-state-desc">${t('errors.loadFailed')}</div></div>`;
+        return;
+    }
+
+    const cityCode = saved['calc-city'] || cities[0].city_code;
+    const city = cities.find((item) => item.city_code === cityCode) || cities[0];
+    const fundRate = parseInt(saved['calc-fund-rate'] || Math.round((city.housing_fund_rate_default ?? 0.07) * 100), 10);
+    const months = String(saved['calc-months'] || 12);
+    const stale = cities.some((item) => item.stale);
 
     container.innerHTML = `
-        <div style="margin-bottom:24px">
-            <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:4px">${t('calculator.title')}</h2>
-            <p style="color:var(--text-secondary);font-size:0.875rem">${t('calculator.description')}</p>
+        <div class="page-header page-header-stacked">
+            <h1 class="page-title">${t('calculator.title')}</h1>
+            <p class="page-description">${t('calculator.description')}</p>
         </div>
+
+        ${stale ? `
+        <div class="calc-stale-banner" role="status">
+            <span>${t('calculator.staleWarning')}</span>
+        </div>` : ''}
 
         <div class="calc-chart-card" style="margin-bottom:24px">
-            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin-bottom:20px">
-                <div class="calc-input-group">
-                    <label>${t('calculator.inputs.payType')}</label>
-                    ${buildToggleGroup('payType', [{ label: t('calculator.inputs.salary'), value: 'salary' }, { label: t('calculator.inputs.hourly'), value: 'hourly' }], defaults.payType)}
-                </div>
-                <div class="calc-input-group">
-                    <label>${t('calculator.inputs.employment')}</label>
-                    ${buildToggleGroup('empType', [{ label: 'W-2', value: 'w2' }, { label: '1099', value: '1099' }, { label: 'C2C', value: 'c2c' }], defaults.empType)}
-                </div>
-                <div class="calc-input-group">
-                    <label>${t('calculator.inputs.filingStatus')}</label>
-                    ${buildToggleGroup('filing', [{ label: t('calculator.inputs.single'), value: 'single' }, { label: t('calculator.inputs.married'), value: 'married' }], defaults.filing)}
-                </div>
-                <div class="calc-input-group">
-                    <label>${t('calculator.inputs.state')}</label>
-                    ${buildStateDropdown(defaults.state)}
-                </div>
+            <div class="calc-input-grid">
+                ${renderCalcSelect('calc-city', t('calculator.inputs.city'), buildCityOptions(cities, city.city_code))}
+                ${renderCalcNumber('calc-salary', t('calculator.inputs.monthlySalary'), saved['calc-salary'] || '', { step: 1000, placeholder: '30000' })}
+                ${renderCalcSelect('calc-months', t('calculator.inputs.monthsPerYear'),
+                    [12, 13, 14, 15, 16].map((n) => `<option value="${n}"${String(n) === months ? ' selected' : ''}>${t('calculator.inputs.monthsValue', { n })}</option>`).join(''))}
+                ${renderCalcSelect('calc-fund-rate', t('calculator.inputs.housingFundRate'), buildFundRateOptions(city, fundRate))}
             </div>
-
-            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:end">
-                <div class="calc-input-group" id="calc-salary-group" style="${showHourly ? 'display:none' : ''}">
-                    <label>${t('calculator.inputs.annualSalary')}</label>
-                    <input type="number" id="calc-salary" placeholder="100,000" min="0" step="1000" value="${defaults.salary}">
-                </div>
-                <div class="calc-input-group" id="calc-hourly-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>${t('calculator.inputs.hourlyRate')}</label>
-                    <input type="number" id="calc-rate" placeholder="75" min="0" step="1" value="${defaults.rate}">
-                </div>
-                <div class="calc-input-group" id="calc-hpw-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>${t('calculator.inputs.hoursPerWeek')}</label>
-                    <input type="number" id="calc-hpw" min="1" max="80" value="${defaults.hpw}">
-                </div>
-                <div class="calc-input-group" id="calc-wpy-group" style="${showHourly ? '' : 'display:none'}">
-                    <label>${t('calculator.inputs.weeksPerYear')}</label>
-                    <input type="number" id="calc-wpy" min="1" max="52" value="${defaults.wpy}">
-                </div>
-                ${offers.length > 0 ? `
-                <div class="calc-input-group">
-                    <label>Import from Offer</label>
-                    <select id="calc-import-offer">
-                        <option value="">-- select --</option>
-                        ${offers.map(o => `<option value="${o.base || 0}" data-title="${(o.title || 'Offer').replace(/"/g, '&quot;')}">${o.title || 'Offer'} ${t('common.notAvailable')} ${formatCurrency(o.base)}</option>`).join('')}
-                    </select>
-                </div>` : ''}
+            <div class="calc-input-grid calc-input-grid-secondary">
+                ${renderCalcNumber('calc-si-base', t('calculator.inputs.socialInsuranceBase'), saved['calc-si-base'] || '', { placeholder: t('calculator.inputs.socialInsuranceBasePlaceholder'), step: 100 })}
+                ${renderCalcNumber('calc-special', t('calculator.inputs.specialDeduction'), saved['calc-special'] || '', { step: 100 })}
+                ${renderCalcNumber('calc-bonus', t('calculator.inputs.yearEndBonus'), saved['calc-bonus'] || '', { step: 1000 })}
+                ${renderCalcNumber('calc-equity', t('calculator.inputs.equityAnnual'), saved['calc-equity'] || '', { step: 1000 })}
+                ${renderCalcNumber('calc-signon', t('calculator.inputs.signOnBonus'), saved['calc-signon'] || '', { step: 1000 })}
+                ${renderCalcNumber('calc-subsidy', t('calculator.inputs.subsidyAnnual'), saved['calc-subsidy'] || '', { step: 1000 })}
             </div>
+            <div class="calc-base-hint" id="calc-base-hint"></div>
         </div>
 
-        <div class="calc-deductions-panel${showDeductions ? ' open' : ''}" id="calc-deductions-panel">
-            <div class="calc-chart-card" style="margin-bottom:24px">
-                <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">${t('calculator.deductions.title')}</h3>
-                <div style="display:flex;flex-wrap:wrap;gap:16px">
-                    <div class="calc-input-group">
-                        <label>${t('calculator.deductions.health')}</label>
-                        <input type="number" id="calc-ded-health" min="0" step="100" placeholder="0" value="${defaults.dedHealth}">
-                    </div>
-                    <div class="calc-input-group">
-                        <label>${t('calculator.deductions.retirement')}</label>
-                        <input type="number" id="calc-ded-retirement" min="0" step="100" placeholder="0" value="${defaults.dedRetirement}">
-                    </div>
-                    <div class="calc-input-group">
-                        <label>${t('calculator.deductions.equipment')}</label>
-                        <input type="number" id="calc-ded-equipment" min="0" step="100" placeholder="0" value="${defaults.dedEquipment}">
-                    </div>
-                    <div class="calc-input-group">
-                        <label>${t('calculator.deductions.other')}</label>
-                        <input type="number" id="calc-ded-other" min="0" step="100" placeholder="0" value="${defaults.dedOther}">
-                    </div>
-                    <div class="calc-input-group" id="calc-c2c-margin-group" style="${defaults.empType === 'c2c' ? '' : 'display:none'}">
-                        <label>C2C Agency Margin (%)</label>
-                        <input type="number" id="calc-c2c-margin" min="0" max="50" step="1" value="${defaults.c2cMargin}">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="calc-stat-grid" id="calc-stats">
-            <div class="calc-stat-card"><div class="stat-number" id="stat-gross">-</div><div class="stat-label">${t('calculator.summary.grossAnnual')}</div></div>
-            <div class="calc-stat-card"><div class="stat-number" id="stat-tax">-</div><div class="stat-label">Total Taxes</div></div>
-            <div class="calc-stat-card"><div class="stat-number" id="stat-takehome">-</div><div class="stat-label">Take-Home</div></div>
-            <div class="calc-stat-card"><div class="stat-number" id="stat-rate">-</div><div class="stat-label">${t('calculator.summary.effectiveRate')}</div></div>
-        </div>
+        <div class="calc-stat-grid" id="calc-stats"></div>
 
         <div class="calc-chart-row" style="margin-bottom:24px">
             <div class="calc-chart-card">
-                <h3>${t('calculator.chart.taxBreakdown')}</h3>
+                <h3>${t('calculator.chart.composition')}</h3>
                 <div style="height:280px"><canvas id="calc-donut"></canvas></div>
             </div>
             <div class="calc-chart-card">
-                <h3>${t('calculator.chart.comparison')}</h3>
+                <h3>${t('calculator.chart.monthlyNet')}</h3>
                 <div style="height:280px"><canvas id="calc-bar"></canvas></div>
             </div>
         </div>
 
         <div class="calc-chart-card" style="margin-bottom:24px">
-            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">${t('calculator.chart.detailedBreakdown')}</h3>
+            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:16px">${t('calculator.breakdown.title')}</h3>
             <div class="calc-breakdown-table-wrap">
-                <table class="calc-breakdown-table" id="calc-breakdown-table">
-                    <thead><tr><th>${t('calculator.chart.item')}</th><th style="text-align:right">W-2</th><th style="text-align:right">1099</th><th style="text-align:right">C2C</th></tr></thead>
-                    <tbody id="calc-breakdown-body"></tbody>
-                </table>
+                <table class="calc-breakdown-table"><tbody id="calc-insurance-body"></tbody></table>
             </div>
         </div>
 
-        <p style="color:var(--text-tertiary);font-size:0.75rem;text-align:center;padding:8px 0">
-            Estimates only for ${TAX_DATA.year} tax year. Does not account for local taxes, credits, AMT, or NIIT. Consult a tax professional for personalized advice.
-        </p>
+        <div class="calc-chart-card" style="margin-bottom:24px">
+            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:8px">${t('calculator.schedule.title')}</h3>
+            <div class="calc-breakdown-table-wrap">
+                <table class="calc-breakdown-table"><thead id="calc-schedule-head"></thead><tbody id="calc-schedule-body"></tbody></table>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="calc-export-csv" style="margin-top:12px">${t('calculator.actions.exportCsv')}</button>
+        </div>
+
+        <div class="calc-chart-card" id="calc-bonus-card" style="margin-bottom:24px;display:none"></div>
+
+        <p class="calc-disclaimer" id="calc-disclaimer"></p>
     `;
 
-    // Wire events
-    const debounceTimer = { id: null };
+    const debounce = { id: null };
     const recalc = () => {
-        clearTimeout(debounceTimer.id);
-        debounceTimer.id = setTimeout(() => updateCalculation(container), 150);
+        clearTimeout(debounce.id);
+        debounce.id = setTimeout(() => { updateCalculator(container); }, 200);
     };
 
-    // Toggle buttons
-    container.querySelectorAll('.calc-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const group = btn.dataset.group;
-            container.querySelectorAll(`.calc-toggle-btn[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            if (group === 'payType') {
-                const hourly = btn.dataset.value === 'hourly';
-                container.querySelector('#calc-salary-group').style.display = hourly ? 'none' : '';
-                container.querySelector('#calc-hourly-group').style.display = hourly ? '' : 'none';
-                container.querySelector('#calc-hpw-group').style.display = hourly ? '' : 'none';
-                container.querySelector('#calc-wpy-group').style.display = hourly ? '' : 'none';
-            }
-
-            if (group === 'empType') {
-                const panel = container.querySelector('#calc-deductions-panel');
-                const marginGroup = container.querySelector('#calc-c2c-margin-group');
-                if (btn.dataset.value === 'w2') {
-                    panel.classList.remove('open');
-                } else {
-                    panel.classList.add('open');
-                }
-                if (marginGroup) marginGroup.style.display = btn.dataset.value === 'c2c' ? '' : 'none';
-            }
-
-            recalc();
-        });
-    });
-
-    // All inputs
-    container.querySelectorAll('input, select').forEach(el => {
+    container.querySelectorAll('input, select').forEach((el) => {
         el.addEventListener('input', recalc);
         el.addEventListener('change', recalc);
     });
 
-    // Import from offer
-    const importSelect = container.querySelector('#calc-import-offer');
-    if (importSelect) {
-        importSelect.addEventListener('change', () => {
-            const val = parseFloat(importSelect.value);
-            if (val > 0) {
-                const salaryInput = container.querySelector('#calc-salary');
-                if (salaryInput) {
-                    salaryInput.value = val;
-                    // Switch to salary mode
-                    const salaryBtn = container.querySelector('.calc-toggle-btn[data-group="payType"][data-value="salary"]');
-                    if (salaryBtn && !salaryBtn.classList.contains('active')) salaryBtn.click();
-                    recalc();
-                }
+    // 换城市时按新城市的默认公积金比例刷新下拉框。
+    const citySelect = container.querySelector('#calc-city');
+    if (citySelect) {
+        citySelect.addEventListener('change', () => {
+            const next = cities.find((item) => item.city_code === citySelect.value);
+            const rateSelect = container.querySelector('#calc-fund-rate');
+            if (next && rateSelect) {
+                rateSelect.innerHTML = buildFundRateOptions(next, Math.round((next.housing_fund_rate_default ?? 0.07) * 100));
             }
+            recalc();
         });
     }
 
-    // Initial calc
-    updateCalculation(container);
-}
-
-function updateCalculation(container) {
-    const inputs = gatherInputs(container);
-
-    // Persist
-    saveCalcSettings({
-        payType: inputs.payType, empType: inputs.employmentType, filing: inputs.filingStatus,
-        state: inputs.state, salary: container.querySelector('#calc-salary')?.value || '',
-        rate: container.querySelector('#calc-rate')?.value || '',
-        hpw: container.querySelector('#calc-hpw')?.value || 40,
-        wpy: container.querySelector('#calc-wpy')?.value || 52,
-        dedHealth: container.querySelector('#calc-ded-health')?.value || '',
-        dedRetirement: container.querySelector('#calc-ded-retirement')?.value || '',
-        dedEquipment: container.querySelector('#calc-ded-equipment')?.value || '',
-        dedOther: container.querySelector('#calc-ded-other')?.value || '',
-        c2cMargin: container.querySelector('#calc-c2c-margin')?.value || 10
+    container.querySelector('#calc-export-csv').addEventListener('click', () => {
+        if (lastCalcResult) exportCalcCsv(lastCalcResult);
     });
 
-    if (!inputs.gross || inputs.gross <= 0) {
-        container.querySelector('#stat-gross').textContent = '-';
-        container.querySelector('#stat-tax').textContent = '-';
-        container.querySelector('#stat-takehome').textContent = '-';
-        container.querySelector('#stat-rate').textContent = '-';
-        container.querySelector('#calc-breakdown-body').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:24px">Enter a salary or rate to see results</td></tr>';
-        if (donutChart) { donutChart.destroy(); donutChart = null; }
-        if (barChart) { barChart.destroy(); barChart = null; }
+    updateCalculator(container);
+}
+
+// 最近一次测算结果，供导出 CSV 使用。
+let lastCalcResult = null;
+
+function renderCalcStats(summary, input) {
+    return `
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.first_month_net)}</div><div class="stat-label">${t('calculator.summary.firstMonthNet')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.steady_month_net)}</div><div class="stat-label">${t('calculator.summary.steadyMonthNet')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.annual_net_income)}</div><div class="stat-label">${t('calculator.summary.annualNetIncome')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.total_package)}</div><div class="stat-label">${t('calculator.summary.totalPackage')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.annual_tax)}</div><div class="stat-label">${t('calculator.summary.annualTax')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.annual_social_insurance)}</div><div class="stat-label">${t('calculator.summary.annualSocialInsurance')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcPercent(summary.effective_tax_rate)}</div><div class="stat-label">${t('calculator.summary.effectiveTaxRate')}</div></div>
+        <div class="calc-stat-card"><div class="stat-number">${calcMoney(summary.employer_cost)}</div><div class="stat-label">${t('calculator.summary.employerCost')}</div></div>
+    `;
+}
+
+function renderInsuranceTable(insurance) {
+    const rows = [
+        ['pension', insurance.employee.pension, insurance.employer.pension],
+        ['medical', insurance.employee.medical, insurance.employer.medical],
+        ['unemployment', insurance.employee.unemployment, insurance.employer.unemployment],
+        ['injury', insurance.employee.injury, insurance.employer.injury],
+        ['maternity', insurance.employee.maternity, insurance.employer.maternity],
+        ['housingFund', insurance.employee.housing_fund, insurance.employer.housing_fund],
+    ];
+    return `
+        <tr><th style="text-align:left">${t('calculator.breakdown.item')}</th><th style="text-align:right">${t('calculator.breakdown.employee')}</th><th style="text-align:right">${t('calculator.breakdown.employer')}</th></tr>
+        ${rows.map(([key, employee, employer]) => `
+            <tr>
+                <td>${t(`calculator.breakdown.${key}`)}</td>
+                <td style="text-align:right">${calcMoney(employee)}</td>
+                <td style="text-align:right">${calcMoney(employer)}</td>
+            </tr>`).join('')}
+        <tr style="font-weight:600">
+            <td>${t('calculator.breakdown.total')}</td>
+            <td style="text-align:right">${calcMoney(insurance.employee.total)}</td>
+            <td style="text-align:right">${calcMoney(insurance.employer.total)}</td>
+        </tr>`;
+}
+
+function renderScheduleTable(result) {
+    const head = `
+        <tr>
+            <th style="text-align:left">${t('calculator.schedule.month')}</th>
+            <th style="text-align:right">${t('calculator.schedule.gross')}</th>
+            <th style="text-align:right">${t('calculator.schedule.socialInsurance')}</th>
+            <th style="text-align:right">${t('calculator.schedule.taxable')}</th>
+            <th style="text-align:right">${t('calculator.schedule.taxRate')}</th>
+            <th style="text-align:right">${t('calculator.schedule.tax')}</th>
+            <th style="text-align:right">${t('calculator.schedule.net')}</th>
+        </tr>`;
+    const body = result.schedule.map((row) => `
+        <tr>
+            <td>${row.month}</td>
+            <td style="text-align:right">${calcMoney(row.gross)}</td>
+            <td style="text-align:right">${calcMoney(row.social_insurance)}</td>
+            <td style="text-align:right">${calcMoney(row.taxable)}</td>
+            <td style="text-align:right">${calcPercent(row.tax_rate)}</td>
+            <td style="text-align:right">${calcMoney(row.tax)}</td>
+            <td style="text-align:right;font-weight:600">${calcMoney(row.net)}</td>
+        </tr>`).join('');
+    return { head, body };
+}
+
+function renderBonusCard(bonus) {
+    if (!bonus || !bonus.bonus) return '';
+    const method = bonus.best === 'separate'
+        ? t('calculator.bonus.methodSeparate')
+        : t('calculator.bonus.methodCombined');
+    return `
+        <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px">${t('calculator.bonus.title')}</h3>
+        <table class="calc-breakdown-table">
+            <thead>
+                <tr>
+                    <th style="text-align:left">${t('calculator.bonus.amount')}</th>
+                    <th style="text-align:right">${t('calculator.bonus.separate')}</th>
+                    <th style="text-align:right">${t('calculator.bonus.combined')}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>${t('calculator.bonus.tax')}</td>
+                    <td style="text-align:right">${calcMoney(bonus.separate.tax)}</td>
+                    <td style="text-align:right">${calcMoney(bonus.combined.tax)}</td>
+                </tr>
+                <tr style="font-weight:600">
+                    <td>${t('calculator.bonus.net')}</td>
+                    <td style="text-align:right">${calcMoney(bonus.separate.net)}</td>
+                    <td style="text-align:right">${calcMoney(bonus.combined.net)}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="calc-best-option">${t('calculator.bonus.best', { method, amount: i18n.formatNumber(Math.round(bonus.saving)) })}</div>`;
+}
+
+function renderDonutChart(canvas, result) {
+    if (calcDonutChart) { calcDonutChart.destroy(); calcDonutChart = null; }
+    const steady = result.schedule[result.schedule.length - 2] || result.schedule[result.schedule.length - 1];
+    const segments = [
+        { label: t('calculator.chart.compositionNet'), value: steady.net, color: '#16a34a' },
+        { label: t('calculator.chart.compositionTax'), value: steady.tax, color: '#f59e0b' },
+        { label: t('calculator.chart.compositionInsurance'), value: steady.social_insurance, color: '#6366f1' },
+    ].filter((segment) => segment.value > 0);
+
+    calcDonutChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: segments.map((segment) => segment.label),
+            datasets: [{
+                data: segments.map((segment) => segment.value),
+                backgroundColor: segments.map((segment) => segment.color),
+                borderWidth: 2,
+                borderColor: 'transparent',
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => t('calculator.chart.tooltip', {
+                            label: ctx.label,
+                            amount: calcMoney(ctx.raw),
+                            pct: ((ctx.raw / steady.gross) * 100).toFixed(1),
+                        }),
+                    },
+                },
+            },
+        },
+    });
+}
+
+function renderBarChart(canvas, result) {
+    if (calcBarChart) { calcBarChart.destroy(); calcBarChart = null; }
+    calcBarChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: result.schedule.map((row) => String(row.month)),
+            datasets: [{
+                label: t('calculator.chart.monthlyNetAxis'),
+                data: result.schedule.map((row) => row.net),
+                backgroundColor: '#16a34a',
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: { ticks: { callback: (value) => calcMoney(value) } },
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => calcMoney(ctx.raw) } },
+            },
+        },
+    });
+}
+
+async function updateCalculator(container) {
+    const inputs = gatherCalcInputs(container);
+    persistCalcInputs(container);
+
+    const statsEl = container.querySelector('#calc-stats');
+    const baseHintEl = container.querySelector('#calc-base-hint');
+    const disclaimerEl = container.querySelector('#calc-disclaimer');
+
+    if (!inputs.monthly_salary || inputs.monthly_salary <= 0) {
+        statsEl.innerHTML = `<div class="calc-empty">${t('calculator.empty')}</div>`;
+        container.querySelector('#calc-insurance-body').innerHTML = '';
+        container.querySelector('#calc-schedule-head').innerHTML = '';
+        container.querySelector('#calc-schedule-body').innerHTML = '';
+        container.querySelector('#calc-bonus-card').style.display = 'none';
+        if (baseHintEl) baseHintEl.textContent = '';
+        if (disclaimerEl) disclaimerEl.textContent = '';
+        if (calcDonutChart) { calcDonutChart.destroy(); calcDonutChart = null; }
+        if (calcBarChart) { calcBarChart.destroy(); calcBarChart = null; }
+        lastCalcResult = null;
         return;
     }
 
-    const result = calculateSalary({
-        gross: inputs.gross,
-        state: inputs.state,
-        filingStatus: inputs.filingStatus,
-        employmentType: inputs.employmentType,
-        deductions: inputs.deductions,
-        c2cMargin: inputs.c2cMargin
-    });
+    let result;
+    try {
+        result = await api.request('POST', '/api/salary/calculate', inputs);
+    } catch (err) {
+        statsEl.innerHTML = `<div class="calc-empty">${escapeHtml(apiErrorMessage(err))}</div>`;
+        return;
+    }
+    lastCalcResult = result;
 
-    if (!result) return;
+    statsEl.innerHTML = renderCalcStats(result.summary, result.input);
+    if (baseHintEl) {
+        const city = calcCities.find((item) => item.city_code === result.city.city_code);
+        baseHintEl.textContent = result.insurance.base_clamped
+            ? t('calculator.inputs.baseClamped', { base: calcMoney(result.insurance.social_insurance_base) })
+            : (city ? t('calculator.inputs.baseHint', {
+                min: calcMoney(city.social_insurance_base_min),
+                max: calcMoney(city.social_insurance_base_max),
+            }) : '');
+    }
+    container.querySelector('#calc-insurance-body').innerHTML = renderInsuranceTable(result.insurance);
+    const schedule = renderScheduleTable(result);
+    container.querySelector('#calc-schedule-head').innerHTML = schedule.head;
+    container.querySelector('#calc-schedule-body').innerHTML = schedule.body;
 
-    // Stat cards
-    container.querySelector('#stat-gross').textContent = formatCurrency(result.gross);
-    container.querySelector('#stat-tax').textContent = formatCurrency(result.totalTax);
-    container.querySelector('#stat-takehome').textContent = formatCurrency(result.takeHome);
-    container.querySelector('#stat-rate').textContent = (result.effectiveRate * 100).toFixed(1) + '%';
+    const bonusCard = container.querySelector('#calc-bonus-card');
+    const bonusHtml = renderBonusCard(result.year_end_bonus);
+    bonusCard.style.display = bonusHtml ? '' : 'none';
+    bonusCard.innerHTML = bonusHtml;
 
-    // Charts
+    if (disclaimerEl) {
+        disclaimerEl.textContent = t('calculator.disclaimer', {
+            year: result.city.effective_year || '',
+        }) + (result.city.source_note ? ' ' + result.city.source_note : '');
+    }
+
     const donutCanvas = container.querySelector('#calc-donut');
-    const barCanvas = container.querySelector('#calc-bar');
     if (donutCanvas) renderDonutChart(donutCanvas, result);
-
-    const comparison = compareEmploymentTypes(inputs.gross, inputs.state, inputs.filingStatus, inputs.deductions, inputs.c2cMargin);
-    if (barCanvas) renderBarChart(barCanvas, comparison);
-
-    // Breakdown table
-    renderBreakdownTable(container.querySelector('#calc-breakdown-body'), comparison, inputs.gross, inputs.hoursPerYear);
+    const barCanvas = container.querySelector('#calc-bar');
+    if (barCanvas) renderBarChart(barCanvas, result);
 }
 
-function renderBreakdownTable(tbody, comparison, gross, hoursPerYear = 2080) {
-    if (!tbody || !comparison.w2) return;
-    const fmt = v => v != null ? formatCurrency(Math.round(v)) : '-';
-    const fmtHr = v => v != null ? formatCurrency(Math.round(v / hoursPerYear * 100) / 100) + '/hr' : '';
-
-    const rows = [
-        { label: t('calculator.rows.grossIncome'), key: 'gross' },
-        { label: t('calculator.rows.federalTax'), key: 'federal' },
-        { label: t('calculator.rows.stateTax'), key: 'state' },
-        { label: t('calculator.rows.socialSecurity'), key: 'ss' },
-        { label: t('calculator.rows.medicare'), key: 'medicare' },
-        { label: t('calculator.rows.seTax'), key: 'seTax', show1099: true },
-        { label: t('calculator.rows.businessDeductions'), key: 'bizDeductions', hideW2: true },
-        { label: 'Total Taxes', key: 'totalTax', bold: true },
-        { label: t('calculator.rows.takeHomePay'), key: 'takeHome', bold: true, highlight: true }
+function exportCalcCsv(result) {
+    const header = [
+        t('calculator.schedule.month'), t('calculator.schedule.gross'),
+        t('calculator.schedule.socialInsurance'), t('calculator.schedule.taxable'),
+        t('calculator.schedule.taxRate'), t('calculator.schedule.tax'), t('calculator.schedule.net'),
     ];
+    const lines = [header.join(',')];
+    result.schedule.forEach((row) => {
+        lines.push([
+            row.month, row.gross, row.social_insurance, row.taxable,
+            row.tax_rate, row.tax, row.net,
+        ].join(','));
+    });
+    lines.push('');
+    lines.push([t('calculator.summary.annualSalary'), result.summary.annual_salary].join(','));
+    lines.push([t('calculator.summary.annualTax'), result.summary.annual_tax].join(','));
+    lines.push([t('calculator.summary.annualNetIncome'), result.summary.annual_net_income].join(','));
+    lines.push([t('calculator.summary.totalPackage'), result.summary.total_package].join(','));
 
-    const html = rows.map(row => {
-        const w2Val = comparison.w2?.[row.key];
-        const val1099 = comparison['1099']?.[row.key];
-        const c2cVal = comparison.c2c?.[row.key];
-        const style = row.bold ? 'font-weight:600;color:var(--text-primary)' : '';
-        const highlightStyle = row.highlight ? ';color:var(--score-green)' : '';
-        const w2Display = (row.hideW2 && !w2Val) ? '-' : fmt(w2Val);
-        const display1099 = fmt(val1099);
-        const c2cDisplay = fmt(c2cVal);
-        return `<tr>
-            <td style="${style}">${row.label}</td>
-            <td style="text-align:right;${style}${highlightStyle}">${w2Display}<br><small style="color:var(--text-tertiary)">${w2Val ? fmtHr(w2Val) : ''}</small></td>
-            <td style="text-align:right;${style}${highlightStyle}">${display1099}<br><small style="color:var(--text-tertiary)">${val1099 ? fmtHr(val1099) : ''}</small></td>
-            <td style="text-align:right;${style}${highlightStyle}">${c2cDisplay}<br><small style="color:var(--text-tertiary)">${c2cVal ? fmtHr(c2cVal) : ''}</small></td>
-        </tr>`;
-    }).join('');
-
-    tbody.innerHTML = html;
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'careerpulse-take-home.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
 }

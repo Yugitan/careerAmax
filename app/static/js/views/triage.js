@@ -91,13 +91,13 @@ function renderTriageCard() {
                     ${salary ? `<div class="triage-salary">${salary}</div>` : ''}
                     ${reasons.length ? `
                         <div class="triage-section">
-                            <div class="triage-section-label">Match Reasons</div>
+                            <div class="triage-section-label">${t('triage.matchReasons')}</div>
                             <ul class="score-reasons">${reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
                         </div>
                     ` : ''}
                     ${concerns.length ? `
                         <div class="triage-section">
-                            <div class="triage-section-label">Concerns</div>
+                            <div class="triage-section-label">${t('triage.concerns')}</div>
                             <ul class="score-concerns">${concerns.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>
                         </div>
                     ` : ''}

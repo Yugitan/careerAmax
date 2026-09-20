@@ -18,7 +18,9 @@ const AUDITED_FILES = [
     'api.js',
     'onboarding.js',
     'interview-panel.js',
+    'interview-prep.js',
     'salary-calculator.js',
+    'footer.js',
     'views/feed.js',
     'views/detail.js',
     'views/pipeline.js',
@@ -99,6 +101,32 @@ function looksLikeCopy(literal) {
 
 const LITERAL_PATTERN = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g;
 
+// Prose that sits directly inside a multi-line template literal is invisible to
+// the quote scanner (the opening backtick is on an earlier line). Strip the
+// interpolations, tags and split attributes, then check the text that is left.
+function templateText(line) {
+    return line
+        .replace(/\$\{[^}]*\}/g, ' ')
+        .replace(/<\/?[a-z][^>]*>/gi, ' ')
+        .replace(/[a-zA-Z-]+="[^"]*"/g, ' ')
+        .replace(/[a-zA-Z-]+='[^']*'/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// English function words that signal real prose rather than an identifier or a
+// CSS class list.
+const PROSE_HINT = /\b(the|a|an|your|you|no|not|all|any|and|or|of|to|from|for|with|this|that|these|those|is|are|be|will|can|has|have|one|per|only|when|including)\b/i;
+
+function looksLikeCopyProse(text) {
+    if (text.length < 8) return false;
+    if (/[;{}<>]/.test(text)) return false;
+    if (/^[a-z][a-z0-9-]*(\s+[a-z][a-z0-9-]*)+$/.test(text)) return false;
+    const words = text.match(/[A-Za-z]{3,}/g) || [];
+    if (words.length < 2) return false;
+    return PROSE_HINT.test(text);
+}
+
 function countBackticks(text) {
     let count = 0;
     for (let i = 0; i < text.length; i++) {
@@ -112,6 +140,11 @@ function scanLine(line, lineNumber, insideTemplate, offenders) {
     // 1. Text nodes and copy attributes of markup rendered from a template
     //    literal (including multi-line templates, where quote scanning fails).
     if (insideTemplate) {
+        const prose = templateText(line);
+        if (looksLikeCopyProse(prose)) {
+            offenders.push({ line: lineNumber, value: prose.slice(0, 80) });
+            return;
+        }
         const markup = stripDataAttributes(line);
         for (const match of markup.matchAll(/>([^<>{}]*?)</g)) {
             const text = match[1].replace(/\s+/g, ' ').trim();
@@ -183,10 +216,18 @@ describe('i18n static copy audit', () => {
         expect(bad).toEqual([]);
     });
 
-    it('keeps money formatting in USD', () => {
+    it('keeps money formatting in CNY yuan', () => {
+        // 金额一律人民币口径：不得残留美元符号或美元币种标记。
+        // 计算器相关的美国税制文案随 M10 重写时一并清理，此处只守住
+        // 金额格式化与消费点所在的视图脚本。
         for (const file of AUDITED_FILES) {
             const source = readFileSync(join(jsDir, file), 'utf-8');
-            expect(source, file).not.toMatch(/¥|CNY|RMB|人民币/);
+            const offenders = source.split('\n')
+                .map((line, index) => ({ line, index: index + 1 }))
+                .filter(({ line }) => !/i18n-audit-ignore/.test(line))
+                .filter(({ line }) => /\$\$|\bUSD\b|美元/.test(line))
+                .map(({ line, index }) => `${file}:${index}  ${line.trim().slice(0, 80)}`);
+            expect(offenders, `USD residue found:\n${offenders.join('\n')}`).toEqual([]);
         }
     });
 });

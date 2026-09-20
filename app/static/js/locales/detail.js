@@ -33,6 +33,7 @@ i18n.register('detail', {
         similarListings: 'Similar Listings ({count})',
         dismissDuplicates: 'Dismiss Duplicates',
         about: 'About {company}',
+        contactInfoTitle: 'Contact Info',
         companyWebsite: 'Company Website →',
         coverLetterTitle: 'Cover Letter',
         interviewPrepTitle: 'Interview Prep',
@@ -75,6 +76,7 @@ i18n.register('detail', {
         saveEdits: 'Save Edits',
         coverLetterSaved: 'Cover letter saved',
         regenerating: 'Regenerating...',
+        regenerate: 'Regenerate',
         coverLetterRegenerated: 'Cover letter regenerated!',
         sending: 'Sending...',
         emailSent: 'Email sent',
@@ -121,14 +123,6 @@ i18n.register('detail', {
             log: 'Log',
         },
 
-        status: {
-            interested: 'interested',
-            prepared: 'prepared',
-            applied: 'applied',
-            interviewing: 'interviewing',
-            rejected: 'rejected',
-        },
-
         response: {
             selectType: 'Select type...',
             type: {
@@ -140,6 +134,7 @@ i18n.register('detail', {
         },
 
         salary: {
+            negotiable: 'Negotiable',
             confidence: '({level} confidence)',
             level: {
                 low: 'low',
@@ -148,11 +143,14 @@ i18n.register('detail', {
             },
         },
 
-        prep: {
-            behavioral: 'Behavioral Questions',
-            technical: 'Technical Questions',
-            star: 'STAR Stories',
-            talkingPoints: 'Talking Points',
+        // Job facts are captured as the platform's own wording (e.g. "3-5年",
+        // "本科") — only these field labels are translated.
+        facts: {
+            experience: 'Experience',
+            education: 'Education',
+            companySize: 'Company size',
+            companyStage: 'Funding stage',
+            labels: 'Benefits',
         },
 
         timeline: {
@@ -182,31 +180,6 @@ i18n.register('detail', {
                 sent: 'Sent',
                 received: 'Received',
             },
-        },
-
-        comp: {
-            title: 'Compensation Snapshot',
-            adjustHint: 'Adjust to compare',
-            hourlyRate: 'Hourly Rate ($)',
-            annualSalary: 'Annual Salary ($)',
-            type: 'Type',
-            filing: 'Filing',
-            single: 'Single',
-            married: 'Married',
-            gross: 'Gross',
-            taxes: 'Taxes',
-            takeHome: 'Take-Home',
-            effRate: 'Eff. Rate',
-            noTax: ' (no tax)',
-            w2: 'W2: {amount}/mo',
-            c1099: '1099: {amount}/mo',
-            c2c: 'C2C: {amount}/mo',
-            federal: 'Federal',
-            state: 'State',
-            ss: 'SS',
-            medicare: 'Medicare',
-            seTax: 'SE Tax',
-            tooltip: '{label}: {amount} ({pct}%)',
         },
 
         interview: {
@@ -274,6 +247,7 @@ i18n.register('detail', {
         similarListings: '相似职位（{count}）',
         dismissDuplicates: '忽略重复职位',
         about: '关于 {company}',
+        contactInfoTitle: '联系方式',
         companyWebsite: '公司网站 →',
         coverLetterTitle: '求职信',
         interviewPrepTitle: '面试准备',
@@ -316,6 +290,7 @@ i18n.register('detail', {
         saveEdits: '保存修改',
         coverLetterSaved: '求职信已保存',
         regenerating: '重新生成中…',
+        regenerate: '重新生成',
         coverLetterRegenerated: '求职信已重新生成！',
         sending: '发送中…',
         emailSent: '邮件已发送',
@@ -362,14 +337,6 @@ i18n.register('detail', {
             log: '记录',
         },
 
-        status: {
-            interested: '感兴趣',
-            prepared: '已准备',
-            applied: '已申请',
-            interviewing: '面试中',
-            rejected: '已拒绝',
-        },
-
         response: {
             selectType: '选择类型…',
             type: {
@@ -381,6 +348,7 @@ i18n.register('detail', {
         },
 
         salary: {
+            negotiable: '薪资面议',
             confidence: '（置信度：{level}）',
             level: {
                 low: '低',
@@ -389,11 +357,13 @@ i18n.register('detail', {
             },
         },
 
-        prep: {
-            behavioral: '行为面试问题',
-            technical: '技术问题',
-            star: 'STAR 案例',
-            talkingPoints: '谈话要点',
+        // 字段名翻译；值保留招聘平台原文（如 3-5年、本科、1000-9999人）
+        facts: {
+            experience: '经验',
+            education: '学历',
+            companySize: '公司规模',
+            companyStage: '融资阶段',
+            labels: '福利',
         },
 
         timeline: {
@@ -423,31 +393,6 @@ i18n.register('detail', {
                 sent: '已发送',
                 received: '已收到',
             },
-        },
-
-        comp: {
-            title: '薪资快照',
-            adjustHint: '调整以对比',
-            hourlyRate: '时薪（美元）',
-            annualSalary: '年薪（美元）',
-            type: '类型',
-            filing: '报税状态',
-            single: '单身',
-            married: '已婚',
-            gross: '总收入',
-            taxes: '税费',
-            takeHome: '税后收入',
-            effRate: '实际税率',
-            noTax: '（免税）',
-            w2: 'W2：{amount}/月',
-            c1099: '1099：{amount}/月',
-            c2c: 'C2C：{amount}/月',
-            federal: '联邦税',
-            state: '州税',
-            ss: '社保',
-            medicare: '医保',
-            seTax: '自雇税',
-            tooltip: '{label}：{amount}（{pct}%）',
         },
 
         interview: {

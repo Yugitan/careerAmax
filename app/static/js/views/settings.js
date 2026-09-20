@@ -6,18 +6,15 @@ async function renderSettings(container) {
     container.innerHTML = `<div class="loading-container"><div class="spinner spinner-lg"></div><span>${t('settings.loading')}</span></div>`;
 
     try {
-        const [config, aiSettings, profile, fullProfile, scraperKeys, customQA, emailSettings, resumesData, embeddingSettings] = await Promise.all([
+        const [config, aiSettings, profile, fullProfile, customQA, resumesData] = await Promise.all([
             api.getSearchConfig(),
             api.getAISettings(),
             api.request('GET', '/api/profile'),
             api.request('GET', '/api/profile/full'),
-            api.request('GET', '/api/scraper-keys'),
             api.request('GET', '/api/custom-qa'),
-            api.request('GET', '/api/settings/email'),
             api.request('GET', '/api/resumes'),
-            api.request('GET', '/api/settings/embeddings'),
         ]);
-        settingsData = { config, aiSettings, profile, fullProfile, scraperKeys, customQA: customQA.items || [], emailSettings, resumes: resumesData.resumes || [], embeddingSettings };
+        settingsData = { config, aiSettings, profile, fullProfile, customQA: customQA.items || [], resumes: resumesData.resumes || [] };
         renderSettingsShell(container);
     } catch (err) {
         showToast(err.message, 'error');
@@ -27,18 +24,17 @@ async function renderSettings(container) {
 
 function renderSettingsShell(container) {
     const tabs = [
-        { id: 'profile', label: 'Profile' },
+        { id: 'profile', label: t('settings.profile.title') },
         { id: 'resumes', label: t('settings.resumes.title') },
         { id: 'work-history', label: t('settings.profile.workHistory') },
         { id: 'job-search', label: t('settings.jobSearch.title') },
         { id: 'alerts', label: t('settings.alerts.title') },
-        { id: 'follow-ups', label: t('settings.templates.title') },
-        { id: 'integrations', label: 'AI & Integrations' },
-        { id: 'data', label: 'Data Management' },
+        { id: 'integrations', label: t('settings.ai.title') },
+        { id: 'data', label: t('settings.data.title') },
     ];
 
     container.innerHTML = `
-        <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:24px">${t('settings.title')}</h1>
+        <header class="page-header"><h1 class="page-title">${t('settings.title')}</h1></header>
         <div class="settings-tab-bar" role="tablist">
             ${tabs.map(t => `<button id="settings-tab-${t.id}" class="settings-tab${settingsActiveTab === t.id ? ' settings-tab-active' : ''}" data-tab="${t.id}" role="tab" aria-selected="${settingsActiveTab === t.id}">${t.label}</button>`).join('')}
         </div>
@@ -72,8 +68,7 @@ function renderActiveTab(shell) {
         case 'work-history': renderTabWorkHistory(content, d.fullProfile || {}); break;
         case 'job-search': renderTabJobSearch(content, d.config || {}, d.fullProfile || d.profile || {}, d.customQA || []); break;
         case 'alerts': renderTabAlerts(content); break;
-        case 'follow-ups': renderTabFollowUps(content); break;
-        case 'integrations': renderTabAI(content, d.aiSettings || {}, d.scraperKeys || {}, d.emailSettings || {}, d.embeddingSettings || {}); break;
+        case 'integrations': renderTabAI(content, d.aiSettings || {}); break;
         case 'data': renderTabData(content); break;
     }
 }
@@ -88,8 +83,8 @@ async function renderTabAlerts(content) {
             <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:16px">${t('settings.alerts.description')}</p>
             ${alerts.length === 0 ? `
                 <div class="empty-state" style="padding:32px">
-                    <div class="empty-state-title">No alerts yet</div>
-                    <div class="empty-state-desc">Use t('settings.alerts.create') on the Jobs page to save your current filters as an alert.</div>
+                    <div class="empty-state-title">${t('settings.alerts.emptyTitle')}</div>
+                    <div class="empty-state-desc">${t('settings.alerts.empty')}</div>
                 </div>
             ` : `
                 <div style="display:flex;flex-direction:column;gap:8px">
@@ -158,8 +153,8 @@ async function renderTabFollowUps(content) {
             <div id="followup-list">
                 ${templates.length === 0 ? `
                     <div class="empty-state" style="padding:32px">
-                        <div class="empty-state-title">No templates yet</div>
-                        <div class="empty-state-desc">Add a follow-up template to automate reminders.</div>
+                        <div class="empty-state-title">${t('settings.templates.emptyTitle')}</div>
+                        <div class="empty-state-desc">${t('settings.templates.description')}</div>
                     </div>
                 ` : templates.map(t => `
                     <div class="card" style="padding:16px;margin-bottom:8px" data-template-id="${t.id}">
@@ -170,7 +165,7 @@ async function renderTabFollowUps(content) {
                                 <span style="font-size:0.75rem;color:var(--text-tertiary);margin-left:8px">${t.days_after} days after apply</span>
                             </div>
                             <div style="display:flex;gap:6px">
-                                <button class="btn btn-secondary btn-sm followup-edit-btn" data-id="${t.id}">Edit</button>
+                                <button class="btn btn-secondary btn-sm followup-edit-btn" data-id="${t.id}">${t('actions.edit')}</button>
                                 <button class="btn btn-danger btn-sm followup-delete-btn" data-id="${t.id}">${t('actions.delete')}</button>
                             </div>
                         </div>
@@ -207,7 +202,7 @@ async function renderTabFollowUps(content) {
 
         document.getElementById('add-followup-btn').addEventListener('click', () => {
             editingId = null;
-            document.getElementById('followup-form-title').textContent = 'Add Template';
+            document.getElementById('followup-form-title').textContent = t('settings.templates.addTitle');
             document.getElementById('followup-name-input').value = '';
             document.getElementById('followup-days-input').value = '7';
             document.getElementById('followup-text-input').value = '';
@@ -244,7 +239,7 @@ async function renderTabFollowUps(content) {
                 const t = templates.find(x => x.id === id);
                 if (!t) return;
                 editingId = id;
-                document.getElementById('followup-form-title').textContent = 'Edit Template';
+                document.getElementById('followup-form-title').textContent = t('settings.templates.editTitle');
                 document.getElementById('followup-name-input').value = t.name || '';
                 document.getElementById('followup-days-input').value = t.days_after || 7;
                 document.getElementById('followup-text-input').value = t.template_text || '';
@@ -276,14 +271,14 @@ async function renderTabFollowUps(content) {
 function renderTabResumes(content, resumes) {
     content.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <h2 style="font-size:1.125rem;font-weight:600">Manage Resumes</h2>
+            <h2 style="font-size:1.125rem;font-weight:600">${t('settings.resumes.manageTitle')}</h2>
             <button class="btn btn-primary btn-sm" id="add-resume-btn">${t('settings.resumes.addTitle')}</button>
         </div>
         <div id="resumes-list">
             ${resumes.length === 0 ? `
                 <div class="empty-state" style="padding:32px">
-                    <div class="empty-state-title">No resumes yet</div>
-                    <div class="empty-state-desc">Add a resume to use when preparing applications.</div>
+                    <div class="empty-state-title">${t('settings.resumes.empty')}</div>
+                    <div class="empty-state-desc">${t('settings.resumes.addTitle')}</div>
                 </div>
             ` : resumes.map(r => `
                 <div class="card" style="padding:16px;margin-bottom:8px" data-resume-id="${r.id}">
@@ -293,8 +288,8 @@ function renderTabResumes(content, resumes) {
                             ${r.is_default ? `<span class="status-badge status-applied" style="margin-left:8px">${t('settings.resumes.defaultBadge')}</span>` : ''}
                         </div>
                         <div style="display:flex;gap:6px">
-                            ${!r.is_default ? `<button class="btn btn-secondary btn-sm resume-default-btn" data-id="${r.id}">Set Default</button>` : ''}
-                            <button class="btn btn-secondary btn-sm resume-edit-btn" data-id="${r.id}">Edit</button>
+                            ${!r.is_default ? `<button class="btn btn-secondary btn-sm resume-default-btn" data-id="${r.id}">${t('settings.resumes.setDefault')}</button>` : ''}
+                            <button class="btn btn-secondary btn-sm resume-edit-btn" data-id="${r.id}">${t('actions.edit')}</button>
                             <button class="btn btn-danger btn-sm resume-delete-btn" data-id="${r.id}">${t('actions.delete')}</button>
                         </div>
                     </div>
@@ -332,7 +327,7 @@ function renderTabResumes(content, resumes) {
 
     document.getElementById('add-resume-btn').addEventListener('click', () => {
         editingId = null;
-        document.getElementById('resume-form-title').textContent = 'Add Resume';
+        document.getElementById('resume-form-title').textContent = t('settings.resumes.addTitle');
         document.getElementById('resume-name-input').value = '';
         document.getElementById('resume-summary-input').value = '';
         document.getElementById('resume-text-input').value = '';
@@ -373,7 +368,7 @@ function renderTabResumes(content, resumes) {
             const r = resumes.find(x => x.id === id);
             if (!r) return;
             editingId = id;
-            document.getElementById('resume-form-title').textContent = 'Edit Resume';
+            document.getElementById('resume-form-title').textContent = t('settings.resumes.editTitle');
             document.getElementById('resume-name-input').value = r.name || '';
             document.getElementById('resume-summary-input').value = r.summary || '';
             document.getElementById('resume-text-input').value = r.resume_text || '';
@@ -437,239 +432,59 @@ function settingsSelect(label, id, value, options) {
 
 // === Tab 1: Profile ===
 function renderTabProfile(container, p) {
-    const mil = p.military || {};
-    const eeo = p.eeo || {};
-    const sameAddr = !p.perm_address_street1 && !p.perm_address_city;
     const nameParts = (p.full_name || '').split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.length > 2 ? nameParts.slice(2).join(' ') : (nameParts[1] || '');
 
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Personal Information</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.profile.personalInfo')}</h2>
+            <div class="form-grid" style="margin-bottom:12px">
                 ${settingsField(t('settings.profile.firstName'), 'pf-first', firstName)}
                 ${settingsField(t('settings.profile.middleName'), 'pf-middle', p.middle_name)}
                 ${settingsField(t('settings.profile.lastName'), 'pf-last', lastName)}
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField(t('settings.profile.preferredName'), 'pf-preferred', p.preferred_name)}
+            <div class="form-grid" style="gap:12px;margin-bottom:12px">
                 ${settingsField(t('settings.profile.email'), 'pf-email', p.email, 'email')}
-                ${settingsSelect('Pronouns', 'pf-pronouns', p.pronouns, [
-                    {value:'',label:t('settings.common.select')},{value:'he/him',label:'He/Him'},{value:'she/her',label:'She/Her'},
-                    {value:'they/them',label:'They/Them'},{value:'other',label:t('settings.profile.genderOther')},
-                ])}
-            </div>
-            <div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:12px;margin-bottom:12px">
-                ${settingsSelect('Code', 'pf-phone-cc', p.phone_country_code || '+1', [
-                    {value:'+1',label:'+1 (US/CA)'},{value:'+44',label:'+44 (UK)'},{value:'+61',label:'+61 (AU)'},
-                    {value:'+49',label:'+49 (DE)'},{value:'+33',label:'+33 (FR)'},{value:'+91',label:'+91 (IN)'},
-                    {value:'+81',label:'+81 (JP)'},{value:'+86',label:'+86 (CN)'},{value:'+55',label:'+55 (BR)'},
-                    {value:'+52',label:'+52 (MX)'},{value:'+82',label:'+82 (KR)'},
-                ])}
                 ${settingsField(t('settings.profile.phone'), 'pf-phone', p.phone, 'tel')}
-                ${settingsSelect(t('settings.profile.phoneType'), 'pf-phone-type', p.phone_type, [
-                    {value:'',label:t('settings.common.select')},{value:'mobile',label:t('settings.profile.phoneTypeMobile')},{value:'home',label:t('settings.profile.phoneTypeHome')},{value:'work',label:t('settings.profile.phoneTypeWork')},
-                ])}
-                ${settingsField(t('settings.profile.additionalPhone'), 'pf-addl-phone', p.additional_phone, 'tel')}
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsField(t('settings.profile.dateOfBirth'), 'pf-dob', p.date_of_birth, 'date')}
+            <div class="form-grid" style="gap:12px">
                 ${settingsField(t('settings.profile.locationQuickCopy'), 'pf-location', p.location)}
+                ${settingsField(t('settings.profile.website'), 'pf-website', p.website_url, 'url')}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.profile.address')}</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('Street Address 1', 'pf-addr1', p.address_street1)}
-                ${settingsField('Street Address 2', 'pf-addr2', p.address_street2)}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-                ${settingsField(t('settings.profile.city'), 'pf-addr-city', p.address_city)}
-                ${settingsField(t('settings.profile.state'), 'pf-addr-state', p.address_state)}
-                ${settingsField(t('settings.profile.zip'), 'pf-addr-zip', p.address_zip)}
-                ${settingsField(t('fields.country'), 'pf-addr-country', p.address_country_name || p.address_country_code)}
-            </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;margin-bottom:12px">
-                <input type="checkbox" id="pf-same-addr" ${sameAddr ? 'checked' : ''}> Permanent address same as above
-            </label>
-            <div id="pf-perm-addr" style="${sameAddr ? 'display:none' : ''}">
-                <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;color:var(--text-secondary)">Permanent Address</h3>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                    ${settingsField('Street 1', 'pf-perm1', p.perm_address_street1)}
-                    ${settingsField('Street 2', 'pf-perm2', p.perm_address_street2)}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
-                    ${settingsField(t('settings.profile.city'), 'pf-perm-city', p.perm_address_city)}
-                    ${settingsField(t('settings.profile.state'), 'pf-perm-state', p.perm_address_state)}
-                    ${settingsField(t('settings.profile.zip'), 'pf-perm-zip', p.perm_address_zip)}
-                    ${settingsField(t('fields.country'), 'pf-perm-country', p.perm_address_country_name || p.perm_address_country_code)}
-                </div>
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Links</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.profile.links')}</h2>
+            <div class="form-grid" style="gap:12px">
                 ${settingsField(t('settings.profile.linkedin'), 'pf-linkedin', p.linkedin_url, 'url')}
                 ${settingsField(t('settings.profile.github'), 'pf-github', p.github_url, 'url')}
-                ${settingsField('Portfolio', 'pf-portfolio', p.portfolio_url, 'url')}
-                ${settingsField('Website', 'pf-website', p.website_url, 'url')}
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Driver's License</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-                ${settingsSelect(t('settings.profile.hasLicense'), 'pf-dl', p.drivers_license, [
-                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
-                ])}
-                ${settingsField('Class', 'pf-dl-class', p.drivers_license_class)}
-                ${settingsField(t('settings.profile.state'), 'pf-dl-state', p.drivers_license_state)}
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Work Authorization</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField(t('settings.profile.countryOfCitizenship'), 'pf-citizen', p.country_of_citizenship)}
-                ${settingsSelect(t('settings.profile.workAuth'), 'pf-auth-us', p.authorized_to_work_us, [
-                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
-                ])}
-                ${settingsSelect('Requires Sponsorship?', 'pf-sponsor', p.requires_sponsorship, [
-                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},
-                ])}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-                ${settingsSelect('Authorization Type', 'pf-auth-type', p.authorization_type, [
-                    {value:'',label:t('settings.common.select')},{value:'citizen',label:'US Citizen'},{value:'permanent_resident',label:'Permanent Resident'},
-                    {value:'h1b',label:'H-1B'},{value:'opt',label:'OPT'},{value:'ead',label:'EAD'},
-                    {value:'tn',label:'TN Visa'},{value:'other',label:t('settings.profile.genderOther')},
-                ])}
-                ${settingsSelect('Security Clearance', 'pf-clearance', p.security_clearance, [
-                    {value:'',label:t('common.none')},{value:'confidential',label:'Confidential'},{value:'secret',label:'Secret'},
-                    {value:'top_secret',label:'Top Secret'},{value:'ts_sci',label:'TS/SCI'},
-                ])}
-                ${settingsSelect(t('settings.profile.clearanceStatus'), 'pf-clear-status', p.clearance_status, [
-                    {value:'',label:'N/A'},{value:'active',label:t('status.active')},{value:'inactive',label:t('status.inactive')},{value:'expired',label:'Expired'},
-                ])}
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Military Service</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField('Branch', 'pf-mil-branch', mil.branch)}
-                ${settingsField('Rank', 'pf-mil-rank', mil.rank)}
-                ${settingsField('Specialty / MOS', 'pf-mil-spec', mil.specialty)}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsField('Start Date', 'pf-mil-start', mil.start_date, 'date')}
-                ${settingsField('End Date', 'pf-mil-end', mil.end_date, 'date')}
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">Voluntary Self-Identification (EEO)</h2>
-            <p style="color:var(--text-secondary);font-size:0.8125rem;margin-bottom:16px">${t('settings.profile.selfIdDescription')}</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                ${settingsSelect(t('settings.profile.gender'), 'pf-eeo-gender', eeo.gender, [
-                    {value:'',label:t('settings.profile.declineSelfId')},{value:'male',label:t('settings.profile.genderMale')},{value:'female',label:t('settings.profile.genderFemale')},
-                    {value:'non_binary',label:t('settings.profile.genderNonBinary')},{value:'other',label:t('settings.profile.genderOther')},
-                ])}
-                ${settingsSelect(t('settings.profile.race'), 'pf-eeo-race', eeo.race_ethnicity, [
-                    {value:'',label:t('settings.profile.declineSelfId')},
-                    {value:'american_indian',label:t('settings.profile.raceAmericanIndian')},
-                    {value:'asian',label:t('settings.profile.raceAsian')},{value:'black',label:t('settings.profile.raceBlack')},
-                    {value:'hispanic',label:t('settings.profile.raceHispanic')},{value:'native_hawaiian',label:t('settings.profile.racePacificIslander')},
-                    {value:'white',label:t('settings.profile.raceWhite')},{value:'two_or_more',label:t('settings.profile.raceTwoOrMore')},
-                ])}
-                ${settingsSelect(t('settings.profile.disabilityStatus'), 'pf-eeo-disability', eeo.disability_status, [
-                    {value:'',label:t('settings.profile.declineSelfId')},
-                    {value:'yes',label:t('settings.profile.disabilityYes')},{value:'no',label:t('settings.profile.disabilityNo')},
-                ])}
-                ${settingsSelect(t('settings.profile.veteranStatus'), 'pf-eeo-veteran', eeo.veteran_status, [
-                    {value:'',label:t('settings.profile.declineSelfId')},
-                    {value:'not_veteran',label:t('settings.profile.veteranNotProtected')},
-                    {value:'protected_veteran',label:t('settings.profile.veteranProtected')},
-                ])}
-                ${settingsSelect(t('settings.profile.sexualOrientation'), 'pf-eeo-orient', eeo.sexual_orientation, [
-                    {value:'',label:t('settings.profile.declineSelfId')},
-                    {value:'heterosexual',label:'Heterosexual'},{value:'gay_lesbian',label:t('settings.profile.orientationGay')},
-                    {value:'bisexual',label:t('settings.profile.orientationBisexual')},{value:'other',label:t('settings.profile.genderOther')},
-                ])}
+                ${settingsField(t('settings.profile.portfolio'), 'pf-portfolio', p.portfolio_url, 'url')}
             </div>
         </div>
 
         <button class="btn btn-primary" id="save-profile-btn" style="margin-bottom:24px">${t('settings.profile.saveProfile')}</button>
     `;
 
-    document.getElementById('pf-same-addr')?.addEventListener('change', e => {
-        document.getElementById('pf-perm-addr').style.display = e.target.checked ? 'none' : '';
-    });
-
     document.getElementById('save-profile-btn').addEventListener('click', async () => {
         const first = document.getElementById('pf-first').value.trim();
         const middle = document.getElementById('pf-middle').value.trim();
         const last = document.getElementById('pf-last').value.trim();
-        const sameAddress = document.getElementById('pf-same-addr').checked;
 
         const profileData = {
             full_name: [first, middle, last].filter(Boolean).join(' '),
             middle_name: middle,
-            preferred_name: document.getElementById('pf-preferred').value,
             email: document.getElementById('pf-email').value,
-            pronouns: document.getElementById('pf-pronouns').value,
-            phone_country_code: document.getElementById('pf-phone-cc').value,
             phone: document.getElementById('pf-phone').value,
-            phone_type: document.getElementById('pf-phone-type').value,
-            additional_phone: document.getElementById('pf-addl-phone').value,
-            date_of_birth: document.getElementById('pf-dob').value,
             location: document.getElementById('pf-location').value,
-            address_street1: document.getElementById('pf-addr1').value,
-            address_street2: document.getElementById('pf-addr2').value,
-            address_city: document.getElementById('pf-addr-city').value,
-            address_state: document.getElementById('pf-addr-state').value,
-            address_zip: document.getElementById('pf-addr-zip').value,
-            address_country_name: document.getElementById('pf-addr-country').value,
-            perm_address_street1: sameAddress ? '' : document.getElementById('pf-perm1').value,
-            perm_address_street2: sameAddress ? '' : document.getElementById('pf-perm2').value,
-            perm_address_city: sameAddress ? '' : document.getElementById('pf-perm-city').value,
-            perm_address_state: sameAddress ? '' : document.getElementById('pf-perm-state').value,
-            perm_address_zip: sameAddress ? '' : document.getElementById('pf-perm-zip').value,
-            perm_address_country_name: sameAddress ? '' : document.getElementById('pf-perm-country').value,
+            website_url: document.getElementById('pf-website').value,
             linkedin_url: document.getElementById('pf-linkedin').value,
             github_url: document.getElementById('pf-github').value,
             portfolio_url: document.getElementById('pf-portfolio').value,
-            website_url: document.getElementById('pf-website').value,
-            drivers_license: document.getElementById('pf-dl').value,
-            drivers_license_class: document.getElementById('pf-dl-class').value,
-            drivers_license_state: document.getElementById('pf-dl-state').value,
-            country_of_citizenship: document.getElementById('pf-citizen').value,
-            authorized_to_work_us: document.getElementById('pf-auth-us').value,
-            requires_sponsorship: document.getElementById('pf-sponsor').value,
-            authorization_type: document.getElementById('pf-auth-type').value,
-            security_clearance: document.getElementById('pf-clearance').value,
-            clearance_status: document.getElementById('pf-clear-status').value,
-        };
-        const military = {
-            branch: document.getElementById('pf-mil-branch').value,
-            rank: document.getElementById('pf-mil-rank').value,
-            specialty: document.getElementById('pf-mil-spec').value,
-            start_date: document.getElementById('pf-mil-start').value,
-            end_date: document.getElementById('pf-mil-end').value,
-        };
-        const eeoData = {
-            gender: document.getElementById('pf-eeo-gender').value,
-            race_ethnicity: document.getElementById('pf-eeo-race').value,
-            disability_status: document.getElementById('pf-eeo-disability').value,
-            veteran_status: document.getElementById('pf-eeo-veteran').value,
-            sexual_orientation: document.getElementById('pf-eeo-orient').value,
         };
         try {
-            await api.request('PUT', '/api/profile/full', { ...profileData, military, eeo: eeoData });
-            settingsData.fullProfile = { ...settingsData.fullProfile, ...profileData, military, eeo: eeoData };
+            await api.request('PUT', '/api/profile/full', profileData);
+            settingsData.fullProfile = { ...settingsData.fullProfile, ...profileData };
             settingsData.profile = { ...settingsData.profile, ...profileData };
             showToast(t('settings.profile.savedProfile'), 'success');
         } catch (err) { showToast(err.message, 'error'); }
@@ -702,7 +517,7 @@ function renderTabWorkHistory(container, fp) {
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">Work Experience</h2>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.workHistory')}</h2>
                 <button class="btn btn-primary btn-sm wh-add-btn" data-type="work-history">${t('settings.common.add')}</button>
             </div>
             <div id="wh-work-history-list">${workHistory.length ? workHistory.map(w => {
@@ -758,7 +573,7 @@ function renderTabWorkHistory(container, fp) {
                 <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.profile.references')}</h2>
                 <button class="btn btn-primary btn-sm wh-add-btn" data-type="references">${t('settings.common.add')}</button>
             </div>
-            <div id="wh-references-list">${references.length ? references.map(r => itemCard(r, 'references', r.name, [r.title, r.company].filter(Boolean).join(' at '), [r.phone, r.email].filter(Boolean).join(' | '))).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
+            <div id="wh-references-list">${references.length ? references.map(r => itemCard(r, 'references', r.name, [r.title, r.company].filter(Boolean).join(' · '), [r.phone, r.email].filter(Boolean).join(' | '))).join('') : `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.common.noEntries')}</p>`}</div>
             <div id="wh-references-form"></div>
         </div>
     `;
@@ -767,47 +582,47 @@ function renderTabWorkHistory(container, fp) {
         'work-history': { endpoint: '/api/work-history', fields: [
             {key:'job_title',label:t('settings.profile.jobTitle'),type:'text'},{key:'company',label:t('settings.profile.company'),type:'text'},
             {key:'location_city',label:t('settings.profile.city'),type:'text'},{key:'location_state',label:t('settings.profile.state'),type:'text'},{key:'location_country',label:t('fields.country'),type:'text'},
-            {key:'start_month',label:t('settings.profile.startMonth'),type:'number',extra:'min="1" max="12"'},{key:'start_year',label:'Start Year',type:'number',extra:'min="1950" max="2030"'},
+            {key:'start_month',label:t('settings.profile.startMonth'),type:'number',extra:'min="1" max="12"'},{key:'start_year',label:t('settings.profile.startYear'),type:'number',extra:'min="1950" max="2030"'},
             {key:'end_month',label:t('settings.profile.endMonth'),type:'number',extra:'min="1" max="12"'},{key:'end_year',label:t('settings.profile.endYear'),type:'number',extra:'min="1950" max="2030"'},
-            {key:'is_current',label:'Current?',type:'checkbox'},
+            {key:'is_current',label:t('settings.profile.current'),type:'checkbox'},
             {key:'description',label:t('fields.description'),type:'textarea'},
             {key:'salary_at_position',label:t('fields.salary'),type:'text'},
         ], listKey: 'work_history'},
         'education': { endpoint: '/api/education', fields: [
             {key:'school',label:t('settings.profile.school'),type:'text'},{key:'degree_type',label:t('settings.profile.degreeType'),type:'select',options:[
-                {value:'',label:t('settings.common.select')},{value:'high_school',label:'High School'},{value:'associates',label:'Associates'},
-                {value:'bachelors',label:'Bachelors'},{value:'masters',label:'Masters'},{value:'mba',label:'MBA'},
-                {value:'phd',label:'PhD'},{value:'other',label:t('settings.profile.genderOther')},
+                {value:'',label:t('settings.common.select')},{value:'high_school',label:t('settings.profile.highSchool')},{value:'associates',label:t('settings.profile.associates')},
+                {value:'bachelors',label:t('settings.profile.bachelors')},{value:'masters',label:t('settings.profile.masters')},{value:'mba',label:t('settings.profile.mba')},
+                {value:'phd',label:t('settings.profile.phd')},{value:'other',label:t('settings.profile.genderOther')},
             ]},
-            {key:'field_of_study',label:t('settings.profile.fieldOfStudy'),type:'text'},{key:'minor',label:'Minor',type:'text'},
-            {key:'start_year',label:'Start Year',type:'number'},{key:'grad_year',label:'Grad Year',type:'number'},
-            {key:'gpa',label:'GPA',type:'text'},{key:'honors',label:'Honors',type:'text'},
+            {key:'field_of_study',label:t('settings.profile.fieldOfStudy'),type:'text'},{key:'minor',label:t('settings.profile.minor'),type:'text'},
+            {key:'start_year',label:t('settings.profile.startYear'),type:'number'},{key:'grad_year',label:t('settings.profile.gradYear'),type:'number'},
+            {key:'gpa',label:t('settings.profile.gpa'),type:'text'},{key:'honors',label:t('settings.profile.honors'),type:'text'},
         ], listKey: 'education'},
         'certifications': { endpoint: '/api/certifications', fields: [
-            {key:'name',label:t('settings.profile.referenceName'),type:'text'},{key:'issuing_org',label:'Issuing Org',type:'text'},
-            {key:'cert_type',label:t('settings.profile.certType'),type:'select',options:[{value:'certification',label:'Certification'},{value:'license',label:'License'}]},
-            {key:'license_number',label:'License #',type:'text'},{key:'state',label:t('settings.profile.state'),type:'text'},
-            {key:'date_obtained',label:t('settings.profile.dateObtained'),type:'date'},{key:'expiration_date',label:'Expiration',type:'date'},
+            {key:'name',label:t('settings.profile.referenceName'),type:'text'},{key:'issuing_org',label:t('settings.profile.issuingOrg'),type:'text'},
+            {key:'cert_type',label:t('settings.profile.certType'),type:'select',options:[{value:'certification',label:t('settings.profile.certCertification')},{value:'license',label:t('settings.profile.certLicense')}]},
+            {key:'license_number',label:t('settings.profile.licenseNumber'),type:'text'},{key:'state',label:t('settings.profile.state'),type:'text'},
+            {key:'date_obtained',label:t('settings.profile.dateObtained'),type:'date'},{key:'expiration_date',label:t('settings.profile.expiration'),type:'date'},
         ], listKey: 'certifications'},
         'skills': { endpoint: '/api/skills', fields: [
-            {key:'name',label:'Skill',type:'text'},{key:'years_experience',label:t('settings.profile.yearsExperienceShort'),type:'number'},
+            {key:'name',label:t('settings.profile.skill'),type:'text'},{key:'years_experience',label:t('settings.profile.yearsExperienceShort'),type:'number'},
             {key:'proficiency',label:t('settings.profile.proficiency'),type:'select',options:[
-                {value:'',label:t('settings.common.select')},{value:'beginner',label:'Beginner'},{value:'intermediate',label:'Intermediate'},
-                {value:'advanced',label:'Advanced'},{value:'expert',label:'Expert'},
+                {value:'',label:t('settings.common.select')},{value:'beginner',label:t('settings.profile.beginner')},{value:'intermediate',label:t('settings.profile.intermediate')},
+                {value:'advanced',label:t('settings.profile.advanced')},{value:'expert',label:t('settings.profile.expert')},
             ]},
         ], listKey: 'skills'},
         'languages': { endpoint: '/api/languages', fields: [
             {key:'language',label:t('settings.profile.language'),type:'text'},
             {key:'proficiency',label:t('settings.profile.proficiency'),type:'select',options:[
-                {value:'conversational',label:'Conversational'},{value:'professional',label:'Professional'},
-                {value:'native',label:'Native / Bilingual'},{value:'basic',label:'Basic'},
+                {value:'conversational',label:t('settings.profile.conversational')},{value:'professional',label:t('settings.profile.professional')},
+                {value:'native',label:t('settings.profile.nativeBilingual')},{value:'basic',label:t('settings.profile.basic')},
             ]},
         ], listKey: 'languages'},
         'references': { endpoint: '/api/references', fields: [
             {key:'name',label:t('settings.profile.referenceName'),type:'text'},{key:'title',label:t('settings.profile.referenceTitle'),type:'text'},
             {key:'company',label:t('settings.profile.company'),type:'text'},{key:'phone',label:t('settings.profile.phone'),type:'tel'},
-            {key:'email',label:t('settings.profile.email'),type:'email'},{key:'relationship',label:'Relationship',type:'text'},
-            {key:'years_known',label:'Years Known',type:'number'},
+            {key:'email',label:t('settings.profile.email'),type:'email'},{key:'relationship',label:t('settings.profile.relationship'),type:'text'},
+            {key:'years_known',label:t('settings.profile.yearsKnown'),type:'number'},
         ], listKey: 'references'},
     };
 
@@ -848,7 +663,7 @@ function renderTabWorkHistory(container, fp) {
             });
             try {
                 await api.request('POST', cfg.endpoint, entry);
-                showToast(isEdit ? t('toast.updated') : 'Added', 'success');
+                showToast(isEdit ? t('toast.updated') : t('settings.common.added'), 'success');
                 settingsData.fullProfile = await api.request('GET', '/api/profile/full');
                 renderTabWorkHistory(container, settingsData.fullProfile);
             } catch (err) { showToast(err.message, 'error'); }
@@ -913,9 +728,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.alerts.resume')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Upload your resume to automatically derive search terms. Supported: .pdf, .txt, .md files.
-            </p>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.jobSearch.resumeHint')}</p>
             ${hasResume ? `<div class="status-badge status-prepared" style="margin-bottom:12px">${t('settings.resumes.uploadedChars', { count: config.resume_text.length })}</div>` : ''}
             <div style="display:flex;gap:12px;align-items:center">
                 <input type="file" id="resume-file" accept=".pdf,.txt,.md,.text" style="font-size:0.875rem">
@@ -926,20 +739,20 @@ function renderTabJobSearch(container, config, profile, customQA) {
         ${hasAts ? `
         <div class="card" style="padding:24px;margin-bottom:24px;${atsScore < 60 ? 'border-left:4px solid var(--danger)' : atsScore < 80 ? 'border-left:4px solid var(--warning, #f59e0b)' : 'border-left:4px solid var(--success, #22c55e)'}">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-                <h2 style="font-size:1.125rem;font-weight:600;margin:0">ATS Compatibility</h2>
+                <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('settings.resumes.atsCompatibility')}</h2>
                 <span class="score-badge ${atsScore >= 80 ? 'score-badge-green' : atsScore >= 60 ? 'score-badge-amber' : 'score-badge-gray'}" style="font-size:1.25rem;padding:8px 16px">${atsScore}/100</span>
             </div>
-            ${atsIssues.length ? `<div style="margin-bottom:12px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Issues Found</span><ul style="margin-top:8px;padding-left:20px;display:flex;flex-direction:column;gap:4px">${atsIssues.map(i => `<li style="font-size:0.875rem;color:var(--text-secondary)">${escapeHtml(i)}</li>`).join('')}</ul></div>` : ''}
-            ${atsTips.length ? `<div><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Suggestions</span><ul style="margin-top:8px;padding-left:20px;display:flex;flex-direction:column;gap:4px">${atsTips.map(t => `<li style="font-size:0.875rem;color:var(--text-secondary)">${escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
+            ${atsIssues.length ? `<div style="margin-bottom:12px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">${t('settings.resumes.atsIssues')}</span><ul style="margin-top:8px;padding-left:20px;display:flex;flex-direction:column;gap:4px">${atsIssues.map(i => `<li style="font-size:0.875rem;color:var(--text-secondary)">${escapeHtml(i)}</li>`).join('')}</ul></div>` : ''}
+            ${atsTips.length ? `<div><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">${t('settings.resumes.atsSuggestions')}</span><ul style="margin-top:8px;padding-left:20px;display:flex;flex-direction:column;gap:4px">${atsTips.map(t => `<li style="font-size:0.875rem;color:var(--text-secondary)">${escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
         </div>` : ''}
 
         ${hasAnalysis ? `
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Resume Analysis</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.resumes.analysisTitle')}</h2>
             ${summary ? `<p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9375rem;line-height:1.6">${escapeHtml(summary)}</p>` : ''}
-            ${seniority ? `<div style="margin-bottom:16px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Seniority Level</span><div style="margin-top:4px;font-weight:600">${escapeHtml(seniority)}</div></div>` : ''}
-            ${keySkills.length ? `<div style="margin-bottom:16px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Key Skills</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${keySkills.map(s => `<span style="background:var(--bg-tertiary);color:var(--text-primary);padding:4px 10px;border-radius:6px;font-size:0.8125rem">${escapeHtml(s)}</span>`).join('')}</div></div>` : ''}
-            ${jobTitles.length ? `<div><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Best-Fit Job Titles</span><div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">${jobTitles.map(jt => {
+            ${seniority ? `<div style="margin-bottom:16px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">${t('settings.resumes.seniorityLevel')}</span><div style="margin-top:4px;font-weight:600">${escapeHtml(seniority)}</div></div>` : ''}
+            ${keySkills.length ? `<div style="margin-bottom:16px"><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">${t('settings.resumes.keySkills')}</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${keySkills.map(s => `<span style="background:var(--bg-tertiary);color:var(--text-primary);padding:4px 10px;border-radius:6px;font-size:0.8125rem">${escapeHtml(s)}</span>`).join('')}</div></div>` : ''}
+            ${jobTitles.length ? `<div><span style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">${t('settings.resumes.bestFitJobTitles')}</span><div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">${jobTitles.map(jt => {
                 const title = typeof jt === 'string' ? jt : jt.title;
                 const why = typeof jt === 'object' && jt.why ? jt.why : '';
                 return `<div style="padding:10px 14px;border-radius:8px;background:var(--bg-tertiary)"><div style="font-weight:600;font-size:0.9375rem">${escapeHtml(title)}</div>${why ? `<div style="color:var(--text-secondary);font-size:0.8125rem;margin-top:2px">${escapeHtml(why)}</div>` : ''}</div>`;
@@ -948,10 +761,8 @@ function renderTabJobSearch(container, config, profile, customQA) {
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.searchTerms')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                These terms are used by scrapers to find relevant jobs. One per line.
-            </p>
-            <textarea class="textarea-styled" id="search-terms-textarea" rows="12" placeholder="e.g. senior devops engineer remote&#10;SRE remote&#10;platform engineer remote">${escapeHtml(termsValue)}</textarea>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.jobSearch.searchTermsHint')}</p>
+            <textarea class="textarea-styled" id="search-terms-textarea" rows="12" placeholder="${t('settings.jobSearch.searchTermsPlaceholder')}">${escapeHtml(termsValue)}</textarea>
             <div style="display:flex;gap:12px;margin-top:12px">
                 <button class="btn btn-primary" id="save-terms-btn">${t('settings.jobSearch.saveSearchTerms')}</button>
             </div>
@@ -959,90 +770,37 @@ function renderTabJobSearch(container, config, profile, customQA) {
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.excludeTerms')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Jobs matching any of these terms will be hidden. One per line.
-            </p>
-            <textarea class="textarea-styled" id="exclude-terms-textarea" rows="6" placeholder="e.g. manager&#10;director&#10;VP">${escapeHtml(excludeTermsValue)}</textarea>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.jobSearch.excludeTermsHint')}</p>
+            <textarea class="textarea-styled" id="exclude-terms-textarea" rows="6" placeholder="${t('settings.jobSearch.excludeTermsPlaceholder')}">${escapeHtml(excludeTermsValue)}</textarea>
             <div style="display:flex;gap:12px;margin-top:12px">
                 <button class="btn btn-primary" id="save-exclude-btn">${t('settings.jobSearch.saveExcludeTerms')}</button>
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.allowedRegions')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Only jobs in these regions will be scored and shown. Jobs outside allowed regions are auto-dismissed.
-            </p>
-            <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">
-                ${[
-                    { value: 'US', label: 'United States' },
-                    { value: t('fields.remote'), label: 'Remote / Global' },
-                    { value: 'Canada', label: 'Canada' },
-                    { value: 'UK', label: 'United Kingdom' },
-                    { value: 'Germany', label: 'Germany' },
-                    { value: 'Ireland', label: 'Ireland' },
-                    { value: 'Netherlands', label: 'Netherlands' },
-                    { value: 'Australia', label: 'Australia' },
-                ].map(r => `<label style="display:flex;align-items:center;gap:6px;font-size:0.875rem;cursor:pointer">
-                    <input type="checkbox" class="region-checkbox" value="${r.value}" ${(config.allowed_regions || ['US',t('fields.remote')]).includes(r.value) ? 'checked' : ''}>
-                    ${escapeHtml(r.label)}
-                </label>`).join('')}
-            </div>
-            <div style="margin-bottom:12px">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Additional regions (one per line)</label>
-                <textarea class="textarea-styled" id="custom-regions-textarea" rows="3" placeholder="e.g. France&#10;Singapore">${escapeHtml(
-                    (config.allowed_regions || []).filter(r => !['US',t('fields.remote'),'Canada','UK','Germany','Ireland','Netherlands','Australia'].includes(r)).join('\n')
-                )}</textarea>
-            </div>
-            <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-regions-btn">${t('settings.jobSearch.saveAllowedRegions')}</button>
-            </div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Remote Only</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                When enabled, on-site and hybrid jobs are dropped at scrape time and never stored or scored.
-            </p>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.875rem;cursor:pointer;margin-bottom:12px">
-                <input type="checkbox" id="remote-only-checkbox" ${config.remote_only ? 'checked' : ''}>
-                Remote jobs only
-            </label>
-            <button class="btn btn-primary" id="save-remote-only-btn">${t('settings.common.save')}</button>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.prefsTitle')}</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div class="form-grid" style="gap:12px">
                 ${settingsField(t('settings.jobSearch.minSalary'), 'js-sal-min', profile.desired_salary_min, 'number')}
                 ${settingsField(t('settings.jobSearch.maxSalary'), 'js-sal-max', profile.desired_salary_max, 'number')}
-                ${settingsSelect('Period', 'js-sal-period', profile.salary_period, [
-                    {value:'',label:t('settings.common.select')},{value:'annual',label:'Annual'},{value:'hourly',label:'Hourly'},
-                ])}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Availability</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.availability')}</h2>
+            <div class="form-grid" style="gap:12px">
                 ${settingsField(t('settings.jobSearch.availableFrom'), 'js-avail-date', profile.availability_date, 'date')}
-                ${settingsSelect('Notice Period', 'js-notice', profile.notice_period, [
-                    {value:'',label:t('settings.common.select')},{value:'immediate',label:'Immediate'},
-                    {value:'2_weeks',label:t('settings.jobSearch.twoWeeks')},{value:'1_month',label:t('settings.jobSearch.oneMonth')},
-                    {value:'2_months',label:t('settings.jobSearch.twoMonths')},{value:'3_months',label:t('settings.jobSearch.threeMonths')},
-                ])}
                 ${settingsSelect(t('settings.jobSearch.willingToRelocate'), 'js-relocate', profile.willing_to_relocate, [
-                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},{value:'depends',label:'Depends'},
+                    {value:'',label:t('settings.common.select')},{value:'yes',label:t('actions.yes')},{value:'no',label:t('actions.no')},{value:'depends',label:t('settings.jobSearch.depends')},
                 ])}
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Other Defaults</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.jobSearch.otherDefaults')}</h2>
             ${settingsSelect(t('settings.jobSearch.hearAboutUs'), 'js-how-heard', profile.how_heard_default, [
                 {value:'',label:t('settings.common.select')},{value:'job_board',label:t('settings.jobSearch.jobBoard')},{value:'linkedin',label:t('settings.profile.linkedin')},
                 {value:'referral',label:t('settings.jobSearch.referral')},{value:'company_website',label:t('settings.jobSearch.companyWebsite')},
-                {value:'recruiter',label:'Recruiter'},{value:'other',label:t('settings.profile.genderOther')},
+                {value:'recruiter',label:t('settings.jobSearch.recruiter')},{value:'other',label:t('settings.profile.genderOther')},
             ])}
             <div style="margin-top:12px">
                 <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.jobSearch.coverLetterTemplate')}</label>
@@ -1064,7 +822,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
                             <div style="font-size:0.875rem;color:var(--text-secondary);margin-top:2px">${escapeHtml((q.answer || '').substring(0, 150))}${(q.answer || '').length > 150 ? '...' : ''}</div>
                         </div>
                         <div style="display:flex;gap:6px;flex-shrink:0">
-                            <button class="btn btn-ghost btn-sm qa-edit-btn" data-id="${q.id}">Edit</button>
+                            <button class="btn btn-ghost btn-sm qa-edit-btn" data-id="${q.id}">${t('actions.edit')}</button>
                             <button class="btn btn-danger btn-sm qa-del-btn" data-id="${q.id}">${t('actions.delete')}</button>
                         </div>
                     </div>
@@ -1073,7 +831,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
             <div id="qa-form-area"></div>
         </div>
 
-        ${config.updated_at ? `<p style="color:var(--text-tertiary);font-size:0.8125rem;margin-bottom:24px">Last updated: ${formatDate(config.updated_at)}</p>` : ''}
+        ${config.updated_at ? `<p style="color:var(--text-tertiary);font-size:0.8125rem;margin-bottom:24px">${t('settings.jobSearch.lastUpdated', { date: formatDate(config.updated_at) })}</p>` : ''}
     `;
 
     document.getElementById('upload-resume-btn').addEventListener('click', async () => {
@@ -1084,7 +842,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
         btn.innerHTML = `<span class="spinner"></span> ${t('status.analyzing')}`;
         try {
             const result = await api.uploadResume(fileInput.files[0]);
-            showToast(`Resume analyzed! ${result.search_terms.length} search terms extracted.`, 'success');
+            showToast(t('settings.jobSearch.resumeAnalyzed', { count: result.search_terms.length }), 'success');
             settingsData.config = await api.getSearchConfig();
             renderTabJobSearch(container, settingsData.config, profile, customQA);
         } catch (err) { showToast(err.message, 'error'); }
@@ -1095,7 +853,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
         const terms = document.getElementById('search-terms-textarea').value.split('\n').map(t => t.trim()).filter(Boolean);
         try {
             await api.updateSearchTerms(terms);
-            showToast(`Saved ${terms.length} search terms`, 'success');
+            showToast(t('settings.jobSearch.termsSaved', { count: terms.length }), 'success');
         } catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1103,27 +861,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
         const terms = document.getElementById('exclude-terms-textarea').value.split('\n').map(t => t.trim()).filter(Boolean);
         try {
             await api.request('POST', '/api/search-config/exclude-terms', { exclude_terms: terms });
-            showToast(`Saved ${terms.length} exclude terms`, 'success');
-        } catch (err) { showToast(err.message, 'error'); }
-    });
-
-    document.getElementById('save-regions-btn').addEventListener('click', async () => {
-        const checked = Array.from(document.querySelectorAll('.region-checkbox:checked')).map(cb => cb.value);
-        const custom = document.getElementById('custom-regions-textarea').value.split('\n').map(t => t.trim()).filter(Boolean);
-        const regions = [...new Set([...checked, ...custom])];
-        try {
-            await api.request('POST', '/api/search-config/allowed-regions', { allowed_regions: regions });
-            if (settingsData.config) settingsData.config.allowed_regions = regions;
-            showToast(`Saved ${regions.length} allowed regions`, 'success');
-        } catch (err) { showToast(err.message, 'error'); }
-    });
-
-    document.getElementById('save-remote-only-btn').addEventListener('click', async () => {
-        const enabled = document.getElementById('remote-only-checkbox').checked;
-        try {
-            await api.request('POST', '/api/search-config/remote-only', { remote_only: enabled });
-            if (settingsData.config) settingsData.config.remote_only = enabled;
-            showToast(enabled ? 'Remote-only filtering enabled' : 'Remote-only filtering disabled', 'success');
+            showToast(t('settings.jobSearch.excludeSaved', { count: terms.length }), 'success');
         } catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1132,9 +870,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
         const prefs = {
             desired_salary_min: document.getElementById('js-sal-min').value ? parseInt(document.getElementById('js-sal-min').value) : null,
             desired_salary_max: document.getElementById('js-sal-max').value ? parseInt(document.getElementById('js-sal-max').value) : null,
-            salary_period: document.getElementById('js-sal-period').value,
             availability_date: document.getElementById('js-avail-date').value,
-            notice_period: document.getElementById('js-notice').value,
             willing_to_relocate: document.getElementById('js-relocate').value,
             how_heard_default: document.getElementById('js-how-heard').value,
             cover_letter_template: document.getElementById('js-cover-tpl').value,
@@ -1143,7 +879,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
             await api.request('POST', '/api/profile', prefs);
             Object.assign(settingsData.fullProfile || {}, prefs);
             Object.assign(settingsData.profile || {}, prefs);
-            showToast('Preferences saved', 'success');
+            showToast(t('settings.jobSearch.saved'), 'success');
         } catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1153,15 +889,15 @@ function renderTabJobSearch(container, config, profile, customQA) {
         area.innerHTML = `
             <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-top:12px;background:var(--bg-surface-secondary)">
                 <div style="margin-bottom:12px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Question Pattern</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.jobSearch.questionPattern')}</label>
                     <input type="text" class="search-input" id="qa-q" value="${escapeHtml(existing?.question_pattern || '')}" placeholder="${t('settings.jobSearch.questionPlaceholder')}" style="width:100%">
                 </div>
                 <div style="margin-bottom:12px">
                     <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('fields.category')}</label>
-                    <input type="text" class="search-input" id="qa-cat" value="${escapeHtml(existing?.category || '')}" placeholder="e.g. motivation, experience" style="width:100%">
+                    <input type="text" class="search-input" id="qa-cat" value="${escapeHtml(existing?.category || '')}" placeholder="${t('settings.jobSearch.qaCategoryPlaceholder')}" style="width:100%">
                 </div>
                 <div style="margin-bottom:12px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Answer</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.jobSearch.answerLabel')}</label>
                     <textarea class="textarea-styled textarea-notes" id="qa-ans" rows="4">${escapeHtml(existing?.answer || '')}</textarea>
                 </div>
                 <div style="display:flex;gap:8px">
@@ -1211,7 +947,7 @@ function renderTabJobSearch(container, config, profile, customQA) {
 }
 
 // === Tab 4: AI & Integrations ===
-function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddingSettings) {
+function renderTabAI(container, aiSettings) {
     const aiProvider = aiSettings.provider || '';
     const aiKey = aiSettings.api_key || '';
     const aiModel = aiSettings.model || '';
@@ -1219,31 +955,71 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
     const aiRegion = aiSettings.region || '';
     const hasKey = aiSettings.has_key || false;
     const hasSecret = aiSettings.has_secret || false;
-    const keys = scraperKeys || {};
+    // 国内 provider 优先展示（PRD M3）：选项顺序即新用户的默认选中项
+    const providerDefaults = aiSettings.provider_defaults || {};
+    const PROVIDER_LABELS = {
+        deepseek: 'settings.ai.providerDeepseek',
+        qwen: 'settings.ai.providerQwen',
+        kimi: 'settings.ai.providerKimi',
+        zhipu: 'settings.ai.providerZhipu',
+        ollama: 'settings.ai.providerOllama',
+        anthropic: 'settings.ai.providerAnthropic',
+        openai: 'settings.ai.providerOpenai',
+        google: 'settings.ai.providerGoogle',
+        openrouter: 'settings.ai.providerOpenrouter',
+        bedrock: 'settings.ai.providerBedrock',
+    };
+    const PROVIDER_ORDER = ['deepseek', 'qwen', 'kimi', 'zhipu', 'ollama',
+                            'anthropic', 'openai', 'google', 'openrouter', 'bedrock'];
+    const OPENAI_COMPAT_PROVIDERS = ['deepseek', 'qwen', 'kimi', 'zhipu', 'openai', 'google', 'openrouter'];
+    const PROVIDER_MODELS = {
+        deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+        qwen: ['qwen-plus', 'qwen-max', 'qwen-turbo', 'qwen2.5-72b-instruct'],
+        kimi: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+        zhipu: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'],
+        anthropic: ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+        openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'o1', 'o1-mini', 'o3-mini'],
+        google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+        bedrock: [
+            'us.anthropic.claude-sonnet-4-6',
+            'us.anthropic.claude-opus-4-6-v1',
+            'us.anthropic.claude-opus-4-5-20251101-v1:0',
+            'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            'us.anthropic.claude-opus-4-1-20250805-v1:0',
+            'us.anthropic.claude-opus-4-20250514-v1:0',
+            'us.anthropic.claude-sonnet-4-20250514-v1:0',
+            'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+            'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+            'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+            'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            'us.anthropic.claude-3-haiku-20240307-v1:0',
+        ],
+    };
+    const TEST_REASON_KEYS = {
+        invalid_key: 'settings.ai.testReasonInvalidKey',
+        quota_exceeded: 'settings.ai.testReasonQuotaExceeded',
+        model_not_found: 'settings.ai.testReasonModelNotFound',
+        unreachable: 'settings.ai.testReasonUnreachable',
+        unknown: 'settings.ai.testReasonUnknown',
+    };
+    const needsBaseUrl = (p) => OPENAI_COMPAT_PROVIDERS.includes(p) || p === 'ollama';
 
     container.innerHTML = `
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">AI Provider</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Configure which AI backend to use for job scoring, resume analysis, and application autofill.
-            </p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.ai.title')}</h2>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.ai.description')}</p>
+            <div class="form-grid" style="gap:12px;margin-bottom:16px">
                 <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Provider</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.provider')}</label>
                     <select class="filter-select" id="ai-provider" style="width:100%">
-                        <option value="anthropic" ${aiProvider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
-                        <option value="openai" ${aiProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
-                        <option value="google" ${aiProvider === 'google' ? 'selected' : ''}>Google (Gemini)</option>
-                        <option value="openrouter" ${aiProvider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
-                        <option value="bedrock" ${aiProvider === 'bedrock' ? 'selected' : ''}>AWS Bedrock</option>
-                        <option value="ollama" ${aiProvider === 'ollama' ? 'selected' : ''}>Ollama (Local)</option>
+                        ${PROVIDER_ORDER.map(p => `<option value="${p}" ${aiProvider === p ? 'selected' : ''}>${t(PROVIDER_LABELS[p])}</option>`).join('')}
                     </select>
                 </div>
                 <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Model</label>
+                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.model')}</label>
                     <div id="ai-model-container">
-                        <input type="text" class="search-input" id="ai-model" placeholder="e.g. custom-model" value="${escapeHtml(aiModel)}" style="width:100%;display:none">
-                        <select class="filter-select" id="ai-model-dropdown" style="width:100%;${['anthropic', 'openai', 'google', 'bedrock'].includes(aiProvider) ? '' : 'display:none'}"></select>
+                        <input type="text" class="search-input" id="ai-model" placeholder="${t('settings.ai.modelPlaceholder')}" value="${escapeHtml(aiModel)}" style="width:100%;display:none">
+                        <select class="filter-select" id="ai-model-dropdown" style="width:100%;${Object.keys(PROVIDER_MODELS).includes(aiProvider) ? '' : 'display:none'}"></select>
                         <div id="ai-model-ollama" style="${aiProvider === 'ollama' ? '' : 'display:none'}">
                             <div style="display:flex;gap:8px;align-items:center">
                                 <select class="filter-select" id="ai-model-select" style="flex:1">
@@ -1263,30 +1039,34 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                     </div>
                 </div>
             </div>
+            <div id="ai-apply-row" style="display:none;margin-bottom:12px;font-size:0.8125rem">
+                <a id="ai-apply-link" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--accent, #3b82f6)">${t('settings.ai.getApiKey')} →</a>
+            </div>
             <div id="ai-key-row" style="margin-bottom:12px;${aiProvider === 'ollama' || aiProvider === 'bedrock' ? 'display:none' : ''}">
                 <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px" id="ai-key-label">${t('settings.ai.apiKey')}</label>
-                <input type="password" class="search-input" id="ai-api-key" placeholder="${hasKey ? 'Key configured (leave blank to keep)' : 'Enter API key'}" value="${escapeHtml(aiKey)}" style="width:100%">
+                <input type="password" class="search-input" id="ai-api-key" placeholder="${hasKey ? t('settings.ai.keyConfigured') : t('settings.ai.enterApiKey')}" value="${escapeHtml(aiKey)}" style="width:100%">
             </div>
             <div id="ai-bedrock-creds" style="${aiProvider === 'bedrock' ? '' : 'display:none'}">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <div class="form-grid" style="gap:12px;margin-bottom:12px">
                     <div>
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Access Key ID</label>
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.awsAccessKeyId')}</label>
                         <input type="password" class="search-input" id="ai-aws-access-key" placeholder="${hasKey ? t('settings.ai.apiKeyPlaceholder') : 'AKIA...'}" style="width:100%">
                     </div>
                     <div>
-                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Secret Access Key</label>
+                        <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.awsSecretKey')}</label>
                         <input type="password" class="search-input" id="ai-aws-secret-key" placeholder="${hasSecret ? t('settings.ai.apiKeyPlaceholder') : t('settings.ai.awsSecretPlaceholder')}" style="width:100%">
                     </div>
                 </div>
                 <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:12px">${t('settings.ai.bedrockHelp')}</div>
             </div>
             <div id="ai-region-row" style="margin-bottom:12px;${aiProvider === 'bedrock' ? '' : 'display:none'}">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">AWS Region</label>
+                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.region')}</label>
                 <input type="text" class="search-input" id="ai-region" value="${escapeHtml(aiRegion || 'us-east-1')}" placeholder="us-east-1" style="width:100%">
             </div>
-            <div id="ai-url-row" style="margin-bottom:16px;${aiProvider === 'ollama' ? '' : 'display:none'}">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Ollama URL</label>
-                <input type="text" class="search-input" id="ai-base-url" placeholder="http://localhost:11434" value="${escapeHtml(aiBaseUrl)}" style="width:100%">
+            <div id="ai-url-row" style="margin-bottom:16px;${needsBaseUrl(aiProvider) ? '' : 'display:none'}">
+                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.baseUrl')}</label>
+                <input type="text" class="search-input" id="ai-base-url" placeholder="${escapeHtml((providerDefaults[aiProvider] || {}).base_url || '')}" value="${escapeHtml(aiBaseUrl)}" style="width:100%">
+                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px">${t('settings.ai.baseUrlHint')}</div>
             </div>
             <div style="display:flex;gap:12px">
                 <button class="btn btn-primary" id="save-ai-btn">${t('settings.ai.saveAiSettings')}</button>
@@ -1295,134 +1075,27 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
             <div id="ai-test-result" style="margin-top:12px"></div>
         </div>
 
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">Scraper API Keys</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Optional API keys to enable additional job sources.
-            </p>
-            <div style="display:flex;flex-direction:column;gap:16px">
-                <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">USAJobs API Key</label>
-                    <input type="password" class="search-input" id="scraper-key-usajobs" placeholder="API key" value="${keys.usajobs?.has_key ? '****' : ''}" style="margin-bottom:4px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;margin-top:4px">${t('settings.ai.usaJobsEmail')}</label>
-                    <input type="email" class="search-input" id="scraper-email-usajobs" placeholder="${t('settings.ai.usaJobsEmailPlaceholder')}" value="${escapeHtml(keys.usajobs?.email || '')}">
-                </div>
-                <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Adzuna App ID</label>
-                    <input type="password" class="search-input" id="scraper-key-adzuna-id" placeholder="App ID" value="${keys['adzuna-id']?.has_key ? '****' : ''}" style="margin-bottom:4px">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px;margin-top:4px">Adzuna App Key</label>
-                    <input type="password" class="search-input" id="scraper-key-adzuna" placeholder="App key" value="${keys.adzuna?.has_key ? '****' : ''}">
-                </div>
-                <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">JSearch (RapidAPI) Key</label>
-                    <input type="password" class="search-input" id="scraper-key-jsearch" placeholder="RapidAPI key" value="${keys.jsearch?.has_key ? '****' : ''}">
-                </div>
-            </div>
-            <button class="btn btn-primary" id="save-scraper-keys-btn" style="margin-top:16px">${t('settings.ai.saveScraperKeys')}</button>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">${t('settings.email.title')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Configure SMTP for sending application emails and automated job digest notifications.
-            </p>
-            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;color:var(--text-secondary)">SMTP Configuration</h3>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField(t('settings.email.smtpHost'), 'email-smtp-host', emailSettings.smtp_host || '', 'text', { placeholder: 'smtp.gmail.com' })}
-                ${settingsField(t('settings.email.smtpPort'), 'email-smtp-port', emailSettings.smtp_port || 587, 'number')}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField(t('settings.email.username'), 'email-smtp-username', emailSettings.smtp_username || '', 'text', { placeholder: t('settings.email.emailPlaceholder') })}
-                ${settingsField(t('settings.email.password'), 'email-smtp-password', '', 'password', { placeholder: emailSettings.smtp_host ? 'Configured (leave blank to keep)' : 'SMTP password' })}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsField(t('settings.email.fromAddress'), 'email-from-address', emailSettings.from_address || '', 'email', { placeholder: 'noreply@example.com' /* i18n-audit-ignore: example address, not copy */ })}
-                ${settingsField(t('settings.email.toAddress'), 'email-to-address', emailSettings.to_address || '', 'email', { placeholder: 'you@example.com' /* i18n-audit-ignore: example address, not copy */ })}
-            </div>
-            <div style="margin-bottom:16px">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="checkbox" id="email-smtp-tls" ${emailSettings.smtp_use_tls !== false ? 'checked' : ''}>
-                    <span style="font-size:0.875rem">Use TLS</span>
-                </label>
-            </div>
-
-            <h3 style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;margin-top:20px;color:var(--text-secondary)">${t('settings.email.digestTitle')}</h3>
-            <div style="margin-bottom:12px">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="checkbox" id="email-digest-enabled" ${emailSettings.digest_enabled ? 'checked' : ''}>
-                    <span style="font-size:0.875rem;font-weight:600">Enable automated digest emails</span>
-                </label>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-                ${settingsSelect('Schedule', 'email-digest-schedule', emailSettings.digest_schedule || 'daily', [
-                    { value: 'daily', label: 'Daily' },
-                    { value: 'weekly', label: 'Weekly' },
-                ])}
-                ${settingsField(t('settings.email.sendTime'), 'email-digest-time', emailSettings.digest_time || '08:00', 'time')}
-                ${settingsField(t('settings.email.minScore'), 'email-digest-min-score', emailSettings.digest_min_score || 60, 'number')}
-            </div>
-            <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-email-btn">${t('settings.email.saveEmailSettings')}</button>
-                <button class="btn btn-secondary" id="test-email-btn">${t('settings.email.sendTestEmail')}</button>
-                <button class="btn btn-secondary" id="test-digest-btn">Send Test Digest</button>
-            </div>
-            <div id="email-test-result" style="margin-top:12px"></div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:8px">${t('settings.embeddings.title')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Configure vector embeddings for semantic job search and similar job recommendations.
-            </p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                ${settingsSelect('Provider', 'emb-provider', embeddingSettings.provider || '', [
-                    { value: 'openai', label: 'OpenAI' },
-                    { value: 'ollama', label: 'Ollama' },
-                ])}
-                <div>
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Model</label>
-                    <input type="text" class="search-input" id="emb-model" value="${escapeHtml(embeddingSettings.model || '')}" placeholder="${(!embeddingSettings.provider || embeddingSettings.provider === 'openai') ? 'text-embedding-3-small' : 'nomic-embed-text'}" style="width:100%">
-                </div>
-            </div>
-            <div id="emb-key-row" style="margin-bottom:12px;${embeddingSettings.provider === 'ollama' ? 'display:none' : ''}">
-                <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.apiKey')}</label>
-                <input type="password" class="search-input" id="emb-api-key" placeholder="${embeddingSettings.has_key ? 'Key configured (leave blank to keep)' : 'Enter API key'}" style="width:100%">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-                <div id="emb-url-row" style="${embeddingSettings.provider === 'ollama' ? '' : 'display:none'}">
-                    <label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('settings.ai.baseUrl')}</label>
-                    <input type="text" class="search-input" id="emb-base-url" value="${escapeHtml(embeddingSettings.base_url || '')}" placeholder="http://localhost:11434" style="width:100%">
-                </div>
-                ${settingsField('Dimensions', 'emb-dimensions', embeddingSettings.dimensions || (embeddingSettings.provider === 'ollama' ? 768 : 256), 'number')}
-            </div>
-            <div style="display:flex;gap:12px">
-                <button class="btn btn-primary" id="save-emb-btn">${t('settings.embeddings.save')}</button>
-                <button class="btn btn-secondary" id="backfill-emb-btn">Backfill Embeddings</button>
-            </div>
-            <div id="emb-result" style="margin-top:12px"></div>
-        </div>
     `;
 
-    // AI provider toggle
-    const PROVIDER_MODELS = {
-        anthropic: ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-        openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'o1', 'o1-mini', 'o3-mini'],
-        google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-        bedrock: [
-            'us.anthropic.claude-sonnet-4-6',
-            'us.anthropic.claude-opus-4-6-v1',
-            'us.anthropic.claude-opus-4-5-20251101-v1:0',
-            'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-            'us.anthropic.claude-opus-4-1-20250805-v1:0',
-            'us.anthropic.claude-opus-4-20250514-v1:0',
-            'us.anthropic.claude-sonnet-4-20250514-v1:0',
-            'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-            'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-            'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
-            'us.anthropic.claude-3-5-haiku-20241022-v1:0',
-            'us.anthropic.claude-3-haiku-20240307-v1:0',
-        ],
-    };
+    // 切换 provider 时预填 Base URL / 默认模型 / 申请密钥入口（PRD M3）
+    function applyProviderDefaults(provider) {
+        const defs = providerDefaults[provider] || {};
+        const urlInput = document.getElementById('ai-base-url');
+        const knownDefaults = Object.values(providerDefaults).map(d => d.base_url).filter(Boolean);
+        // 只在为空或仍指向其他 provider 的默认地址时预填，不覆盖用户自定义的代理地址
+        if (defs.base_url && (!urlInput.value.trim() || knownDefaults.includes(urlInput.value.trim()))) {
+            urlInput.value = defs.base_url;
+        }
+        const applyRow = document.getElementById('ai-apply-row');
+        const applyLink = document.getElementById('ai-apply-link');
+        if (defs.apply_url) {
+            applyRow.style.display = '';
+            applyLink.href = defs.apply_url;
+        } else {
+            applyRow.style.display = 'none';
+            applyLink.removeAttribute('href');
+        }
+    }
 
     function populateModelDropdown(provider, currentModel) {
         const dropdown = document.getElementById('ai-model-dropdown');
@@ -1447,24 +1120,26 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
         document.getElementById('ai-model-openrouter').style.display = isOpenRouter ? '' : 'none';
     }
 
-    // Initialize dropdown for current provider
+    // Initialize dropdown for current provider (空模型时用 provider 默认模型预填)
     if (aiProvider in PROVIDER_MODELS) {
-        populateModelDropdown(aiProvider, aiModel);
+        populateModelDropdown(aiProvider, aiModel || (providerDefaults[aiProvider] || {}).default_model || '');
     }
+    applyProviderDefaults(aiProvider);
 
     document.getElementById('ai-provider').addEventListener('change', (e) => {
         const provider = e.target.value;
-        const isOllama = provider === 'ollama';
+        const isLocal = provider === 'ollama';
         const isBedrock = provider === 'bedrock';
-        document.getElementById('ai-key-row').style.display = (isOllama || isBedrock) ? 'none' : '';
-        document.getElementById('ai-url-row').style.display = isOllama ? '' : 'none';
+        document.getElementById('ai-key-row').style.display = (isLocal || isBedrock) ? 'none' : '';
+        document.getElementById('ai-url-row').style.display = needsBaseUrl(provider) ? '' : 'none';
         document.getElementById('ai-bedrock-creds').style.display = isBedrock ? '' : 'none';
         document.getElementById('ai-region-row').style.display = isBedrock ? '' : 'none';
+        applyProviderDefaults(provider);
         updateModelVisibility(provider);
         if (provider in PROVIDER_MODELS) {
-            populateModelDropdown(provider, '');
+            populateModelDropdown(provider, (providerDefaults[provider] || {}).default_model || '');
         }
-        if (isOllama) fetchOllamaModels();
+        if (isLocal) fetchOllamaModels();
         if (provider === 'openrouter') { _orCurrentModel = ''; fetchOpenRouterModels(); }
     });
 
@@ -1517,10 +1192,10 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
                 select.innerHTML = `<option value="">${t('settings.ai.noModelsFound')}</option>`;
             }
         } catch {
-            select.innerHTML = `<option value="${escapeHtml(currentVal)}">${currentVal || 'Failed to load models'}</option>`;
+            select.innerHTML = `<option value="${escapeHtml(currentVal)}">${currentVal || t('settings.ai.failedToLoadModels')}</option>`;
             // Show fallback text input
             document.getElementById('ai-model').style.display = '';
-            document.getElementById('ai-model').placeholder = 'e.g. anthropic/claude-sonnet-4';
+            document.getElementById('ai-model').placeholder = t('settings.ai.modelFallbackPlaceholder');
         }
         finally { btn.disabled = false; btn.textContent = t('actions.refresh'); }
     }
@@ -1562,7 +1237,7 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
     document.getElementById('save-ai-btn').addEventListener('click', async () => {
         const btn = document.getElementById('save-ai-btn');
         btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
-        try { await api.updateAISettings(getAIFormValues()); showToast('AI settings saved', 'success'); }
+        try { await api.updateAISettings(getAIFormValues()); showToast(t('settings.ai.aiSaved'), 'success'); }
         catch (err) { showToast(err.message, 'error'); }
         finally { btn.disabled = false; btn.textContent = t('settings.ai.saveAiSettings'); }
     });
@@ -1573,122 +1248,19 @@ function renderTabAI(container, aiSettings, scraperKeys, emailSettings, embeddin
         btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('settings.ai.testing')}`; resultDiv.innerHTML = '';
         try {
             const result = await api.testAIConnection(getAIFormValues());
-            resultDiv.innerHTML = result.ok
-                ? `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">Connection successful! Response: "${escapeHtml(result.response)}"</div>`
-                : `<div style="color:var(--danger, #ef4444);font-size:0.875rem;font-weight:600">Connection failed: ${escapeHtml(result.error)}</div>`;
+            if (result.ok) {
+                resultDiv.innerHTML = `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">${t('settings.ai.testSuccessResponse', { response: escapeHtml(result.response) })}</div>`;
+            } else {
+                // 中文原因 + 原始报错（PRD M3：密钥无效/额度不足/模型名错误/网络不可达）
+                const reasonKey = TEST_REASON_KEYS[result.reason] || 'settings.ai.testReasonUnknown';
+                resultDiv.innerHTML = `
+                    <div style="color:var(--danger, #ef4444);font-size:0.875rem;font-weight:600">${t(reasonKey)}</div>
+                    <div style="color:var(--text-tertiary);font-size:0.75rem;margin-top:4px;word-break:break-all">${escapeHtml(result.error || '')}</div>`;
+            }
         } catch (err) { resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`; }
         finally { btn.disabled = false; btn.textContent = t('settings.ai.testConnection'); }
     });
 
-    document.getElementById('save-scraper-keys-btn').addEventListener('click', async () => {
-        const payload = {
-            usajobs: { api_key: document.getElementById('scraper-key-usajobs').value, email: document.getElementById('scraper-email-usajobs').value },
-            'adzuna-id': { api_key: document.getElementById('scraper-key-adzuna-id').value, email: '' },
-            adzuna: { api_key: document.getElementById('scraper-key-adzuna').value, email: '' },
-            jsearch: { api_key: document.getElementById('scraper-key-jsearch').value, email: '' },
-        };
-        try { await api.request('POST', '/api/scraper-keys', payload); showToast('Scraper keys saved', 'success'); }
-        catch (err) { showToast(err.message, 'error'); }
-    });
-
-    function getEmailFormValues() {
-        return {
-            smtp_host: document.getElementById('email-smtp-host').value,
-            smtp_port: parseInt(document.getElementById('email-smtp-port').value) || 587,
-            smtp_username: document.getElementById('email-smtp-username').value,
-            smtp_password: document.getElementById('email-smtp-password').value,
-            smtp_use_tls: document.getElementById('email-smtp-tls').checked,
-            from_address: document.getElementById('email-from-address').value,
-            to_address: document.getElementById('email-to-address').value,
-            digest_enabled: document.getElementById('email-digest-enabled').checked,
-            digest_schedule: document.getElementById('email-digest-schedule').value,
-            digest_time: document.getElementById('email-digest-time').value || '08:00',
-            digest_min_score: parseInt(document.getElementById('email-digest-min-score').value) || 60,
-        };
-    }
-
-    document.getElementById('save-email-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('save-email-btn');
-        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
-        try {
-            await api.request('POST', '/api/settings/email', getEmailFormValues());
-            showToast(t('settings.email.emailSaved'), 'success');
-        } catch (err) { showToast(err.message, 'error'); }
-        finally { btn.disabled = false; btn.textContent = t('settings.email.saveEmailSettings'); }
-    });
-
-    document.getElementById('test-email-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('test-email-btn');
-        const resultDiv = document.getElementById('email-test-result');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending...'; resultDiv.innerHTML = '';
-        try {
-            const result = await api.request('POST', '/api/settings/email/test', getEmailFormValues());
-            resultDiv.innerHTML = `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">${escapeHtml(result.message)}</div>`;
-        } catch (err) {
-            resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
-        }
-        finally { btn.disabled = false; btn.textContent = t('settings.email.sendTestEmail'); }
-    });
-
-    document.getElementById('test-digest-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('test-digest-btn');
-        const resultDiv = document.getElementById('email-test-result');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending...'; resultDiv.innerHTML = '';
-        try {
-            const result = await api.request('POST', '/api/digest/send-test');
-            resultDiv.innerHTML = `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">${escapeHtml(result.message)}</div>`;
-        } catch (err) {
-            resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
-        }
-        finally { btn.disabled = false; btn.textContent = 'Send Test Digest'; }
-    });
-
-    // Embedding provider toggle
-    const embDefaults = { openai: { model: 'text-embedding-3-small', dims: 256 }, ollama: { model: 'nomic-embed-text', dims: 768 } };
-    document.getElementById('emb-provider').addEventListener('change', (e) => {
-        const provider = e.target.value;
-        const isOllama = provider === 'ollama';
-        document.getElementById('emb-key-row').style.display = isOllama ? 'none' : '';
-        document.getElementById('emb-url-row').style.display = isOllama ? '' : 'none';
-        document.getElementById('emb-model').placeholder = embDefaults[provider]?.model || '';
-        document.getElementById('emb-dimensions').value = embDefaults[provider]?.dims || 256;
-    });
-
-    document.getElementById('save-emb-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('save-emb-btn');
-        const resultDiv = document.getElementById('emb-result');
-        btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${t('status.saving')}`;
-        try {
-            const payload = {
-                provider: document.getElementById('emb-provider').value,
-                api_key: document.getElementById('emb-api-key').value,
-                model: document.getElementById('emb-model').value,
-                base_url: document.getElementById('emb-base-url').value,
-                dimensions: parseInt(document.getElementById('emb-dimensions').value) || 256,
-            };
-            await api.request('POST', '/api/settings/embeddings', payload);
-            showToast(t('settings.embeddings.saved'), 'success');
-            resultDiv.innerHTML = '';
-        } catch (err) {
-            showToast(err.message, 'error');
-            resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
-        }
-        finally { btn.disabled = false; btn.textContent = t('settings.embeddings.save'); }
-    });
-
-    document.getElementById('backfill-emb-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('backfill-emb-btn');
-        const resultDiv = document.getElementById('emb-result');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Backfilling...';
-        resultDiv.innerHTML = `<div style="font-size:0.875rem;color:var(--text-secondary)">${t('settings.embeddings.processing')}</div>`;
-        try {
-            const result = await api.request('POST', '/api/embeddings/backfill');
-            resultDiv.innerHTML = `<div style="color:var(--success, #22c55e);font-size:0.875rem;font-weight:600">Backfill complete: ${result.embedded || 0}/${result.total || 0} jobs embedded${result.errors ? `, ${result.errors} errors` : ''}</div>`;
-        } catch (err) {
-            resultDiv.innerHTML = `<div style="color:var(--danger, #ef4444);font-size:0.875rem">${escapeHtml(err.message)}</div>`;
-        }
-        finally { btn.disabled = false; btn.textContent = 'Backfill Embeddings'; }
-    });
 }
 
 // === Tab 5: Data Management ===
@@ -1702,48 +1274,34 @@ function renderTabData(container) {
 
         <div class="card" style="padding:24px;margin-bottom:24px">
             <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.data.profileExportTitle')}</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">
-                Export your full profile data as JSON, or import from a previously exported file.
-            </p>
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.data.profileExportDesc')}</p>
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
                 <button class="btn btn-secondary" id="export-profile-btn">${t('settings.data.exportProfile')}</button>
                 <input type="file" id="import-profile-file" accept=".json" style="font-size:0.875rem">
-                <button class="btn btn-secondary" id="import-profile-btn">Import Profile</button>
+                <button class="btn btn-secondary" id="import-profile-btn">${t('settings.data.importProfile')}</button>
             </div>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Autofill History</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.data.autofillDesc')}</p>
-            <div id="autofill-history-list"><span class="spinner"></span></div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Scraper Schedule</h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.scraper.description')}</p>
-            <div id="scraper-schedule-list"><span class="spinner"></span></div>
-        </div>
-
-        <div class="card" style="padding:24px;margin-bottom:24px">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">Setup Guide</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px">${t('settings.onboarding.title')}</h2>
             <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.875rem">${t('settings.onboarding.description')}</p>
-            <button class="btn btn-secondary" id="rerun-onboarding-btn">Launch Setup Guide</button>
+            <button class="btn btn-secondary" id="rerun-onboarding-btn">${t('settings.onboarding.launch')}</button>
         </div>
 
         <div class="card" style="padding:24px;margin-bottom:24px;border-left:4px solid var(--danger, #ef4444)">
-            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px;color:var(--danger, #ef4444)">Danger Zone</h2>
+            <h2 style="font-size:1.125rem;font-weight:600;margin-bottom:16px;color:var(--danger, #ef4444)">${t('settings.danger.title')}</h2>
             <div style="display:flex;flex-direction:column;gap:16px">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
                     <div>
                         <div style="font-weight:600;font-size:0.9375rem">${t('settings.danger.clearJobsScores')}</div>
-                        <div style="color:var(--text-secondary);font-size:0.8125rem">Remove all scraped jobs, scores, and application data. Keeps your resume, search terms, and AI settings.</div>
+                        <div style="color:var(--text-secondary);font-size:0.8125rem">${t('settings.danger.clearJobsDesc')}</div>
                     </div>
                     <button class="btn btn-danger" id="clear-jobs-btn" style="white-space:nowrap">${t('settings.danger.clearJobs')}</button>
                 </div>
                 <div style="border-top:1px solid var(--border);padding-top:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
                     <div>
                         <div style="font-weight:600;font-size:0.9375rem">${t('settings.danger.resetEverything')}</div>
-                        <div style="color:var(--text-secondary);font-size:0.8125rem">Remove all data including resume, search terms, AI settings, jobs, and scores. Returns to a fresh state.</div>
+                        <div style="color:var(--text-secondary);font-size:0.8125rem">${t('settings.danger.resetAllDesc')}</div>
                     </div>
                     <button class="btn btn-danger" id="clear-all-btn" style="white-space:nowrap">${t('settings.danger.resetAll')}</button>
                 </div>
@@ -1751,66 +1309,7 @@ function renderTabData(container) {
         </div>
     `;
 
-    // Load autofill history
-    api.request('GET', '/api/autofill/history').then(data => {
-        const list = container.querySelector('#autofill-history-list');
-        const items = data.items || [];
-        if (!items.length) { list.innerHTML = `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.data.noAutofillSessions')}</p>`; return; }
-        list.innerHTML = items.map(h => `
-            <div style="padding:8px 12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm);margin-bottom:6px">
-                <div style="font-weight:600;font-size:0.875rem">${escapeHtml(h.job_title || 'Unknown')} at ${escapeHtml(h.company || 'Unknown')}</div>
-                <div style="color:var(--text-tertiary);font-size:0.8125rem">${formatDate(h.created_at)}</div>
-            </div>
-        `).join('');
-    }).catch(() => {
-        container.querySelector('#autofill-history-list').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load history</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
-    });
-
-    // Load scraper schedules
-    api.request('GET', '/api/scraper-schedule').then(data => {
-        const list = container.querySelector('#scraper-schedule-list');
-        const schedules = data.schedules || [];
-        if (!schedules.length) {
-            list.innerHTML = `<p style="color:var(--text-tertiary);font-size:0.875rem">${t('settings.scraper.empty')}</p>`;
-            return;
-        }
-        list.innerHTML = `
-            <table style="width:100%;border-collapse:collapse;font-size:0.875rem">
-                <thead>
-                    <tr style="border-bottom:2px solid var(--border);text-align:left">
-                        <th style="padding:8px 12px">${t('fields.source')}</th>
-                        <th style="padding:8px 12px">${t('settings.scraper.intervalHours')}</th>
-                        <th style="padding:8px 12px">Last Ran</th>
-                        <th style="padding:8px 12px"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${schedules.map(s => `
-                        <tr style="border-bottom:1px solid var(--border)" data-source="${escapeHtml(s.source_name)}">
-                            <td style="padding:8px 12px;font-weight:600">${escapeHtml(s.source_name)}</td>
-                            <td style="padding:8px 12px"><input type="number" min="1" value="${s.interval_hours}" style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-primary)" class="schedule-interval"></td>
-                            <td style="padding:8px 12px;color:var(--text-secondary)">${s.last_scraped_at ? formatDate(s.last_scraped_at) : 'Never'}</td>
-                            <td style="padding:8px 12px"><button class="btn btn-secondary schedule-save-btn" style="padding:4px 12px;font-size:0.8125rem">Save</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-        list.querySelectorAll('.schedule-save-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const row = btn.closest('tr');
-                const source_name = row.dataset.source;
-                const interval_hours = parseInt(row.querySelector('.schedule-interval').value, 10);
-                if (!interval_hours || interval_hours < 1) { showToast(t('settings.scraper.intervalTooSmall'), 'error'); return; }
-                try {
-                    await api.request('POST', '/api/scraper-schedule', { source_name, interval_hours });
-                    showToast(`Schedule updated for ${source_name}`, 'success');
-                } catch (err) { showToast(err.message, 'error'); }
-            });
-        });
-    }).catch(() => {
-        container.querySelector('#scraper-schedule-list').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load scraper schedules</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
-    });
+    // No-op: autofill history and scraper schedule cards removed (US-only features).
 
     document.getElementById('clear-jobs-btn').addEventListener('click', async () => {
         const ok = await showModal({
@@ -1820,7 +1319,7 @@ function renderTabData(container) {
             danger: true,
         });
         if (!ok) return;
-        try { await api.request('POST', '/api/clear-jobs'); showToast('All jobs cleared', 'info'); }
+        try { await api.request('POST', '/api/clear-jobs'); showToast(t('settings.danger.jobsCleared'), 'info'); }
         catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1855,9 +1354,9 @@ function renderTabData(container) {
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'jobfinder-profile.json'; a.click();
+            a.href = url; a.download = 'careerpulse-profile.json'; a.click();
             URL.revokeObjectURL(url);
-            showToast('Profile exported', 'success');
+            showToast(t('settings.data.profileExported'), 'success');
         } catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1869,7 +1368,7 @@ function renderTabData(container) {
             const text = await fileInput.files[0].text();
             const data = JSON.parse(text);
             await api.request('PUT', '/api/profile/full', data);
-            showToast('Profile imported successfully', 'success');
+            showToast(t('settings.data.importDone'), 'success');
             settingsData.fullProfile = await api.request('GET', '/api/profile/full');
             settingsData.profile = await api.request('GET', '/api/profile');
         } catch (err) { showToast(err.message, 'error'); }

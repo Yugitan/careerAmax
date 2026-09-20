@@ -184,6 +184,24 @@ describe('api.triggerScrape', () => {
         expect(result).toEqual({ task_id: 'xyz', status: 'already_running' });
     });
 
+    it('throws a coded error on 409 no_server_scrapers', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({
+                code: 'scrape.no_server_scrapers',
+                params: {},
+                detail: 'no server scrapers',
+            }),
+        });
+
+        let err;
+        try { await api.triggerScrape(); } catch (e) { err = e; }
+        expect(err).toBeDefined();
+        expect(err.code).toBe('scrape.no_server_scrapers');
+        expect(err.status).toBe(409);
+    });
+
     it('throws on other error status codes', async () => {
         globalThis.fetch = vi.fn().mockResolvedValue({
             ok: false,
@@ -205,6 +223,20 @@ describe('api.getScrapeProgress', () => {
 
         await api.getScrapeProgress();
         expect(fetch.mock.calls[0][0]).toBe('/api/scrape/progress');
+    });
+});
+
+describe('api.getIngestStats', () => {
+    it('GETs ingest-stats endpoint', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ sources: [{ source: 'BOSS直聘', jobs: 5, last_captured_at: '2026-09-17T00:00:00' }] }),
+        });
+
+        const result = await api.getIngestStats();
+        expect(fetch.mock.calls[0][0]).toBe('/api/ingest-stats');
+        expect(result.sources).toHaveLength(1);
     });
 });
 

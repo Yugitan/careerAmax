@@ -1,4 +1,57 @@
-// === Interface copy: app shell (scrape pipeline, notifications, shortcuts) ===
+// === Interface copy: app shell (footer, scrape pipeline, notifications, shortcuts) ===
+
+// The footer is part of the shell markup in index.html, but it owns its own
+// namespace so the footer links can keep reusing the shared `nav.*` labels.
+i18n.register('footer', {
+    en: {
+        navLabel: 'Footer navigation',
+        taglineLead: 'Take your job search',
+        taglineEmphasis: 'into your own hands.',
+        localNote: 'Runs on your own machine — no SaaS, no auto-applying, no central scraping.',
+        stayInTouch: 'Stay in touch!',
+        githubLabel: 'Open the CareerPulse repository on GitHub',
+        siteLabel: 'Open the CareerPulse site',
+        badgeNote: 'Ready when you are',
+        columns: {
+            workspace: 'Workspace',
+            tools: 'Tools',
+            resources: 'Resources',
+        },
+        resources: {
+            repository: 'GitHub repository',
+            api: 'API docs',
+            guide: 'User guide',
+        },
+        ctaLead: 'Interviews land in your inbox.',
+        ctaStrong: 'Keep them on your calendar.',
+        ctaButton: 'Subscribe to calendar',
+        rights: 'All rights reserved.',
+    },
+    'zh-CN': {
+        navLabel: '页脚导航',
+        taglineLead: '把求职这件事，',
+        taglineEmphasis: '握在自己手里。',
+        localNote: '完全运行在你自己的电脑上 —— 不做 SaaS、不代投、不集中爬取。',
+        stayInTouch: '保持联系！',
+        githubLabel: '在 GitHub 上打开 CareerPulse 仓库',
+        siteLabel: '打开 CareerPulse 站点',
+        badgeNote: '随时可以开始',
+        columns: {
+            workspace: '工作台',
+            tools: '工具',
+            resources: '资源',
+        },
+        resources: {
+            repository: 'GitHub 仓库',
+            api: 'API 文档',
+            guide: '使用文档',
+        },
+        ctaLead: '面试安排别只躺在邮件里。',
+        ctaStrong: '同步到你的日历。',
+        ctaButton: '订阅日历',
+        rights: '保留所有权利。',
+    },
+});
 
 i18n.register('shell', {
     en: {
@@ -41,6 +94,19 @@ i18n.register('shell', {
             triageMode: 'Triage mode',
             showHelp: 'Show shortcuts',
             closeOrBack: 'Close / Go back',
+        },
+        capture: {
+            requesting: 'Asking the extension to capture…',
+            waiting: 'Waiting for the extension…',
+            capturing: 'Capturing…',
+            capturingProgress: 'Capturing… {done}/{total}',
+            result: 'Capture complete — {saved} new jobs, skipped {skipped} already tracked',
+            resultFailed: ', {count} failed',
+            resultEmpty: 'No new jobs on the open page — open a BOSS Zhipin job list in your browser and scroll it, then try again.',
+            noExtension: 'The CareerPulse extension did not respond. In Chrome, make sure it is installed and enabled, then refresh the job page and retry.',
+            noListing: 'No job list found. Open a BOSS Zhipin search results page (the job list) and try again — a job detail page has nothing to capture.',
+            timedOut: 'Capture stopped responding and we stopped waiting — any jobs already saved are in your pipeline.',
+            staleAssets: 'This tab is running an older cached version of the app. Hard refresh (Ctrl/Cmd + Shift + R) and try again.',
         },
         scrape: {
             starting: 'Starting…',
@@ -135,6 +201,19 @@ i18n.register('shell', {
             triageMode: '快速筛选模式',
             showHelp: '显示快捷键',
             closeOrBack: '关闭 / 返回',
+        },
+        capture: {
+            requesting: '正在请求扩展采集…',
+            waiting: '等待扩展采集…',
+            capturing: '采集中…',
+            capturingProgress: '采集中… {done}/{total}',
+            result: '抓取完成 — 新增 {saved} 个职位，跳过 {skipped} 个已收藏',
+            resultFailed: '，{count} 个失败',
+            resultEmpty: '本页没有可抓取的新职位 — 请在浏览器中打开 BOSS 直聘职位列表并滚动加载，再试一次。',
+            noExtension: '没等到浏览器扩展响应 — 请确认已安装并启用 CareerPulse 扩展，刷新招聘页面后重试。',
+            noListing: '没找到职位列表 — 请在浏览器里打开 BOSS 直聘的搜索结果页（职位列表）再试一次；职位详情页没有可抓取的卡片。',
+            timedOut: '采集失去响应，已停止等待 — 已经采到的职位仍在看板里。',
+            staleAssets: '当前页面用的是浏览器缓存的旧版脚本 — 请强制刷新（Ctrl/Cmd + Shift + R）后重试。',
         },
         scrape: {
             starting: '正在启动…',

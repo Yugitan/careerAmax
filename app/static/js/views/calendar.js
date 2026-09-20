@@ -45,7 +45,7 @@ async function renderCalendarView(container, viewDate) {
 
     container.innerHTML = `
         <div class="calendar-header">
-            <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:0">${t('calendar.title')}</h1>
+            <h1 class="page-title">${t('calendar.title')}</h1>
             <div class="calendar-header-controls">
                 <button id="cal-prev" class="btn btn-ghost btn-sm" aria-label="${t('calendar.previousMonth')}">&larr;</button>
                 <span id="cal-month-label" style="font-weight:600;min-width:160px;text-align:center">${escapeHtml(monthLabel)}</span>
@@ -229,7 +229,7 @@ function showDayDetailModal(dateStr, events) {
                                 ${e.notes ? `<div style="font-size:0.8rem;color:var(--text-tertiary);margin-top:4px">${escapeHtml(e.notes)}</div>` : ''}
                                 <div style="display:flex;gap:8px;margin-top:6px">
                                     ${e.type === 'interview' && e.id && e.job_id ? `<button class="btn btn-primary btn-sm cal-open-interview" data-interview-id="${e.id}" data-job-id="${e.job_id}" style="font-size:0.75rem">${t('calendar.viewInterview')}</button>` : ''}
-                                    ${e.job_id ? `<a href="#/job/${e.job_id}" class="btn btn-ghost btn-sm" style="font-size:0.75rem" onclick="document.getElementById('cal-day-modal')?.remove()">View Job</a>` : ''}
+                                    ${e.job_id ? `<a href="#/job/${e.job_id}" class="btn btn-ghost btn-sm" style="font-size:0.75rem" onclick="document.getElementById('cal-day-modal')?.remove()">${t('calendar.viewJob')}</a>` : ''}
                                 </div>
                             </div>
                         `;
@@ -280,7 +280,7 @@ async function showIcalModal() {
                         <button id="ical-copy-btn" class="btn btn-primary btn-sm">${t('calendar.copy')}</button>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center">
-                        <button id="ical-regen-btn" class="btn btn-ghost btn-sm" style="color:var(--danger)">Regenerate URL</button>
+                        <button id="ical-regen-btn" class="btn btn-ghost btn-sm" style="color:var(--danger)">${t('calendar.regenerate')}</button>
                         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ical-modal')?.remove()">${t('actions.close')}</button>
                     </div>
                 ` : `

@@ -16,6 +16,7 @@ i18n.register('errors', {
         jobInvalidEventType: 'Invalid event type: {event_type}',
         jobUrlRequired: 'A URL is required',
         jobInvalidTransition: 'Cannot update this application: {error}',
+        jobInvalidStatus: 'Invalid application status: {status}',
 
         // AI providers
         aiGenerationFailed: 'AI generation failed: {error}',
@@ -35,6 +36,9 @@ i18n.register('errors', {
         resumeNameRequired: 'Resume name is required',
         resumeNameEmpty: 'Resume name cannot be empty',
         resumeUnsupportedFileType: 'Unsupported file type: {ext}. Allowed: {allowed}',
+        resumeLegacyFormat: 'Legacy format {ext} is not supported — save the file as .docx and upload again',
+        resumeParseFailed: 'Could not read the {ext} file — it may be corrupted or password protected',
+        resumeNoTextLayer: 'No text found in the file. If it is a scanned document, upload a version with selectable text',
         resumeFileTooLarge: 'File too large ({size} bytes). Maximum: {max_mb}MB',
 
         // tailored documents
@@ -84,10 +88,20 @@ i18n.register('errors', {
         // interviews
         interviewRoundNotFound: 'Interview round not found',
         interviewInterviewerNameRequired: 'No interviewer name to promote',
+        interviewQuestionNotFound: 'Question {index} not found in this question bank',
+        interviewSourceRequired: 'Pick a source job to copy the question bank from',
+        interviewSourceEmpty: 'The source job has no question bank to copy',
 
         // calendar
         calendarTokenRequired: 'Token required',
         calendarInvalidToken: 'Invalid token',
+
+        // salary
+        salaryInvalidInput: 'Check the salary calculator input',
+        salaryOffersRequired: 'Add at least one offer before comparing',
+
+        // scraping (China edition: no server-side scrapers)
+        scrapeNoServerScrapers: 'Jobs are captured by the browser extension while you browse — there are no server-side scrapers. Open jobs on BOSS Zhipin with the extension installed to save them.',
 
         // generic validation
         validationNoFieldsToUpdate: 'No fields to update',
@@ -99,6 +113,7 @@ i18n.register('errors', {
         jobInvalidEventType: '无效的事件类型：{event_type}',
         jobUrlRequired: '请填写链接',
         jobInvalidTransition: '无法更新该申请：{error}',
+        jobInvalidStatus: '申请状态无效：{status}',
 
         // AI providers
         aiGenerationFailed: 'AI 生成失败：{error}',
@@ -118,6 +133,9 @@ i18n.register('errors', {
         resumeNameRequired: '简历名称为必填项',
         resumeNameEmpty: '简历名称不能为空',
         resumeUnsupportedFileType: '不支持的文件类型：{ext}。允许的类型：{allowed}',
+        resumeLegacyFormat: '{ext} 为旧式格式，暂不支持——请另存为 .docx 后重新上传',
+        resumeParseFailed: '无法读取 {ext} 文件——文件可能已损坏或有密码保护',
+        resumeNoTextLayer: '未能从文件中提取到文字。若是扫描件，请上传可复制文本的版本',
         resumeFileTooLarge: '文件过大（{size} 字节），上限为 {max_mb}MB',
 
         // tailored documents
@@ -167,10 +185,20 @@ i18n.register('errors', {
         // interviews
         interviewRoundNotFound: '面试轮次不存在',
         interviewInterviewerNameRequired: '没有可转为联系人的面试官姓名',
+        interviewQuestionNotFound: '题库中没有第 {index} 题',
+        interviewSourceRequired: '请选择要复制题库的来源职位',
+        interviewSourceEmpty: '来源职位还没有题库可复制',
 
         // calendar
         calendarTokenRequired: '缺少令牌',
         calendarInvalidToken: '令牌无效',
+
+        // salary
+        salaryInvalidInput: '请检查薪资测算的输入',
+        salaryOffersRequired: '请先添加至少一个录用通知再对比',
+
+        // scraping (China edition: no server-side scrapers)
+        scrapeNoServerScrapers: '职位由浏览器扩展在浏览时自动回传，服务端没有爬虫。请在安装扩展后打开 BOSS 直聘的职位页面保存职位。',
 
         // generic validation
         validationNoFieldsToUpdate: '没有需要更新的字段',

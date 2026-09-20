@@ -30,6 +30,10 @@ i18n.register('onboarding', {
             provider: 'Provider',
             selectProvider: 'Select a provider...',
             providers: {
+                deepseek: 'DeepSeek (recommended)',
+                qwen: 'Qwen (Tongyi)',
+                kimi: 'Kimi (Moonshot)',
+                zhipu: 'Zhipu GLM',
                 anthropic: 'Anthropic (Claude)',
                 openai: 'OpenAI (GPT)',
                 google: 'Google (Gemini)',
@@ -80,6 +84,10 @@ i18n.register('onboarding', {
             provider: '服务商',
             selectProvider: '请选择服务商…',
             providers: {
+                deepseek: 'DeepSeek（推荐）',
+                qwen: '通义千问',
+                kimi: 'Kimi（Moonshot）',
+                zhipu: '智谱 GLM',
                 anthropic: 'Anthropic（Claude）',
                 openai: 'OpenAI（GPT）',
                 google: 'Google（Gemini）',

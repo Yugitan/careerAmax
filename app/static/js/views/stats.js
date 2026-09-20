@@ -6,7 +6,7 @@ async function renderStats(container) {
         const stats = await api.getStats();
         container.innerHTML = `
             <div class="stats-header">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">${t('stats.title')}</h1>
+                <h1 class="page-title">${t('stats.title')}</h1>
                 <div class="stats-header-actions">
                     <button class="btn btn-primary" id="stats-scrape-btn">${t('nav.scrapeNow')}</button>
                     <button class="btn btn-secondary" id="stats-score-btn">${stats.total_jobs - stats.total_scored > 0 ? t('stats.actions.scoreUnscored', { count: stats.total_jobs - stats.total_scored }) : t('stats.actions.allScored')}</button>
@@ -25,11 +25,11 @@ async function renderStats(container) {
                 </div>
                 <div class="card stat-card">
                     <div class="stat-number">${stats.total_applied || 0}</div>
-                    <div class="stat-label">Applied</div>
+                    <div class="stat-label">${t('stats.kpi.applied')}</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-number">${stats.total_interviewing || 0}</div>
-                    <div class="stat-label">Interviewing</div>
+                    <div class="stat-label">${t('stats.kpi.interviewing')}</div>
                 </div>
             </div>
             <div class="pipeline-section">
@@ -45,11 +45,11 @@ async function renderStats(container) {
                     </div>
                     <div class="card pipeline-stage">
                         <div class="stage-count">${stats.total_applied || 0}</div>
-                        <div class="stage-label">Applied</div>
+                        <div class="stage-label">${t('stats.stage.applied')}</div>
                     </div>
                     <div class="card pipeline-stage">
                         <div class="stage-count">${stats.total_interviewing || 0}</div>
-                        <div class="stage-label">Interviewing</div>
+                        <div class="stage-label">${t('stats.stage.interviewing')}</div>
                     </div>
                 </div>
             </div>
@@ -75,7 +75,7 @@ async function renderStats(container) {
                     <h2 style="font-size:1.125rem;font-weight:600;margin:0">${t('stats.section.skillGaps')}</h2>
                     <button class="btn btn-primary btn-sm" id="analyze-skills-btn">${t('stats.actions.analyzeWithAI')}</button>
                 </div>
-                <p style="color:var(--text-secondary);font-size:0.875rem;margin-bottom:12px">Skills that would unlock more job matches (from jobs scoring 50-80).</p>
+                <p style="color:var(--text-secondary);font-size:0.875rem;margin-bottom:12px">${t('stats.section.skillGapsDesc')}</p>
                 <div id="skill-gaps-container">
                     <div class="loading-container"><span class="spinner"></span></div>
                 </div>
@@ -202,7 +202,7 @@ async function renderStats(container) {
                 digestContainer.innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.digest.empty')}</div><div class="empty-state-desc">${t('stats.digest.emptyDesc')}</div></div>`;
             } else {
                 digestContainer.innerHTML = `
-                    <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${digest.job_count} new match${digest.job_count !== 1 ? 'es' : ''} in the last 24 hours</div>
+                    <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${t('stats.digest.matchCount', { count: digest.job_count })}</div>
                     <div style="display:flex;flex-direction:column;gap:8px">
                         ${digest.jobs.map(j => `
                             <a href="#/job/${j.id}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm);text-decoration:none">
@@ -223,7 +223,7 @@ async function renderStats(container) {
                 showToast(t('stats.digest.copied'), 'success');
             });
         } catch (err) {
-            document.getElementById('digest-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load digest</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('digest-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.digest.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Fetch reminders
@@ -239,8 +239,8 @@ async function renderStats(container) {
                 const renderReminder = (r, isDue) => `
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:${isDue ? 'var(--score-red-bg, #fef2f2)' : 'var(--bg-surface-secondary)'};border-radius:var(--radius-sm);border-left:3px solid ${isDue ? 'var(--danger, #ef4444)' : 'var(--accent)'}">
                         <div>
-                            <a href="#/job/${r.job_id}" style="font-size:0.875rem;font-weight:500;color:var(--text-primary);text-decoration:none">${escapeHtml(r.title || 'Unknown')}</a>
-                            <div style="font-size:0.75rem;color:var(--text-tertiary)">${escapeHtml(r.company || '')} &middot; ${isDue ? 'Overdue' : formatDate(r.remind_at)}</div>
+                            <a href="#/job/${r.job_id}" style="font-size:0.875rem;font-weight:500;color:var(--text-primary);text-decoration:none">${escapeHtml(r.title || t('pipeline.offers.unknownPosition'))}</a>
+                            <div style="font-size:0.75rem;color:var(--text-tertiary)">${escapeHtml(r.company || '')} &middot; ${isDue ? t('stats.reminders.overdue') : formatDate(r.remind_at)}</div>
                         </div>
                         <div style="display:flex;gap:6px">
                             <button class="btn btn-sm" onclick="completeReminder(${r.id})" style="font-size:0.75rem;padding:4px 8px">${t('actions.done')}</button>
@@ -249,7 +249,7 @@ async function renderStats(container) {
                     </div>
                 `;
                 remindersContainer.innerHTML = `
-                    ${due.length > 0 ? `<div style="font-size:0.8125rem;font-weight:600;color:var(--danger, #ef4444);margin-bottom:6px">${due.length} overdue</div>` : ''}
+                    ${due.length > 0 ? `<div style="font-size:0.8125rem;font-weight:600;color:var(--danger, #ef4444);margin-bottom:6px">${due.length} ${t('stats.reminders.overdue')}</div>` : ''}
                     <div style="display:flex;flex-direction:column;gap:6px">
                         ${due.map(r => renderReminder(r, true)).join('')}
                         ${upcoming.slice(0, 5).map(r => renderReminder(r, false)).join('')}
@@ -257,7 +257,7 @@ async function renderStats(container) {
                 `;
             }
         } catch {
-            document.getElementById('reminders-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load reminders</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('reminders-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.reminders.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Fetch skill gap data
@@ -270,10 +270,10 @@ async function renderStats(container) {
                 const keywords = (gapData.top_keywords || []).slice(0, 8);
                 const concerns = (gapData.top_concerns || []).slice(0, 5);
                 gapsContainer.innerHTML = `
-                    <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${gapData.job_count} jobs in the 50-80 score range</div>
+                    <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px">${gapData.job_count} ${t('stats.skills.jobsInRange')}</div>
                     ${keywords.length > 0 ? `
                         <div style="margin-bottom:12px">
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:6px">Most requested skills you're missing:</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:6px">${t('stats.skills.missing')}</div>
                             <div style="display:flex;flex-wrap:wrap;gap:6px">
                                 ${keywords.map(([k, n]) => `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-surface, #eff6ff);color:var(--accent);border-radius:999px;font-size:0.8125rem;font-weight:500">${escapeHtml(k)} <span style="color:var(--text-tertiary);font-size:0.75rem">${n}</span></span>`).join('')}
                             </div>
@@ -281,7 +281,7 @@ async function renderStats(container) {
                     ` : ''}
                     ${concerns.length > 0 ? `
                         <div>
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:6px">Common concerns:</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:6px">${t('stats.skills.concerns')}</div>
                             <div style="display:flex;flex-direction:column;gap:4px">
                                 ${concerns.map(([c, n]) => `<div style="font-size:0.8125rem;color:var(--text-secondary)">&bull; ${escapeHtml(c)} <span style="color:var(--text-tertiary)">(${n})</span></div>`).join('')}
                             </div>
@@ -291,7 +291,7 @@ async function renderStats(container) {
                 `;
             }
         } catch {
-            document.getElementById('skill-gaps-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load skill gaps</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('skill-gaps-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.skills.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Analyze skills with AI button
@@ -358,7 +358,7 @@ async function renderStats(container) {
                 analyticsContainer.innerHTML = `
                     ${hasAnyFunnel ? `
                         <div style="margin-bottom:24px">
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Application Funnel</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.analytics.funnel')}</div>
                             <div style="display:flex;flex-direction:column;gap:6px">
                                 ${funnelEntries.map(([status, count]) => `
                                     <div style="display:flex;align-items:center;gap:8px">
@@ -374,7 +374,7 @@ async function renderStats(container) {
                     ` : ''}
                     ${Object.values(calibration).some(v => v !== null) ? `
                         <div style="margin-bottom:24px">
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Score Calibration (avg match score by status)</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.analytics.calibration')}</div>
                             <div style="display:flex;gap:12px;flex-wrap:wrap">
                                 ${Object.entries(calibration).filter(([, v]) => v !== null).map(([status, avg]) => `
                                     <div style="flex:1;min-width:120px;padding:12px;background:var(--bg-surface-secondary);border-radius:var(--radius-sm);text-align:center">
@@ -387,7 +387,7 @@ async function renderStats(container) {
                     ` : ''}
                     ${sources.length > 0 ? `
                         <div style="margin-bottom:24px">
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Source Effectiveness</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.analytics.sourceEffectiveness')}</div>
                             <div style="display:flex;flex-direction:column;gap:6px">
                                 ${sources.map(s => `
                                     <div style="display:flex;align-items:center;gap:8px">
@@ -403,7 +403,7 @@ async function renderStats(container) {
                     ` : ''}
                     ${velocity.length > 0 ? `
                         <div>
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Weekly Job Velocity</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.analytics.velocity')}</div>
                             <div style="display:flex;align-items:flex-end;gap:4px;height:80px">
                                 ${velocity.map(v => `
                                     <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
@@ -417,7 +417,7 @@ async function renderStats(container) {
                 `;
             }
         } catch {
-            document.getElementById('analytics-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load analytics</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('analytics-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.analytics.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Fetch response analytics
@@ -427,7 +427,7 @@ async function renderStats(container) {
             if (ra.total_applied === 0) {
                 raContainer.innerHTML = `<div style="font-size:0.875rem;color:var(--text-tertiary)">${t('stats.response.empty')}</div>`;
             } else {
-                const typeLabels = { interview_invite: t('stats.response.invites'), rejection: 'Rejections', callback: 'Callbacks', ghosted: 'Ghosted' };
+                const typeLabels = { interview_invite: t('stats.response.invites'), rejection: t('detail.response.type.rejection'), callback: t('detail.response.type.callback'), ghosted: t('detail.response.type.ghosted') };
                 const typeColors = { interview_invite: '#22c55e', rejection: '#ef4444', callback: '#3b82f6', ghosted: '#94a3b8' };
                 const breakdown = ra.type_breakdown || {};
                 const maxBreakdown = Math.max(...Object.values(breakdown), 1);
@@ -451,7 +451,7 @@ async function renderStats(container) {
                     </div>
                     ${Object.keys(breakdown).length > 0 ? `
                         <div style="margin-bottom:20px">
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Response Types</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.response.types')}</div>
                             <div style="display:flex;flex-direction:column;gap:6px">
                                 ${Object.entries(breakdown).map(([type, count]) => `
                                     <div style="display:flex;align-items:center;gap:8px">
@@ -467,7 +467,7 @@ async function renderStats(container) {
                     ` : ''}
                     ${byScore.length > 0 ? `
                         <div>
-                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Response Rate by Score</div>
+                            <div style="font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('stats.response.byScore')}</div>
                             <div style="display:flex;flex-direction:column;gap:6px">
                                 ${byScore.map(s => `
                                     <div style="display:flex;align-items:center;gap:8px">
@@ -482,15 +482,15 @@ async function renderStats(container) {
                                 `).join('')}
                             </div>
                             <div style="display:flex;gap:12px;margin-top:6px;font-size:0.75rem;color:var(--text-tertiary)">
-                                <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;vertical-align:middle"></span> Applied</span>
-                                <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;vertical-align:middle"></span> Responded</span>
+                                <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;vertical-align:middle"></span> ${t('stats.response.applied')}</span>
+                                <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;vertical-align:middle"></span> ${t('stats.response.responded')}</span>
                             </div>
                         </div>
                     ` : ''}
                 `;
             }
         } catch {
-            document.getElementById('response-analytics-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load response data</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('response-analytics-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.response.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Career Advisor
@@ -511,7 +511,7 @@ async function renderStats(container) {
                                         ${s.reasoning ? `<div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:4px">${escapeHtml(s.reasoning)}</div>` : ''}
                                         ${s.gap ? `<div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px">Gap: ${escapeHtml(s.gap)}</div>` : ''}
                                     </div>
-                                    ${!s.accepted ? `<button class="btn btn-primary btn-sm career-accept-btn" data-id="${s.id}" style="flex-shrink:0;margin-left:8px">Accept</button>` : `<span style="font-size:0.75rem;color:#22c55e;font-weight:600">Accepted</span>`}
+                                    ${!s.accepted ? `<button class="btn btn-primary btn-sm career-accept-btn" data-id="${s.id}" style="flex-shrink:0;margin-left:8px">${t('stats.actions.accept')}</button>` : `<span style="font-size:0.75rem;color:#22c55e;font-weight:600">${t('stats.career.acceptedLabel')}</span>`}
                                 </div>
                             </div>
                         `).join('')}
@@ -528,7 +528,7 @@ async function renderStats(container) {
                 });
             }
         } catch {
-            document.getElementById('career-advisor-container').innerHTML = '<div class="empty-state empty-state-compact"><div class="empty-state-title">Could not load career advice</div><div class="empty-state-desc">Try refreshing the page.</div></div>';
+            document.getElementById('career-advisor-container').innerHTML = `<div class="empty-state empty-state-compact"><div class="empty-state-title">${t('stats.career.loadFailed')}</div><div class="empty-state-desc">${t('stats.tryRefresh')}</div></div>`;
         }
 
         // Career analyze button

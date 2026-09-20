@@ -7,8 +7,8 @@ async function renderNetwork(container) {
         const contacts = data.contacts || [];
 
         container.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-                <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em">Network</h1>
+            <div class="page-header">
+                <h1 class="page-title">${t('network.title')}</h1>
                 <button class="btn btn-primary btn-sm" id="add-contact-btn">${t('network.addContact')}</button>
             </div>
             <div style="margin-bottom:16px">
@@ -18,11 +18,11 @@ async function renderNetwork(container) {
                 ${contacts.length === 0 ? `
                     <div class="empty-state">
                         <div class="empty-state-icon">&#128101;</div>
-                        <div class="empty-state-title">No contacts yet</div>
-                        <div class="empty-state-desc">Add contacts to track your professional network and link them to job applications.</div>
+                        <div class="empty-state-title">${t('network.noContacts')}</div>
+                        <div class="empty-state-desc">${t('network.noContactsDesc')}</div>
                     </div>
                 ` : `
-                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+                    <div class="contact-grid">
                         ${contacts.map(c => `
                             <div class="card card-interactive contact-card" style="padding:16px;cursor:pointer" data-contact-id="${c.id}" data-name="${escapeHtml(c.name).toLowerCase()}" data-company="${escapeHtml(c.company || '').toLowerCase()}">
                                 <div style="font-weight:600;font-size:0.9375rem">${escapeHtml(c.name)}</div>
@@ -41,7 +41,7 @@ async function renderNetwork(container) {
             <div id="contact-form-panel" style="display:none">
                 <div class="card" style="padding:24px;margin-top:16px">
                     <h3 style="font-size:1rem;font-weight:600;margin-bottom:12px" id="contact-form-title">${t('network.addContact')}</h3>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-grid">
                         <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.nameRequiredLabel')}</label><input type="text" class="search-input" id="contact-name" style="width:100%"></div>
                         <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.email')}</label><input type="email" class="search-input" id="contact-email" style="width:100%"></div>
                         <div><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.company')}</label><input type="text" class="search-input" id="contact-company" style="width:100%"></div>
@@ -51,7 +51,7 @@ async function renderNetwork(container) {
                     </div>
                     <div style="margin-top:12px"><label style="display:block;font-size:0.8125rem;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">${t('network.notes')}</label><textarea class="textarea-styled textarea-notes" id="contact-notes"></textarea></div>
                     <div style="display:flex;gap:8px;margin-top:12px">
-                        <button class="btn btn-primary btn-sm" id="contact-save-btn">Save</button>
+                        <button class="btn btn-primary btn-sm" id="contact-save-btn">${t('network.save')}</button>
                         <button class="btn btn-secondary btn-sm" id="contact-cancel-btn">${t('actions.cancel')}</button>
                     </div>
                 </div>
@@ -73,7 +73,7 @@ async function renderNetwork(container) {
         // Add contact
         document.getElementById('add-contact-btn').addEventListener('click', () => {
             editingContactId = null;
-            document.getElementById('contact-form-title').textContent = 'Add Contact';
+            document.getElementById('contact-form-title').textContent = t('network.addContact');
             ['contact-name', 'contact-email', 'contact-company', 'contact-role', 'contact-phone', 'contact-linkedin', 'contact-notes'].forEach(id => { document.getElementById(id).value = ''; });
             document.getElementById('contact-form-panel').style.display = '';
             document.getElementById('contact-detail-panel').style.display = 'none';
@@ -127,11 +127,11 @@ async function renderNetwork(container) {
                                     ${contact.notes ? `<div style="margin-top:8px;font-size:0.8125rem;color:var(--text-secondary)">${escapeHtml(contact.notes)}</div>` : ''}
                                 </div>
                                 <div style="display:flex;gap:6px">
-                                    <button class="btn btn-secondary btn-sm" id="edit-contact-btn">Edit</button>
+                                    <button class="btn btn-secondary btn-sm" id="edit-contact-btn">${t('actions.edit')}</button>
                                     <button class="btn btn-danger btn-sm" id="delete-contact-btn">${t('actions.delete')}</button>
                                 </div>
                             </div>
-                            <h3 style="font-size:0.875rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">Interactions</h3>
+                            <h3 style="font-size:0.875rem;font-weight:600;color:var(--text-tertiary);margin-bottom:8px">${t('network.interactions')}</h3>
                             <div style="display:flex;gap:6px;margin-bottom:12px">
                                 <input type="text" class="search-input" id="interaction-notes" placeholder="${t('network.interactionPlaceholder')}" style="flex:1">
                                 <select class="filter-select" id="interaction-type" style="width:auto">
@@ -159,7 +159,7 @@ async function renderNetwork(container) {
 
                     document.getElementById('edit-contact-btn').addEventListener('click', () => {
                         editingContactId = contactId;
-                        document.getElementById('contact-form-title').textContent = 'Edit Contact';
+                        document.getElementById('contact-form-title').textContent = t('network.editContact');
                         document.getElementById('contact-name').value = contact.name || '';
                         document.getElementById('contact-email').value = contact.email || '';
                         document.getElementById('contact-company').value = contact.company || '';

@@ -133,13 +133,20 @@ const api = {
     async triggerScrape() {
         const res = await fetch('/api/scrape', { method: 'POST' });
         const body = await res.json().catch(() => ({}));
-        if (res.status === 202 || res.status === 409) {
-            return {
-                task_id: body.task_id || null,
-                status: res.status === 409 ? 'already_running' : (body.status || 'started'),
-            };
+        if (res.status === 202) {
+            return { task_id: body.task_id || null, status: body.status || 'started' };
+        }
+        // Only the "already running" 409 is a successful no-op that resumes
+        // polling; any other 4xx (e.g. scrape.no_server_scrapers) is a real
+        // coded error for the caller to surface.
+        if (res.status === 409 && body.error === 'scrape_already_running') {
+            return { task_id: body.task_id || null, status: 'already_running' };
         }
         throw createApiError(body, res.status);
+    },
+
+    getIngestStats() {
+        return this.request('GET', '/api/ingest-stats');
     },
 
     getScrapeProgress() {
@@ -148,6 +155,19 @@ const api = {
 
     cancelScrape() {
         return this.request('POST', '/api/scrape/cancel');
+    },
+
+    // 一键抓取：网页发起采集请求，由浏览器扩展在已打开的招聘页面上执行
+    requestCapture() {
+        return this.request('POST', '/api/capture/request');
+    },
+
+    getCaptureState() {
+        return this.request('GET', '/api/capture/request');
+    },
+
+    cancelCapture() {
+        return this.request('POST', '/api/capture/cancel');
     },
 
     draftEmail(id) {

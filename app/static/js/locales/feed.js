@@ -6,6 +6,8 @@
 
 i18n.register('feed', {
     en: {
+        title: 'Your next opportunity',
+        description: 'Collect opportunities, compare your fit, and focus on the next step.',
         filters: {
             searchPlaceholder: 'Search jobs...',
             excludePlaceholder: 'Exclude terms...',
@@ -22,22 +24,12 @@ i18n.register('feed', {
             contract: 'Contract',
             parttime: 'Part-time',
             locationPlaceholder: 'Location...',
-            allRegions: 'All regions',
-            us: 'US',
-            europe: 'Europe',
-            uk: 'UK',
-            canada: 'Canada',
-            latam: 'Latin America',
-            apac: 'Asia-Pacific',
             anyDate: 'Any date',
             last24h: 'Last 24 hours',
             last3d: 'Last 3 days',
             last7d: 'Last 7 days',
             last14d: 'Last 2 weeks',
             last30d: 'Last 30 days',
-            anyClearance: 'Any clearance',
-            hideClearance: 'Hide clearance/visa required',
-            onlyClearance: 'Only clearance/visa required',
             showStale: 'Show stale',
         },
         saveView: {
@@ -99,6 +91,8 @@ i18n.register('feed', {
         },
     },
     'zh-CN': {
+        title: '下一站，值得期待',
+        description: '收藏机会，了解匹配度，把精力留给下一步。',
         filters: {
             searchPlaceholder: '搜索职位…',
             excludePlaceholder: '排除关键词…',
@@ -115,22 +109,12 @@ i18n.register('feed', {
             contract: '合同工',
             parttime: '兼职',
             locationPlaceholder: '地点…',
-            allRegions: '全部地区',
-            us: '美国',
-            europe: '欧洲',
-            uk: '英国',
-            canada: '加拿大',
-            latam: '拉丁美洲',
-            apac: '亚太',
             anyDate: '不限日期',
             last24h: '过去 24 小时',
             last3d: '过去 3 天',
             last7d: '过去 7 天',
             last14d: '过去 2 周',
             last30d: '过去 30 天',
-            anyClearance: '不限安全审查',
-            hideClearance: '隐藏需安全审查/签证的职位',
-            onlyClearance: '仅显示需安全审查/签证的职位',
             showStale: '显示过期职位',
         },
         saveView: {

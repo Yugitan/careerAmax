@@ -170,6 +170,10 @@ function showOnboardingWizard() {
                     <label for="onb-provider">${t('onboarding.ai.provider')}</label>
                     <select id="onb-provider" class="filter-select" style="width:100%">
                         <option value="">${t('onboarding.ai.selectProvider')}</option>
+                        <option value="deepseek"${provider === 'deepseek' ? ' selected' : ''}>${t('onboarding.ai.providers.deepseek')}</option>
+                        <option value="qwen"${provider === 'qwen' ? ' selected' : ''}>${t('onboarding.ai.providers.qwen')}</option>
+                        <option value="kimi"${provider === 'kimi' ? ' selected' : ''}>${t('onboarding.ai.providers.kimi')}</option>
+                        <option value="zhipu"${provider === 'zhipu' ? ' selected' : ''}>${t('onboarding.ai.providers.zhipu')}</option>
                         <option value="anthropic"${provider === 'anthropic' ? ' selected' : ''}>${t('onboarding.ai.providers.anthropic')}</option>
                         <option value="openai"${provider === 'openai' ? ' selected' : ''}>${t('onboarding.ai.providers.openai')}</option>
                         <option value="google"${provider === 'google' ? ' selected' : ''}>${t('onboarding.ai.providers.google')}</option>

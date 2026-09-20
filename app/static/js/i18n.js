@@ -7,7 +7,8 @@
 //     Every string goes through `t(key, params)`.
 //   * Business content (job titles, company names, AI generated text, email
 //     bodies) is NOT translated — it is rendered verbatim as raw content.
-//   * Money is always USD. `formatCurrency()` keeps its existing rules.
+//   * Money is always CNY (yuan) and is presented as a monthly salary.
+//     `formatCurrency()` keeps its existing rules — amounts are never converted.
 //
 // Translation catalogs live in `app/static/js/locales/*.js` and are registered
 // through `i18n.register(namespace, { en: {...}, 'zh-CN': {...} })`.
@@ -396,7 +397,7 @@
         return formatDate(date);
     }
 
-    /** Number formatting (never used for money — money stays USD). */
+    /** Number formatting (never used for money — money stays CNY). */
     function formatNumber(value, options) {
         const num = Number(value);
         if (!isFinite(num)) return String(value);

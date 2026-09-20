@@ -9,11 +9,23 @@ function tr(key, params) {
     return typeof t === 'function' ? t(key, params) : key;
 }
 
-// Money stays USD — CareerPulse is a US job market product and does not
-// convert amounts to other currencies.
+// 金额一律以人民币（元）计价，按月薪口径展示，不做任何币种换算。
+// Money is always CNY (yuan) and is shown as a monthly salary. Amounts are
+// never converted to another currency.
+const SALARY_SYMBOL = '¥';
+
+/** 去掉小数末尾多余的 0：1.50 → 1.5，2.00 → 2。 */
+function trimTrailingZero(n) {
+    return String(Number(Number(n).toFixed(1)));
+}
+
+/** 金额（元）→ `¥12,345`；空值或非法值返回 `-`。 */
 function formatCurrency(val) {
     if (!val && val !== 0) return '-';
-    return '$' + Number(val).toLocaleString();
+    const num = Number(val);
+    if (!isFinite(num)) return '-';
+    const formatted = typeof i18n !== 'undefined' ? i18n.formatNumber(num) : num.toLocaleString();
+    return SALARY_SYMBOL + formatted;
 }
 
 function showToast(message, type = 'success') {
@@ -53,14 +65,19 @@ function formatDate(dateStr) {
     return typeof i18n !== 'undefined' ? i18n.formatDate(d) : d.toISOString().slice(0, 10);
 }
 
-// Salary amounts are USD and are never converted.
+// 月薪金额一律为人民币元，不做任何币种换算。
+// Salary amounts are CNY yuan per month and are never converted.
 function formatSalary(min, max, estMin, estMax) {
     const lo = min || estMin;
     const hi = max || estMax;
     if (!lo && !hi) return null;
+    // 满 1 万按「万」，满 1 千按「K」（千元），其余原样 —— 与国内招聘平台一致。
     const fmt = (n) => {
-        if (n >= 1000) return `$${Math.round(n / 1000)}k`;
-        return `$${n}`;
+        const v = Number(n);
+        if (!isFinite(v) || v <= 0) return '';
+        if (v >= 10000) return `${trimTrailingZero(v / 10000)}万`;
+        if (v >= 1000) return `${trimTrailingZero(v / 1000)}K`;
+        return String(Math.round(v));
     };
     if (lo && hi) return tr('common.salary.range', { min: fmt(lo), max: fmt(hi) });
     if (lo) return tr('common.salary.from', { amount: fmt(lo) });
@@ -72,6 +89,20 @@ function getScoreClass(score) {
     if (score >= 80) return 'score-badge-green';
     if (score >= 60) return 'score-badge-amber';
     return 'score-badge-gray';
+}
+
+// === 申请状态枚举（铁律） ===
+//
+// 状态的「值」永远是稳定英文枚举，「标签」永远通过 t() 翻译，两者绝不混用：
+// 下拉框 `<option value>` 只放枚举，任何比较都基于枚举，界面文案只用于显示。
+// 若把翻译结果写进 value，中文界面会把「已申请」这类中文串直接落库。
+//
+// The enum is the only thing persisted or compared; the label is presentation only.
+const APPLICATION_STATUSES = ['interested', 'prepared', 'applied', 'interviewing', 'offered', 'rejected'];
+
+/** 状态枚举 → 界面文案（与求职流程看板共用同一套标签）。 */
+function applicationStatusLabel(status) {
+    return tr(`pipeline.stage.${status}`);
 }
 
 function escapeHtml(str) {

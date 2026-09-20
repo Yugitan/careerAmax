@@ -6,10 +6,14 @@ async function renderFeed(container) {
     focusedJobIndex = -1;
     currentOffset = 0;
     container.innerHTML = `
+        <header class="page-header page-header-stacked">
+            <h1 class="page-title">${t('feed.title')}</h1>
+            <p class="page-description">${t('feed.description')}</p>
+        </header>
         <div id="smart-views" class="smart-views-bar"></div>
         <div class="filter-bar">
             <input type="text" class="search-input" id="filter-search" placeholder="${t('feed.filters.searchPlaceholder')}" data-dirty-ignore>
-            <input type="text" class="search-input" id="filter-exclude" placeholder="${t('feed.filters.excludePlaceholder')}" style="max-width:160px" data-dirty-ignore>
+            <input type="text" class="search-input" id="filter-exclude" placeholder="${t('feed.filters.excludePlaceholder')}" data-dirty-ignore>
             <select class="filter-select" id="filter-score" data-dirty-ignore>
                 <option value="">${t('feed.filters.allScores')}</option>
                 <option value="40">40+</option>
@@ -33,16 +37,7 @@ async function renderFeed(container) {
                 <option value="contract">${t('feed.filters.contract')}</option>
                 <option value="parttime">${t('feed.filters.parttime')}</option>
             </select>
-            <input type="text" class="search-input" id="filter-location" placeholder="${t('feed.filters.locationPlaceholder')}" style="max-width:160px" data-dirty-ignore>
-            <select class="filter-select" id="filter-region" data-dirty-ignore>
-                <option value="">${t('feed.filters.allRegions')}</option>
-                <option value="us">${t('feed.filters.us')}</option>
-                <option value="europe">${t('feed.filters.europe')}</option>
-                <option value="uk">${t('feed.filters.uk')}</option>
-                <option value="canada">${t('feed.filters.canada')}</option>
-                <option value="latam">${t('feed.filters.latam')}</option>
-                <option value="apac">${t('feed.filters.apac')}</option>
-            </select>
+            <input type="text" class="search-input" id="filter-location" placeholder="${t('feed.filters.locationPlaceholder')}" data-dirty-ignore>
             <select class="filter-select" id="filter-posted-within" data-dirty-ignore>
                 <option value="">${t('feed.filters.anyDate')}</option>
                 <option value="24h">${t('feed.filters.last24h')}</option>
@@ -51,17 +46,12 @@ async function renderFeed(container) {
                 <option value="14d">${t('feed.filters.last14d')}</option>
                 <option value="30d">${t('feed.filters.last30d')}</option>
             </select>
-            <select class="filter-select" id="filter-clearance" data-dirty-ignore>
-                <option value="">${t('feed.filters.anyClearance')}</option>
-                <option value="hide">${t('feed.filters.hideClearance')}</option>
-                <option value="only">${t('feed.filters.onlyClearance')}</option>
-            </select>
             <label style="display:flex;align-items:center;gap:4px;font-size:0.8125rem;color:var(--text-secondary);white-space:nowrap;cursor:pointer"><input type="checkbox" id="filter-show-stale" data-dirty-ignore> ${t('feed.filters.showStale')}</label>
             <button class="btn btn-secondary btn-sm" id="save-view-btn" style="white-space:nowrap">${t('feed.saveView.title')}</button>
             <button class="btn btn-secondary btn-sm" id="create-alert-btn" style="white-space:nowrap">${t('feed.createAlert.title')}</button>
             <button class="btn btn-secondary btn-sm" id="select-mode-btn" style="white-space:nowrap">${t('feed.selectMode.title')}</button>
         </div>
-        <div id="batch-bar" style="display:none;position:sticky;top:0;z-index:50;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:12px;display:none;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+        <div id="batch-bar" class="batch-bar" style="display:none">
             <span id="batch-count" style="font-weight:600;font-size:0.875rem">${t('common.selected', { count: 0 })}</span>
             <button class="btn btn-primary btn-sm" id="batch-compare-btn" style="display:none">${t('feed.batch.compare')}</button>
             <button class="btn btn-primary btn-sm" id="batch-prepare-btn">${t('feed.batch.prepare')}</button>
@@ -82,8 +72,6 @@ async function renderFeed(container) {
     const workTypeSelect = document.getElementById('filter-work-type');
     const employmentSelect = document.getElementById('filter-employment');
     const locationInput = document.getElementById('filter-location');
-    const regionSelect = document.getElementById('filter-region');
-    const clearanceSelect = document.getElementById('filter-clearance');
     const postedWithinSelect = document.getElementById('filter-posted-within');
     const loadMoreBtn = document.getElementById('load-more-btn');
 
@@ -122,8 +110,6 @@ async function renderFeed(container) {
     sortSelect.addEventListener('change', reload);
     workTypeSelect.addEventListener('change', reload);
     employmentSelect.addEventListener('change', reload);
-    regionSelect.addEventListener('change', reload);
-    clearanceSelect.addEventListener('change', reload);
     postedWithinSelect.addEventListener('change', reload);
     document.getElementById('filter-show-stale').addEventListener('change', () => {
         saveFilterState();
@@ -234,8 +220,6 @@ async function loadJobs(append) {
         work_type: document.getElementById('filter-work-type')?.value || '',
         employment_type: document.getElementById('filter-employment')?.value || '',
         location: document.getElementById('filter-location')?.value || '',
-        region: document.getElementById('filter-region')?.value || '',
-        clearance: document.getElementById('filter-clearance')?.value || '',
         posted_within: document.getElementById('filter-posted-within')?.value || '',
     };
 

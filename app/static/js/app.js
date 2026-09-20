@@ -256,6 +256,10 @@ function computeStallSec(p) {
     return Math.max(0, p.server_now - p.last_updated_at);
 }
 
+// 取消链接有两种用途：服务端抓取流水线（历史路径）与「一键抓取」的采集请求。
+// 正在进行的那个流程决定点击取消时该停哪一个。
+let activeCancelHandler = null;
+
 function setCancelLinkVisible(visible, btn) {
     const parent = btn.parentElement;
     if (!parent) return;
@@ -272,7 +276,7 @@ function setCancelLinkVisible(visible, btn) {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        cancelScrape();
+        (activeCancelHandler || cancelScrape)();
     });
     btn.insertAdjacentElement('afterend', link);
 }
@@ -304,6 +308,8 @@ function renderScrapeButtonState(p) {
 }
 
 function resetScrapeButtons() {
+    activeCancelHandler = null;
+    captureLabelKey = null;
     getScrapeButtons().forEach(btn => {
         btn.disabled = false;
         btn.classList.remove('scrape-btn-warn', 'scrape-btn-critical');
@@ -351,16 +357,164 @@ function startScrapePoll(taskId) {
     scrapePollInterval = setInterval(pollScrapeOnce, SCRAPE_POLL_MS);
 }
 
+// === 一键抓取：把请求交给浏览器扩展执行 ===
+// 中国版没有服务端爬虫（PRD D1）：网页端只能请求用户浏览器里已打开的招聘页面
+// 采集（app/routers/capture.py）。所以这里的状态是「等待扩展认领 → 采集中 → 完成」。
+let capturePollInterval = null;
+let captureStartedAt = 0;
+// 按钮上当前显示的文案：只有真的变了才重绘，免得每秒重建按钮把转圈动画打断
+let captureLabelKey = null;
+
+const CAPTURE_POLL_MS = 1000;
+// 扩展在招聘页面上每 3s 轮询一次；超过这个时间没人认领就是「没打开招聘页面
+// 或扩展没装/没重载」，继续等下去只会让按钮转圈。
+const CAPTURE_CLAIM_TIMEOUT_MS = 15000;
+// 认领之后**不再用墙钟判超时**：一次采集要回传几十张卡片（每张一个请求），
+// 慢是正常的 —— 之前 60 秒的硬上限会把一次正在正常推进的采集杀掉，用户只看到
+// 「超时」，职位却已经进库了。改为看**进度有没有前进**。
+const CAPTURE_IDLE_LIMIT_SEC = 45;
+
+function stopCapturePoll() {
+    if (capturePollInterval) { clearInterval(capturePollInterval); capturePollInterval = null; }
+    captureLabelKey = null;
+}
+
+// 只改文案、不重建按钮：进度每秒都在变，重建会让转圈动画不断重头开始。
+function renderCaptureButtonState(text) {
+    if (captureLabelKey === text) return;
+    captureLabelKey = text;
+    getScrapeButtons().forEach(btn => {
+        btn.disabled = true;
+        btn.classList.remove('scrape-btn-warn', 'scrape-btn-critical');
+        let label = btn.querySelector('.scrape-btn-label');
+        if (!label) {
+            btn.textContent = '';
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            btn.appendChild(spinner);
+            btn.appendChild(document.createTextNode(' '));
+            label = document.createElement('span');
+            label.className = 'scrape-btn-label';
+            btn.appendChild(label);
+        }
+        label.textContent = text;
+        setCancelLinkVisible(true, btn);
+    });
+}
+
+// 进度文案：已处理的张数 / 总数（服务端每次进度心跳都会带来快照）
+function captureProgressText(state) {
+    if (!state.total) return t('shell.capture.capturing');
+    const done = (state.saved || 0) + (state.skipped || 0) + (state.failed || 0);
+    return t('shell.capture.capturingProgress', { done, total: state.total });
+}
+
+// 距离上一次「有动静」过了多久（秒）：认领那一刻算一次动静，之后靠进度心跳。
+function captureIdleSec(state) {
+    if (typeof state.server_now !== 'number') return 0;
+    const last = typeof state.progress_at === 'number'
+        ? state.progress_at
+        : (typeof state.claimed_at === 'number' ? state.claimed_at : null);
+    if (last === null) return 0;
+    return Math.max(0, state.server_now - last);
+}
+
+function showCaptureResultToast(state) {
+    if (!(state.total || 0)) {
+        // 扩展告诉了我们原因（比如它开着的不是职位列表页），就别让用户猜
+        showToast(t(state.reason === 'no_listing'
+            ? 'shell.capture.noListing'
+            : 'shell.capture.resultEmpty'), 'info');
+        return;
+    }
+    let message = t('shell.capture.result', {
+        saved: state.saved || 0,
+        skipped: state.skipped || 0,
+    });
+    if (state.failed) message += t('shell.capture.resultFailed', { count: state.failed });
+    showToast(message, state.saved ? 'success' : 'info');
+}
+
+async function cancelCapture() {
+    stopCapturePoll();
+    resetScrapeButtons();
+    try {
+        await api.cancelCapture();
+    } catch { /* 已经没有进行中的请求 */ }
+}
+
+async function pollCaptureOnce() {
+    let state;
+    try {
+        state = await api.getCaptureState();
+    } catch {
+        return;
+    }
+
+    if (state.status === 'capturing') {
+        renderCaptureButtonState(captureProgressText(state));
+        // 只要进度还在前进就继续等；一动不动超过上限才算卡住
+        if (captureIdleSec(state) > CAPTURE_IDLE_LIMIT_SEC) {
+            await cancelCapture();
+            showToast(t('shell.capture.timedOut'), 'error');
+        }
+        return;
+    }
+
+    if (state.status === 'waiting') {
+        renderCaptureButtonState(t('shell.capture.waiting'));
+        if (Date.now() - captureStartedAt > CAPTURE_CLAIM_TIMEOUT_MS) {
+            await cancelCapture();
+            // 区分两种「等不到」：扩展根本没响应，还是它开着但不是职位列表页。
+            // 这两种情况用户要做的事完全不同，以前都只得到一句「没等到扩展」。
+            const stuckOnWrongPage = state.extension_seen && !state.listing_seen;
+            showToast(t(stuckOnWrongPage
+                ? 'shell.capture.noListing'
+                : 'shell.capture.noExtension'), 'error');
+        }
+        return;
+    }
+
+    if (state.status === 'done') {
+        stopCapturePoll();
+        resetScrapeButtons();
+        showCaptureResultToast(state);
+        handleRoute();
+        return;
+    }
+
+    // idle / cancelled：我们自己取消的（或服务重启过），静默复位
+    stopCapturePoll();
+    resetScrapeButtons();
+}
+
+function startCapturePoll() {
+    stopCapturePoll();
+    captureStartedAt = Date.now();
+    captureLabelKey = t('shell.capture.requesting');
+    activeCancelHandler = cancelCapture;
+    pollCaptureOnce();
+    capturePollInterval = setInterval(pollCaptureOnce, CAPTURE_POLL_MS);
+}
+
 async function handleScrape() {
     const btns = getScrapeButtons();
+    if (!btns.length) return;
+    // 浏览器可能缓存着旧版 api.js：与其抛一个 `api.requestCapture is not a function`
+    // 的 TypeError（用户完全看不懂），不如直接告诉他刷新页面。
+    if (typeof api.requestCapture !== 'function') {
+        showToast(t('shell.capture.staleAssets'), 'error');
+        resetScrapeButtons();
+        return;
+    }
     btns.forEach(btn => {
         btn.disabled = true;
-        btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(t('shell.scrape.starting'))}`;
+        btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(t('shell.capture.requesting'))}`;
         setCancelLinkVisible(false, btn);
     });
     try {
-        const result = await api.triggerScrape();
-        startScrapePoll(result && result.task_id);
+        await api.requestCapture();
+        startCapturePoll();
     } catch (err) {
         showToast(apiErrorMessage(err), 'error');
         resetScrapeButtons();
@@ -911,6 +1065,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     hamburger.addEventListener('click', toggleDrawer);
     drawerOverlay.addEventListener('click', closeDrawer);
+    window.matchMedia('(max-width: 1280px)').addEventListener('change', closeDrawer);
 
     navLinks.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', closeDrawer);

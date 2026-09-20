@@ -7,12 +7,12 @@ beforeAll(() => {
 });
 
 describe('formatCurrency', () => {
-    it('formats whole numbers with commas', () => {
-        expect(formatCurrency(120000)).toBe('$120,000');
+    it('formats whole numbers with commas as CNY yuan', () => {
+        expect(formatCurrency(120000)).toBe('¥120,000');
     });
 
     it('formats zero', () => {
-        expect(formatCurrency(0)).toBe('$0');
+        expect(formatCurrency(0)).toBe('¥0');
     });
 
     it('returns dash for null/undefined', () => {
@@ -25,25 +25,26 @@ describe('formatCurrency', () => {
     });
 
     it('formats small numbers', () => {
-        expect(formatCurrency(50)).toBe('$50');
+        expect(formatCurrency(50)).toBe('¥50');
     });
 
     it('formats string numbers', () => {
-        expect(formatCurrency('75000')).toBe('$75,000');
+        expect(formatCurrency('75000')).toBe('¥75,000');
     });
 });
 
 describe('formatSalary', () => {
     it('formats min and max', () => {
-        expect(formatSalary(100000, 150000)).toBe('$100k - $150k');
+        expect(formatSalary(100000, 150000)).toBe('10万 - 15万');
     });
 
     it('formats min only', () => {
-        expect(formatSalary(80000, null)).toBe('$80k+');
+        // 测试环境强制英文界面，`common.salary.from` 解析为英文模板。
+        expect(formatSalary(80000, null)).toBe('8万+');
     });
 
     it('formats max only', () => {
-        expect(formatSalary(null, 120000)).toBe('Up to $120k');
+        expect(formatSalary(null, 120000)).toBe('Up to 12万');
     });
 
     it('returns null when both missing', () => {
@@ -55,19 +56,23 @@ describe('formatSalary', () => {
     });
 
     it('handles small numbers under 1000', () => {
-        expect(formatSalary(50, 100)).toBe('$50 - $100');
+        expect(formatSalary(50, 100)).toBe('50 - 100');
+    });
+
+    it('formats thousands with a K suffix', () => {
+        expect(formatSalary(8000, 9500)).toBe('8K - 9.5K');
     });
 
     it('falls back to estimates when primary values missing', () => {
-        expect(formatSalary(null, null, 90000, 130000)).toBe('$90k - $130k');
+        expect(formatSalary(null, null, 90000, 130000)).toBe('9万 - 13万');
     });
 
     it('prefers primary values over estimates', () => {
-        expect(formatSalary(100000, 150000, 80000, 120000)).toBe('$100k - $150k');
+        expect(formatSalary(100000, 150000, 80000, 120000)).toBe('10万 - 15万');
     });
 
     it('mixes primary min with estimate max', () => {
-        expect(formatSalary(100000, null, null, 150000)).toBe('$100k - $150k');
+        expect(formatSalary(100000, null, null, 150000)).toBe('10万 - 15万');
     });
 });
 

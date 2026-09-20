@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { join, sep } from 'path';
 import { resetI18n, ensureI18n, loadScript } from './setup.js';
 
 // Backend error codes are the contract the frontend must translate.
@@ -44,6 +44,15 @@ describe('i18n core', () => {
             expect(i18n.getLanguage()).toBe('zh-CN');
             resetI18n('en');
         });
+    });
+
+    it('provides localized opportunity page headings', () => {
+        resetI18n('zh-CN');
+        expect(t('feed.title')).toBe('下一站，值得期待');
+        expect(t('feed.description')).toBe('收藏机会，了解匹配度，把精力留给下一步。');
+        resetI18n('en');
+        expect(t('feed.title')).toBe('Your next opportunity');
+        expect(t('feed.description')).toBe('Collect opportunities, compare your fit, and focus on the next step.');
     });
 
     describe('translation and interpolation', () => {
@@ -164,6 +173,36 @@ describe('i18n core', () => {
             expect(mismatched).toEqual([]);
         });
 
+        it('has a translation for every key referenced in the frontend', () => {
+            // A missing key renders as the raw key name in the UI, so every
+            // static `t('...')` call and every `data-i18n*` attribute must
+            // resolve. Dynamically built keys (`t('x.' + value)`) are skipped —
+            // only the static fragments are visible to this scan.
+            const staticDir = join(import.meta.dirname, '..');
+            const jsDir = join(staticDir, 'js');
+            const files = [join(staticDir, 'index.html')];
+            const walk = (dir) => {
+                for (const name of readdirSync(dir)) {
+                    const full = join(dir, name);
+                    if (statSync(full).isDirectory()) walk(full);
+                    else if (name.endsWith('.js')) files.push(full);
+                }
+            };
+            walk(jsDir);
+
+            const used = new Set();
+            for (const file of files) {
+                if (file.includes(`${sep}locales${sep}`) || file.endsWith('i18n.js')) continue;
+                const source = readFileSync(file, 'utf-8');
+                for (const match of source.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)['"]/g)) used.add(match[1]);
+                for (const match of source.matchAll(/\bt\(\s*"([a-zA-Z0-9_.]+)["']/g)) used.add(match[1]);
+                for (const match of source.matchAll(/data-i18n(?:-html|-placeholder|-title|-aria-label)?="([a-zA-Z0-9_.]+)"/g)) used.add(match[1]);
+            }
+
+            const missing = [...used].filter((key) => !key.endsWith('.') && !i18n.has(key)).sort();
+            expect(missing, `keys referenced but not defined:\n${missing.join('\n')}`).toEqual([]);
+        });
+
         it('has a translation key for every backend error code', () => {
             expect(BACKEND_ERROR_CODES.length).toBeGreaterThan(20);
             const missing = BACKEND_ERROR_CODES.filter((code) => {
@@ -223,11 +262,11 @@ describe('i18n core', () => {
         });
 
         it('never converts money to another currency', () => {
-            // Business rule: amounts are USD, independent of interface language.
+            // Business rule: amounts are CNY yuan, independent of interface language.
             resetI18n('zh-CN');
-            expect(formatCurrency(120000)).toBe('$120,000');
+            expect(formatCurrency(120000)).toBe('¥120,000');
             resetI18n('en');
-            expect(formatCurrency(120000)).toBe('$120,000');
+            expect(formatCurrency(120000)).toBe('¥120,000');
         });
     });
 });
