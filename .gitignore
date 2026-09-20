@@ -5,5 +5,10 @@ __pycache__/
 data/
 *.egg-info/
 .pytest_cache/
+.ptmp/
+.tmp/
+.tmp2/
 .worktrees/
 node_modules/
+.workbuddy-ai/
+.DS_Store
