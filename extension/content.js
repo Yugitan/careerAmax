@@ -14,7 +14,7 @@
 
   // Track original field values for undo support
   const originalValues = new Map(); // selector -> { originalValue, label, value, confidence, action }
-  let overlayMode = 'status'; // status | compact | expanded
+  let overlayMode = 'status'; // status | compact | expanded | panel
 
   // ─── History interceptor (single patch, multiple callbacks) ──
 
@@ -1727,6 +1727,14 @@
       removeOverlay();
     });
 
+    // 窗口缩放/旋屏后把面板拉回可见范围，别让它跑到屏幕外
+    const el = overlayEl;
+    window.addEventListener('resize', () => {
+      const left = parseFloat(el.style.left);
+      const top = parseFloat(el.style.top);
+      if (Number.isFinite(left) && Number.isFinite(top)) applyPanelPosition(el, { left, top });
+    });
+
     // Independent language toggle for the injected overlay (chrome.storage.local).
     overlayEl.querySelector(`.${PREFIX}-overlay-lang`).addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1737,12 +1745,18 @@
 
     overlayEl.querySelector(`.${PREFIX}-overlay-minimize`).addEventListener('click', () => {
       const body = overlayEl.querySelector(`.${PREFIX}-overlay-body`);
-      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+      const collapse = body.style.display !== 'none';
+      // 常驻面板的收起状态跨页面记住；填表过程中的浮层只管这一次
+      if (overlayMode === 'panel') setPanelCollapsed(collapse);
+      else body.style.display = collapse ? 'none' : 'block';
     });
 
     // Drag support on header
     const header = overlayEl.querySelector(`.${PREFIX}-overlay-header`);
     header.addEventListener('mousedown', onDragStart);
+
+    // 用户把它拖到哪儿，下次打开就待在哪儿
+    restorePanelState(overlayEl);
 
     return overlayEl;
   }
@@ -1779,17 +1793,17 @@
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
 
-    const newLeft = Math.max(0, Math.min(window.innerWidth - 60, dragState.origLeft + dx));
-    const newTop = Math.max(0, Math.min(window.innerHeight - 40, dragState.origTop + dy));
-
-    overlayEl.style.left = newLeft + 'px';
-    overlayEl.style.top = newTop + 'px';
+    // 拖到视口外也拉回来：面板全在外面，用户就再也找不到它了
+    const pos = clampPanelPosition(dragState.origLeft + dx, dragState.origTop + dy, overlayEl);
+    overlayEl.style.left = `${pos.left}px`;
+    overlayEl.style.top = `${pos.top}px`;
   }
 
   function onDragEnd() {
     dragState = null;
     document.removeEventListener('mousemove', onDragMove);
     document.removeEventListener('mouseup', onDragEnd);
+    if (overlayEl) savePanelPosition(overlayEl);
   }
 
   // ─── Overlay mode rendering ──────────────────────────────────
@@ -1964,6 +1978,269 @@
     document.removeEventListener('mousemove', onDragMove);
     document.removeEventListener('mouseup', onDragEnd);
     dragState = null;
+    // 用户亲手关掉的面板不该因为切了界面语言又冒出来
+    if (overlayMode === 'panel') overlayMode = 'status';
+  }
+
+  // ─── Job-board panel（招聘站点常驻悬浮面板）───────────────────
+  //
+  // 进了支持的招聘站点，用户不必再去点扩展图标：面板自己浮在页面上，内容就是
+  // 弹窗里那一套（连接状态 / 填写申请表 / 一键抓取 / 打开设置），拖动、最小化、
+  // 切语言都在同一个浮层里完成。面板复用自动填表浮层元素与它的表头，抓取进度也
+  // 直接显示在面板上（见下面的 syncPanelCapture / paintPanel）。
+
+  const PANEL_POSITION_KEY = 'panelPosition';
+  const PANEL_COLLAPSED_KEY = 'panelCollapsed';
+  const PANEL_EDGE_MARGIN = 12;  // 距视口边缘的最小留白
+  const PANEL_CAPTURE_BTN_ID = `${PREFIX}-panel-capture`;
+  const DEFAULT_SERVER_URL = 'http://localhost:8085';
+  const PANEL_CONNECTION_RETRY_MS = 15000;  // 没连上服务时，页面扫描顺带复检的间隔
+
+  let panelCollapsed = false;
+  let panelStateRestored = false;
+  let panelConfig = null;
+  let lastPanelConnectionCheck = 0;
+  // 连接/表单/卡片数都是异步或随时会变的：集中放这里，paintPanel 只负责画
+  const panelState = { connected: null, error: '', hasForm: false, cardCount: 0 };
+
+  function panelBody() {
+    return overlayEl ? overlayEl.querySelector(`.${PREFIX}-overlay-body`) : null;
+  }
+
+  function setPanelCollapsed(collapsed) {
+    panelCollapsed = Boolean(collapsed);
+    if (overlayEl) {
+      const body = overlayEl.querySelector(`.${PREFIX}-overlay-body`);
+      if (body) body.style.display = panelCollapsed ? 'none' : 'block';
+      overlayEl.classList.toggle(`${PREFIX}-overlay-collapsed`, panelCollapsed);
+    }
+    try {
+      const stored = chrome.storage.local.set({ [PANEL_COLLAPSED_KEY]: panelCollapsed });
+      if (stored && typeof stored.catch === 'function') stored.catch(() => {});
+    } catch { /* 存不下只是下次回来不会记住 */ }
+  }
+
+  function clampPanelPosition(left, top, el) {
+    const rect = el && typeof el.getBoundingClientRect === 'function'
+      ? el.getBoundingClientRect()
+      : null;
+    const width = (rect && rect.width) || el?.offsetWidth || 0;
+    const height = (rect && rect.height) || el?.offsetHeight || 0;
+    const maxLeft = Math.max(PANEL_EDGE_MARGIN, (window.innerWidth || 0) - width - PANEL_EDGE_MARGIN);
+    const maxTop = Math.max(PANEL_EDGE_MARGIN, (window.innerHeight || 0) - height - PANEL_EDGE_MARGIN);
+    return {
+      left: Math.min(Math.max(PANEL_EDGE_MARGIN, Math.round(left)), maxLeft),
+      top: Math.min(Math.max(PANEL_EDGE_MARGIN, Math.round(top)), maxTop),
+    };
+  }
+
+  // CSS 默认把面板钉在右下角；拖过之后就改用 left/top
+  function applyPanelPosition(el, position) {
+    if (!position || typeof position.left !== 'number' || typeof position.top !== 'number') return null;
+    const pos = clampPanelPosition(position.left, position.top, el);
+    el.style.left = `${pos.left}px`;
+    el.style.top = `${pos.top}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    return pos;
+  }
+
+  function savePanelPosition(el) {
+    const left = parseFloat(el.style.left);
+    const top = parseFloat(el.style.top);
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return;
+    try {
+      const stored = chrome.storage.local.set({
+        [PANEL_POSITION_KEY]: clampPanelPosition(left, top, el),
+      });
+      if (stored && typeof stored.catch === 'function') stored.catch(() => {});
+    } catch { /* 存不下不影响这一次的位置 */ }
+  }
+
+  // 位置与收起状态只读一次：页面后续的扫描重绘不会再把它弹回默认位置
+  function restorePanelState(el) {
+    if (panelStateRestored) {
+      if (panelCollapsed) setPanelCollapsed(true);
+      return;
+    }
+    panelStateRestored = true;
+    try {
+      const stored = chrome.storage.local.get([PANEL_POSITION_KEY, PANEL_COLLAPSED_KEY]);
+      if (stored && typeof stored.then === 'function') {
+        stored.then((data) => {
+          if (!data || el !== overlayEl) return;  // 浮层已经换了一茬
+          applyPanelPosition(el, data[PANEL_POSITION_KEY]);
+          if (data[PANEL_COLLAPSED_KEY]) setPanelCollapsed(true);
+        }).catch(() => {});
+      }
+    } catch { /* 读不到就停在默认的右下角、默认展开 */ }
+  }
+
+  // 面板的全部文案与可用性都由这里画：状态和进度变了就叫一次，幂等
+  function paintPanel() {
+    if (!overlayEl || overlayMode !== 'panel') return;
+    const body = panelBody();
+    if (!body) return;
+
+    const dot = body.querySelector(`.${PREFIX}-panel-dot`);
+    const statusText = body.querySelector(`.${PREFIX}-panel-status-text`);
+    let dotTone = '';
+    let statusLabel;
+    if (panelState.connected === null) {
+      statusLabel = t('status.checking');
+    } else if (panelState.connected) {
+      dotTone = 'connected';
+      statusLabel = t('popup.connected');
+    } else {
+      dotTone = 'disconnected';
+      statusLabel = panelState.error || t('errors.serverUnreachable');
+    }
+    if (dot) dot.className = `${PREFIX}-panel-dot${dotTone ? ` ${dotTone}` : ''}`;
+    if (statusText) statusText.textContent = statusLabel;
+
+    // 招聘列表页本来就没有申请表：按钮留着但置灰，并说明为什么
+    const fill = body.querySelector(`.${PREFIX}-panel-fill`);
+    if (fill) {
+      fill.textContent = t('popup.fillApplication');
+      fill.disabled = panelState.connected !== true || !panelState.hasForm;
+      fill.title = panelState.hasForm ? '' : t('overlay.panelNoForm');
+    }
+
+    const capture = body.querySelector(`.${PREFIX}-panel-capture`);
+    if (capture) {
+      const snapshot = captureProgress || captureResultSummary;
+      if (snapshot) capture.textContent = captureProgressText(snapshot);
+      else if (bulkCaptureInFlight) capture.textContent = t('overlay.bulkCapturing');
+      else if (panelState.cardCount > 0) capture.textContent = t('overlay.bulkCapture', { count: panelState.cardCount });
+      else capture.textContent = t('overlay.panelNoCards');
+      capture.title = snapshot || bulkCaptureInFlight
+        ? capture.textContent
+        : (panelState.cardCount > 0 ? t('overlay.bulkCaptureTitle') : t('overlay.panelNoCardsHint'));
+      capture.classList.toggle(`${PREFIX}-panel-busy`, Boolean(snapshot) || bulkCaptureInFlight);
+      capture.disabled = panelState.connected !== true
+        || bulkCaptureInFlight
+        || panelState.cardCount === 0;
+    }
+  }
+
+  // 面板一出现就报一次连接状态（跟弹窗打开时做的事一样）
+  async function checkPanelConnection() {
+    lastPanelConnectionCheck = Date.now();
+    panelState.connected = null;
+    panelState.error = '';
+    paintPanel();
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'checkConnection' });
+      if (response && response.ok) {
+        panelState.connected = true;
+      } else {
+        panelState.connected = false;
+        panelState.error = response && response.error
+          ? (typeof extErrorMessage === 'function' ? extErrorMessage(response) : response.error)
+          : t('errors.serverUnreachable');
+      }
+    } catch {
+      panelState.connected = false;
+      panelState.error = t('popup.extensionError');
+    }
+    paintPanel();
+  }
+
+  // ATS 内嵌页面（Greenhouse/Workday 等）真正的申请表在 iframe 里：顶层文档探不到
+  // 字段，但 iframe 里的内容脚本能填 —— 走和页面角标、弹窗同一条路（broadcastStartFill）
+  function hasAtsEmbedSignals() {
+    return hasAtsIframe() || hasAtsEmbedContainer() || hasAtsUrlParam();
+  }
+
+  // 表单可用性不能只在面板创建那一刻算一次：LinkedIn Easy Apply、SPA 路由这类页面
+  // 是点「立即申请」之后才把表单渲染出来的，一次性的快照会永远停在
+  // 「本页没有可填写的申请表」，于是按钮一直是灰的。
+  // 弹窗（detectForm 消息）问的是同一个函数，两边的按钮颜色才一致。
+  function pageHasApplicationForm() {
+    return detectApplicationForm() !== 'none'
+      || (!isInIframe() && hasAtsEmbedSignals());
+  }
+
+  function renderPanel(config) {
+    const overlay = createOverlay();
+    const body = panelBody();
+    if (!overlay || !body) return null;
+
+    overlay.classList.remove(`${PREFIX}-overlay-compact`, `${PREFIX}-overlay-expanded`);
+    overlayMode = 'panel';
+    if (config) panelConfig = config;
+    // 「填写申请表」只在真的检测到申请表时可用（detectApplicationForm 返回
+    // 'none' | 'medium' | 'high'）；页面之后才渲染出的表单由扫描路径补上
+    panelState.hasForm = pageHasApplicationForm();
+
+    body.innerHTML = `
+      <div class="${PREFIX}-panel">
+        <div class="${PREFIX}-panel-status">
+          <span class="${PREFIX}-panel-dot"></span>
+          <span class="${PREFIX}-panel-status-text"></span>
+        </div>
+        <button type="button" class="${PREFIX}-panel-btn ${PREFIX}-panel-fill"></button>
+        <button type="button" class="${PREFIX}-panel-btn ${PREFIX}-panel-capture" id="${PANEL_CAPTURE_BTN_ID}"></button>
+        <a class="${PREFIX}-panel-settings" href="#" target="_blank" rel="noopener">${t('popup.openSettings')}</a>
+      </div>
+    `;
+
+    // 表头就是拖动把手：给个提示，别让用户以为面板钉死在右下角
+    const header = overlay.querySelector(`.${PREFIX}-overlay-header`);
+    if (header) header.title = t('overlay.panelDragHint');
+
+    body.querySelector(`.${PREFIX}-panel-fill`).addEventListener('click', () => {
+      if (panelState.connected !== true || !panelState.hasForm) return;
+      // 内嵌 ATS：真正的表单位于 iframe，顶层自己 startFillFlow 会静默退出，
+      // 因此和页面角标、弹窗（chrome.tabs.sendMessage 送到所有 frame）一样广播一次
+      if (!isInIframe() && hasAtsEmbedSignals()) {
+        chrome.runtime.sendMessage({ type: 'broadcastStartFill' });
+        return;
+      }
+      // 交给自动填表流程：状态/字段列表会接管浮层 body
+      startFillFlow();
+    });
+
+    body.querySelector(`.${PREFIX}-panel-capture`).addEventListener('click', (e) => {
+      e.preventDefault();
+      runPanelCapture();
+    });
+
+    // 设置入口：和弹窗一样跳到本地服务
+    const settings = body.querySelector(`.${PREFIX}-panel-settings`);
+    if (settings) {
+      try {
+        const stored = chrome.storage.local.get({ serverUrl: DEFAULT_SERVER_URL });
+        if (stored && typeof stored.then === 'function') {
+          stored.then((data) => {
+            const url = (data && data.serverUrl) || DEFAULT_SERVER_URL;
+            settings.href = `${String(url).replace(/\/+$/, '')}/#/settings`;
+          }).catch(() => {});
+        }
+      } catch { /* 读不到就保留默认链接 */ }
+    }
+
+    setPanelCollapsed(panelCollapsed);
+    paintPanel();
+    checkPanelConnection();
+    return overlay;
+  }
+
+  // 进了支持的招聘站点就自动把面板浮出来（syncPanelCapture 补上卡片数）
+  function showJobBoardPanel(config) {
+    if (!config || !config.listingSelector) return null;
+    const overlay = renderPanel(config);
+    if (!overlay) return null;
+    syncPanelCapture(config);
+    return overlay;
+  }
+
+  // 填表流程收场后：只有浮层什么都不剩时才把面板放回来（填成功的会留下结果条，
+  // 用户亲手关掉的也不该被这个函数复活）
+  function restoreJobBoardPanel() {
+    if (overlayEl || !panelConfig) return;
+    if (!detectJobBoard()) return;
+    showJobBoardPanel(panelConfig);
   }
 
   // ─── Learn prompt (post-submission) ───────────────────────────
@@ -2034,7 +2311,7 @@
             type: 'saveLearnedData',
             data: { learned_fields: selectedData },
           });
-          showToast(`Saved ${selectedData.length} answer${selectedData.length > 1 ? 's' : ''}`, 'success');
+          showToast(t('overlay.learnSaved', { count: selectedData.length }), 'success');
         } catch { /* skip */ }
       }
       promptEl.remove();
@@ -2295,9 +2572,9 @@
         : null;
 
       if (atsAdapter) {
-        showOverlay(`Detected ${atsAdapter.name} \u2014 analyzing form...`);
+        showOverlay(t('overlay.detectedAnalyzing', { name: atsAdapter.name })); // raw business content: ATS product name
       } else {
-        showOverlay('Analyzing form...');
+        showOverlay(t('overlay.analyzingGeneric'));
       }
 
       await withTimeout((async () => {
@@ -2418,6 +2695,10 @@
       } else {
         updateOverlay('error', t('errors.dynamic', { detail: extErrorMessage(err) }));
       }
+    } finally {
+      // 招聘站点上的面板是常驻的：填表流程退出（没检测到表单、ATS 内嵌页直接
+      // 返回）后把面板放回来，别让用户以为面板不见了
+      restoreJobBoardPanel();
     }
   }
 
@@ -2879,6 +3160,12 @@
 
   /** Re-render the overlay chrome in the current language. */
   function refreshOverlayLabels() {
+    // 常驻面板：整块重绘一次（状态、按钮、抓取进度都是同一份状态算出来的）
+    if (overlayMode === 'panel' && panelConfig) {
+      renderPanel(panelConfig);
+      return;
+    }
+
     if (!overlayEl || !overlayEl.isConnected) return;
     const title = overlayEl.querySelector(`.${PREFIX}-overlay-title`);
     if (title) title.textContent = t('overlay.brand');
@@ -2931,6 +3218,19 @@
           });
           return true;
 
+        case 'startCapture':
+          captureCurrentPage().then((result) => {
+            sendResponse(result);
+          }).catch(err => {
+            sendResponse({ ok: false, error: err.message });
+          });
+          return true;
+
+        // 弹窗问「这个页面上有申请表可填吗」：和常驻面板同一条判据
+        case 'detectForm':
+          sendResponse({ ok: true, hasForm: pageHasApplicationForm() });
+          return false;
+
         case 'queueFill':
           startQueueFill(message).then(() => {
             sendResponse({ ok: true, state: currentState });
@@ -2973,6 +3273,403 @@
   });
 
   // ─── Job Board Detection & Overlay ──────────────────────────────
+
+  // 招聘站点改版会直接换掉 class 名（BOSS 直聘改版尤其频繁），单一选择器一失效
+  // 整条采集链路就静默断掉。因此每个字段都接受"从精确到宽松"的候选列表。
+  function asSelectorList(value) {
+    if (!value) return [];
+    return Array.isArray(value) ? value.filter(Boolean) : [value];
+  }
+
+  function queryFirst(root, selectorList, fallbackRoot) {
+    if (!root) return null;
+    for (const selector of asSelectorList(selectorList)) {
+      const found = root.querySelector(selector);
+      if (found) return found;
+      if (fallbackRoot && fallbackRoot !== root) {
+        const fallback = fallbackRoot.querySelector(selector);
+        if (fallback) return fallback;
+      }
+    }
+    return null;
+  }
+
+  function textOf(root, selectorList, fallbackRoot) {
+    const el = queryFirst(root, selectorList, fallbackRoot);
+    return el ? (el.innerText || el.textContent || '').trim() : '';
+  }
+
+  const SALARY_RANGE_RE = /(\d+(?:\.\d+)?)\s*[-~—－～]\s*(\d+(?:\.\d+)?)\s*([KkＫｋWw万])/;
+  const SALARY_TEXT_RE = /\d+(?:\.\d+)?\s*[-~—－～]\s*\d+(?:\.\d+)?\s*[KkＫｋWw万][^\s·，,；;]*/g;
+  const NEGOTIABLE_SALARY_RE = /面议|面谈|薪资面议/;
+
+  function parseSalaryText(rawText) {
+    const text = (rawText || '').trim();
+    if (!text) return {};
+    // 「面议」没有区间可解析，交给用户在看板上人工判断
+    if (NEGOTIABLE_SALARY_RE.test(text)) return {};
+    const match = text.match(SALARY_RANGE_RE);
+    if (!match) return {};
+    const multiplier = /万/.test(match[3]) ? 10000 : 1000;
+    return {
+      salary_min: Math.round(parseFloat(match[1]) * multiplier),
+      salary_max: Math.round(parseFloat(match[2]) * multiplier),
+    };
+  }
+
+  // 详情页把职位名和薪资塞进同一个容器（<div class="name"><h1>前端开发</h1>
+  // <span class="salary">15-25K</span></div>），直接取容器文本会得到
+  // "前端开发工程师15-25K"。这里剥掉薪资片段与「【急招】」之类的前缀。
+  function cleanJobTitle(rawText, salaryText) {
+    let value = (rawText || '').replace(/[\u00a0\s]+/g, ' ').trim();
+    if (!value) return '';
+    const salary = (salaryText || '').replace(/[\u00a0\s]+/g, ' ').trim();
+    if (salary && value.includes(salary)) value = value.split(salary).join(' ');
+    value = value.replace(SALARY_TEXT_RE, ' ');
+    value = value.replace(/^【[^】]{0,30}】\s*/, '');
+    return value.replace(/[\u00a0\s]+/g, ' ').trim();
+  }
+
+  function cleanCompanyName(rawText) {
+    return (rawText || '')
+      .replace(/[\u00a0\s]+/g, ' ')
+      .replace(/\s*招聘$/, '')
+      .trim();
+  }
+
+  // 详情页把地点、经验、学历串成一段（"北京·朝阳区 ·3-5年 ·本科"），
+  // 而列表卡片上就是纯地点（"北京·朝阳区"）。逐段扫描，遇到经验/学历片段就停。
+  const NON_LOCATION_TOKEN = /^(经验不限|经验优先|学历不限|不限|应届|在校|全职|兼职|实习|\d{1,2}\s*[-~—～]\s*\d{1,2}\s*年|\d{1,2}\s*年|大专|本科|硕士|博士)/;
+
+  function cleanLocation(rawText) {
+    const value = (rawText || '').replace(/[\u00a0\s]+/g, ' ').trim();
+    if (!value) return '';
+    const kept = [];
+    for (const segment of value.split('·')) {
+      const token = segment.replace(/^[\s,，、]+|[\s,，、]+$/g, '');
+      if (!token) continue;
+      const head = token.split(/\s+/)[0];
+      if (NON_LOCATION_TOKEN.test(token) || NON_LOCATION_TOKEN.test(head)) break;
+      kept.push(token);
+      if (kept.length >= 2) break;  // 城市 + 区县已经够了
+    }
+    return kept.join('·').trim();
+  }
+
+  // ── 平台词汇归一化 ────────────────────────────────────────────
+  //
+  // 经验/学历/公司规模/融资阶段/福利标签的值直接来自招聘平台原文，属业务内容，
+  // 界面不翻译；归一化只把平台的写法收敏到 PRD 6.2.1 的枚举（对不上就原样保留，
+  // 宁可存平台新词，也不丢信息）。
+  const COMPANY_SIZE_ENUM = ['0-20', '20-99', '100-499', '500-999', '1000-9999', '10000+'];
+  const COMPANY_STAGE_ENUM = ['未融资', '天使轮', 'A轮', 'B轮', 'C轮', 'D轮及以上', '已上市', '不需要融资'];
+  const EXPERIENCE_TOKEN_RE = /(经验不限|应届|在校|\d+\s*[-~—－到至]\s*\d+\s*年|\d+\s*年[以上以内下]*|不限)/;
+  const EDUCATION_TOKEN_RE = /(学历不限|大专|专科|高职|本科|学士|硕士|研究生|博士|中专|中技|高中|初中|MBA|EMBA|不限)/;
+
+  function collapseText(value) {
+    return (value || '').replace(/[\u00a0\s]+/g, '').trim();
+  }
+
+  function normalizeExperience(rawText) {
+    const text = collapseText(rawText).replace(/[~～—－到至]/g, '-');
+    if (!text) return '';
+    if (/不限/.test(text)) return '不限';
+    if (/应届|在校/.test(text)) return '应届';
+    if (/1年以内|一年以内/.test(text)) return '1年以内';
+    if (/10年以上/.test(text)) return '10年以上';
+    if (/5-10年/.test(text)) return '5-10年';
+    if (/3-5年/.test(text)) return '3-5年';
+    if (/1-3年/.test(text)) return '1-3年';
+    return text;  // 平台用词超出 PRD 枚举时原样保留
+  }
+
+  function normalizeEducation(rawText) {
+    const text = collapseText(rawText);
+    if (!text) return '';
+    if (/不限/.test(text)) return '不限';
+    if (/博士/.test(text)) return '博士';
+    if (/硕士|研究生/.test(text)) return '硕士';
+    if (/本科|学士/.test(text)) return '本科';
+    if (/大专|专科|高职/.test(text)) return '大专';
+    return text;
+  }
+
+  function normalizeCompanySize(rawText) {
+    const text = collapseText(rawText).replace(/[~～—－到至]/g, '-');
+    if (!text) return '';
+    const range = text.match(/(\d+)\s*-\s*(\d+)/);
+    if (range) return `${range[1]}-${range[2]}`;
+    const above = text.match(/(\d+)\s*人以上/);
+    if (above) return above[1] === '10000' ? '10000+' : `${above[1]}+`;
+    return text;
+  }
+
+  // 只认已知融资阶段，认不出就返回空（用于从大段文本里挑，避免把整段文字当阶段）
+  function matchCompanyStage(rawText) {
+    const text = collapseText(rawText);
+    if (!text) return '';
+    const stage = COMPANY_STAGE_ENUM.find((item) => text.includes(item));
+    if (stage) return stage;
+    if (/不需要融资|无需融资/.test(text)) return '不需要融资';
+    if (/未融资/.test(text)) return '未融资';
+    if (/天使/.test(text)) return '天使轮';
+    if (/上市/.test(text)) return '已上市';
+    if (/[D-Z]轮/i.test(text)) return 'D轮及以上';
+    const round = text.match(/([A-C])轮/i);
+    return round ? `${round[1].toUpperCase()}轮` : '';
+  }
+
+  function normalizeCompanyStage(rawText) {
+    const text = collapseText(rawText);
+    if (!text) return '';
+    return matchCompanyStage(text) || text;  // 平台新词原样保留
+  }
+
+  // 列表卡片的标签是混装的（经验、学历、福利、融资阶段放在同一个 tag-list），
+  // 所以按内容分类而不是按位置取。
+  function classifyJobTags(texts) {
+    const out = {
+      experience_req: '', education_req: '', company_size: '', company_stage: '', job_labels: [],
+    };
+    for (const raw of texts || []) {
+      const text = (raw || '').replace(/\s+/g, ' ').trim();
+      if (!text || text.length > 20) continue;
+      if (!out.experience_req && EXPERIENCE_TOKEN_RE.test(text)) {
+        out.experience_req = normalizeExperience(text);
+        continue;
+      }
+      if (!out.education_req && EDUCATION_TOKEN_RE.test(text)) {
+        out.education_req = normalizeEducation(text);
+        continue;
+      }
+      if (!out.company_size && /\d+\s*[-~—－]\s*\d+\s*人|\d+\s*人以上/.test(text)) {
+        out.company_size = normalizeCompanySize(text);
+        continue;
+      }
+      const stage = matchCompanyStage(text);
+      if (!out.company_stage && stage) {
+        out.company_stage = stage;
+        continue;
+      }
+      if (out.job_labels.length < 20 && !out.job_labels.includes(text)) out.job_labels.push(text);
+    }
+    return out;
+  }
+
+  function collectTagTexts(root, selectorList) {
+    const texts = [];
+    for (const selector of asSelectorList(selectorList)) {
+      for (const node of root.querySelectorAll(selector)) {
+        const items = node.querySelectorAll('li, span, i, em');
+        const nodes = items.length ? Array.from(items) : [node];
+        for (const item of nodes) {
+          const text = (item.textContent || '').replace(/\s+/g, ' ').trim();
+          if (text) texts.push(text);
+        }
+      }
+      if (texts.length) break;  // 精确选择器命中后不再叠加，避免同一批标签被取两次
+    }
+    return texts;
+  }
+
+  // 公司规模在详情页是散落的文本（“100-499人”），而且同一个块里就混着融资阶段
+  // （“已上市 1000-9999人”），所以按模式取而不是直接信选择器命中的整段文字。
+  function findCompanySize(rawText) {
+    const text = (rawText || '').replace(/[\u00a0\s]+/g, ' ').trim();
+    const size = text.match(/\d+\s*[-~—－]\s*\d+\s*人|\d+\s*人以上/);
+    return size ? normalizeCompanySize(size[0]) : '';
+  }
+
+  // 公司规模/融资阶段在详情页是散落的文本（“100-499人 · 不需要融资”），
+  // 按模式在文本块里找比逐个猜 class 更耐改版。
+  function findCompanyFacts(rawText) {
+    const text = (rawText || '').replace(/[\u00a0\s]+/g, ' ').trim();
+    const out = { company_size: '', company_stage: '' };
+    if (!text) return out;
+    out.company_size = findCompanySize(text);
+    // 只在前 200 字里找融资阶段：公司信息块很短，而 JD 正文里可能顺口提到“已上市”
+    out.company_stage = matchCompanyStage(text.slice(0, 200));
+    return out;
+  }
+
+  // ── C1：页面上下文接口采集（DOM 改版时的兼底） ────────────────────
+  //
+  // extension/boss-page-bridge.js（MAIN world）把页面自己发出的职位接口
+  // 响应转发过来，这里负责校验与归一化。纪律：只接受「与当前页面职位 id 对得上」
+  // 的载荷，因此页面上的第三方脚本无法凭空往本地库里写职位。
+  const BOSS_API_LIMIT_PER_PAGE = 30;
+  const BOSS_JOB_KEY_HINTS = [
+    'jobName', 'jobTitle', 'salaryDesc', 'jobDescription', 'jobDesc',
+    'brandName', 'encryptJobId', 'experienceName', 'degreeName',
+  ];
+
+  const bossApiJobs = new Map();  // 职位 id → 归一化后的接口数据
+
+  function currentDetailJobIds(config) {
+    const detail = config && config.detailPage;
+    if (!detail || !detail.urlPattern.test(window.location.pathname)) return {};
+    const match = window.location.pathname.match(/\/job_detail\/([^/?#]+?)(?:\.html)?$/);
+    let securityId = '';
+    try {
+      securityId = new URL(window.location.href).searchParams.get('securityId') || '';
+    } catch { securityId = ''; }
+    return { pathId: match ? match[1] : '', securityId };
+  }
+
+  function stripHtmlText(value) {
+    return (value || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/[\u00a0\s]+/g, ' ')
+      .trim();
+  }
+
+  // 接口层级各版本不同（zpData.jobInfo / zpData.data.job / 列表 item），所以不硬编码
+  // 路径：在有限深度里找「像职位」的对象（同时命中多个职位字段名）。
+  function findJobLikeObjects(node, depth, out) {
+    if (!node || typeof node !== 'object' || depth > 5 || out.length >= 50) return out;
+    if (Array.isArray(node)) {
+      for (const item of node) findJobLikeObjects(item, depth + 1, out);
+      return out;
+    }
+    let hints = 0;
+    for (const hint of BOSS_JOB_KEY_HINTS) {
+      if (hint in node) hints += 1;
+    }
+    if (hints >= 2) out.push(node);
+    for (const value of Object.values(node)) {
+      if (value && typeof value === 'object') findJobLikeObjects(value, depth + 1, out);
+    }
+    return out;
+  }
+
+  function normalizeBossApiJob(job) {
+    const pick = (...keys) => {
+      for (const key of keys) {
+        const value = job[key];
+        if (typeof value === 'string' && value.trim()) return value.trim();
+      }
+      return '';
+    };
+
+    const out = {};
+    const salaryText = pick('salaryDesc', 'salary');
+    const title = cleanJobTitle(pick('jobName', 'jobTitle'), salaryText);
+    if (title) out.title = title;                        // raw business content
+    const company = cleanCompanyName(pick('brandName', 'companyName'));
+    if (company) out.company = company;                  // raw business content
+    Object.assign(out, parseSalaryText(salaryText));
+
+    const city = pick('cityName', 'locationName', 'jobArea');
+    const district = pick('areaDistrict', 'businessDistrict');
+    const locationParts = city ? [city] : [];
+    if (district && district !== city) locationParts.push(district);
+    const location = locationParts.join('·');
+    if (location) out.location = location;               // raw business content
+
+    const experience = pick('experienceName', 'jobExperience', 'experience');
+    if (experience) out.experience_req = normalizeExperience(experience);
+    const education = pick('degreeName', 'jobDegree', 'education');
+    if (education) out.education_req = normalizeEducation(education);
+    const size = pick('brandScaleName', 'scaleName', 'companySize');
+    if (size) out.company_size = normalizeCompanySize(size);
+    const stage = pick('brandStageName', 'stageName', 'companyStage');
+    if (stage) out.company_stage = normalizeCompanyStage(stage);
+
+    // 福利优先取 welfareList；skills 是技能标签，不当福利存
+    const labels = job.welfareList || job.jobLabels || job.labels;
+    if (Array.isArray(labels)) {
+      out.job_labels = labels
+        .filter((label) => typeof label === 'string' && label.trim())
+        .map((label) => label.trim().slice(0, 40))
+        .slice(0, 20);
+    }
+
+    const description = stripHtmlText(pick('jobDescription', 'jobDesc', 'postDescription', 'description'));
+    if (description) out.description = description.slice(0, 20000);
+
+    return Object.keys(out).length ? out : null;
+  }
+
+  function extractBossApiJob(payload, responseUrl, pageIds = {}) {
+    const candidates = findJobLikeObjects(payload, 0, []);
+    if (!candidates.length) return null;
+
+    const matchIds = [pageIds.pathId, pageIds.securityId].filter(Boolean);
+    const idsOf = (job) => [job.encryptJobId, job.encryptId, job.jobId, job.securityId]
+      .filter(Boolean).map(String);
+
+    let pool = candidates.filter((job) => idsOf(job).some((id) => matchIds.includes(id)));
+    if (!pool.length) {
+      // 载荷不带 id 时，要求响应 URL 自己带着当前页面的职位 id；
+      // 否则很可能是「相似职位/推荐位」的数据，宁可不采。
+      const urlMatches = typeof responseUrl === 'string'
+        && matchIds.some((id) => responseUrl.includes(id));
+      if (matchIds.length && !urlMatches) return null;
+      pool = candidates.filter((job) => (job.jobName || job.jobTitle)
+        && (job.jobDescription || job.jobDesc || job.description));
+      if (!pool.length) return null;
+    }
+
+    const best = pool.sort((a, b) => {
+      const score = (job) => (job.jobDescription || job.jobDesc || job.description ? 2 : 0)
+        + (job.jobName || job.jobTitle ? 1 : 0);
+      return score(b) - score(a);
+    })[0];
+    return normalizeBossApiJob(best);
+  }
+
+  function initBossApiSniffer(config) {
+    if (!config || !config.detailPage) return false;
+    if (!/(^|\.)zhipin\.com$/.test(window.location.hostname)) return false;
+
+    let accepted = 0;
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      const message = event.data;
+      if (!message || message.__cpBossApi !== true) return;
+      if (accepted >= BOSS_API_LIMIT_PER_PAGE) return;
+
+      const pageIds = currentDetailJobIds(config);
+      const key = pageIds.pathId || pageIds.securityId;
+      if (!key) return;  // 只在职位详情页接受
+
+      const job = extractBossApiJob(message.payload, message.url, pageIds);
+      if (!job) return;
+      accepted += 1;
+      bossApiJobs.set(key, { ...(bossApiJobs.get(key) || {}), ...job });
+    });
+
+    // 页面早期的响应被页面 world 缓冲着，这里主动要一次重投
+    try {
+      window.postMessage({ __cpBossApiRequest: true }, window.location.origin);
+    } catch { /* 忽略 */ }
+    return true;
+  }
+
+  function capturedBossApiJob(config) {
+    const { pathId, securityId } = currentDetailJobIds(config);
+    return bossApiJobs.get(pathId || securityId) || null;
+  }
+
+  // DOM 是用户眼前看到的东西，优先；接口数据补齐 DOM 采不到/改版采不到的字段。
+  function mergeBossDetailData(domData, apiData) {
+    if (!domData && !apiData) return null;
+    const merged = { ...(apiData || {}), ...(domData || {}) };
+    for (const [key, value] of Object.entries(apiData || {})) {
+      const current = merged[key];
+      const empty = current === undefined || current === ''
+        || (Array.isArray(current) && current.length === 0);
+      if (empty) merged[key] = value;
+    }
+    if (!merged.description) return null;  // 没有正文就没有采集价值
+    return merged;
+  }
 
   const JOB_BOARD_CONFIGS = {
     'linkedin.com': {
@@ -3043,7 +3740,102 @@
         } catch { return null; }
       },
     },
+    'zhipin.com': {
+      name: 'BOSS直聘', // i18n-audit-ignore: 站点名（专有名词），两种语言一致
+      listingSelector: '.job-card-wrapper, .job-card-box, .job-list-box > li, li[class*="job-card"]',
+      titleSelector: ['.job-name', '[class*="job-name"]', '.job-card-body h3', 'h3'],
+      companySelector: [
+        '.company-name a',
+        '.company-name',
+        '[class*="company-name"]',
+        '.job-card-footer .name a',
+        // 大改版时 class 会换，但指向公司主页的链接不会：这是最稳的一手
+        'a[href*="/gongsi/"]',
+      ],
+      locationSelector: ['.job-area', '.job-area-wrapper', '[class*="job-area"]'],
+      salarySelector: ['.job-salary', '.salary', '[class*="salary"]'],
+      tagSelector: ['.tag-list li', '.tag-list', '.job-card-body .job-tags span'],
+      companyTagSelector: ['.company-tag-list li', '.company-tag-list span', '.company-tag-list'],
+      companyBlobSelector: ['.job-card-footer', '.company-info'],
+      normalize: { title: true, company: true, location: true },
+      getJobUrl: (card) => {
+        const link = card.querySelector('a[href*="/job_detail/"]');
+        if (!link) return null;
+        return stableBoardUrl(link.getAttribute('href') || link.href);
+      },
+      captureDetailPage: true,
+      detailPage: {
+        urlPattern: /\/job_detail\//,
+        containerSelector: ['.job-detail', '.job-detail-section', '.job-sec-container', '#main'],
+        // 容器在旧版是 .job-detail，新版拆成了 .job-primary + 多个 .job-sec 区块，
+        // 因此标题/公司名按"从最精确到最宽松"的顺序依次尝试。
+        titleSelector: [
+          '.job-primary .name h1',
+          '.info-primary .name h1',
+          '.job-detail-header h1',
+          '.job-banner .name h1',
+          '.job-primary .name',
+          '.info-primary .name',
+          '.job-banner .name',
+          'h1',
+        ],
+        companySelector: [
+          '.job-primary .company-info .name',
+          '.info-company .company-info .name',
+          '.company-info .name',
+          '.sider-company .company-info .name',
+          '.job-sider .company-info .name',
+          '.job-sider .company',
+          '.company-name',
+          // 大改版时 class 全换，但指向公司主页的链接不会换
+          'a[href*="/gongsi/"]',
+        ],
+        locationSelector: [
+          '.job-primary .info-primary p',
+          '.info-primary p',
+          '.job-banner .job-place',
+          '.job-place',
+          '.location-address',
+        ],
+        salarySelector: [
+          '.job-primary .salary',
+          '.info-primary .salary',
+          '.job-banner .salary',
+          '.salary',
+          '.job-salary',
+        ],
+        descriptionSelector: [
+          '.job-sec-text',
+          '.job-detail-section .job-sec-text',
+          '[class*="job-sec-text"]',
+          '.job-detail-content',
+        ],
+        descriptionHeadingKeywords: ['职位描述', '岗位职责', '工作职责', '职位要求'],
+        // 详情页把「城市·经验·学历」串成一行，其余属性散在标签与公司信息块里
+        metaSelector: ['.job-primary .info-primary p', '.info-primary p', '.job-banner .job-place', '.job-place'],
+        tagSelector: ['.job-keyword-list li', '.job-tags li', '.job-tags span', '.tag-list li', '[class*="keyword"] li'],
+        companyStageSelector: ['.company-info-other .company-info-item', '.company-tag-list li', '.company-tag-list span'],
+        companySizeSelector: ['.company-info-other span', '.company-info .size', '[class*="scale"]'],
+        companyBlobSelector: ['.job-sider', '.info-company', '.job-primary'],
+        normalize: { title: true, company: true, location: true },
+        getJobUrl: (loc) => stableBoardUrl(loc.href),
+      },
+    },
   };
+
+  // 列表卡片与详情页的链接都带 lid / securityId 之类的会话参数，去掉后
+  // 同一个职位在"卡片采集"和"详情页补 JD"两次回传中才是同一个 URL。
+  function stableBoardUrl(rawUrl) {
+    if (!rawUrl) return null;
+    try {
+      const url = new URL(rawUrl, window.location.origin);
+      url.search = '';
+      url.hash = '';
+      const path = url.pathname.replace(/\/+$/, '');
+      url.pathname = path || '/';
+      return url.href;
+    } catch { return null; }
+  }
 
   function detectJobBoard() {
     const hostname = window.location.hostname;
@@ -3055,21 +3847,136 @@
     return null;
   }
 
+  function cardSalary(card, config) {
+    if (config.salarySelector) return parseSalaryText(textOf(card, config.salarySelector));
+    if (typeof config.parseSalary === 'function') return config.parseSalary(card) || {};
+    return {};
+  }
+
   function parseJobCard(card, config) {
-    const titleEl = card.querySelector(config.titleSelector);
-    const companyEl = card.querySelector(config.companySelector);
-    const locationEl = card.querySelector(config.locationSelector);
+    const titleEl = queryFirst(card, config.titleSelector);
     const url = config.getJobUrl(card);
 
     if (!titleEl || !url) return null;
 
+    const rules = config.normalize || {};
+    const salaryText = config.salarySelector ? textOf(card, config.salarySelector) : '';
+    const rawTitle = (titleEl.innerText || titleEl.textContent || '').trim();
+    // 列表是懒渲染的：骨架阶段的标题是空的。此时不能建按钮（payload 会被后端
+    // 以「职位名称和公司为必填项」拒掉），返回 null 让下一轮扫描重新处理。
+    if (!rawTitle) return null;
+    const rawCompany = textOf(card, config.companySelector);
+    const rawLocation = textOf(card, config.locationSelector);
+
+    // 卡片上的 经验/学历/福利 混在同一个标签列表里，按内容分类
+    const tags = classifyJobTags([
+      ...collectTagTexts(card, config.tagSelector),
+      ...collectTagTexts(card, config.companyTagSelector),
+    ]);
+    const companyFacts = config.companyBlobSelector
+      ? findCompanyFacts(textOf(card, config.companyBlobSelector))
+      : { company_size: '', company_stage: '' };
+
     return {
-      title: titleEl.textContent.trim(),
-      company: companyEl ? companyEl.textContent.trim() : '',
-      location: locationEl ? locationEl.textContent.trim() : '',
+      title: rules.title ? cleanJobTitle(rawTitle, salaryText) : rawTitle,
+      company: rules.company ? cleanCompanyName(rawCompany) : rawCompany,
+      location: rules.location ? cleanLocation(rawLocation) : rawLocation,
       url,
       source: config.name,
+      ...cardSalary(card, config),
+      experience_req: tags.experience_req,
+      education_req: tags.education_req,
+      company_size: companyFacts.company_size || tags.company_size,
+      company_stage: companyFacts.company_stage || tags.company_stage,
+      job_labels: tags.job_labels,
     };
+  }
+
+  // 扩展被重新加载后，已经打开的页面里那份内容脚本就与扩展失联了：
+  // chrome.runtime 还在，但 id 没了，任何消息都发不出去。重试无用，只能刷新页面。
+  function extensionContextAlive() {
+    try {
+      return Boolean(chrome && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function markSaveButtonRetryable(btn, reason) {
+    btn.textContent = t('overlay.errorRetry');
+    btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
+    btn.classList.add(`${OVERLAY_PREFIX}-error`);
+    btn.disabled = false;
+    if (reason) {
+      btn.title = reason;
+      showToast(t('overlay.saveFailed', { reason }), 'error');
+    }
+  }
+
+  function markSaveButtonDone(btn) {
+    btn.textContent = t('overlay.saved');
+    btn.classList.remove(`${OVERLAY_PREFIX}-saving`, `${OVERLAY_PREFIX}-error`);
+    btn.classList.add(`${OVERLAY_PREFIX}-saved`);
+    btn.disabled = true;
+    btn.removeAttribute('title');
+  }
+
+  function isCardSaved(card) {
+    const btn = card.querySelector(`.${OVERLAY_PREFIX}-save-btn`);
+    return Boolean(btn && btn.classList.contains(`${OVERLAY_PREFIX}-saved`));
+  }
+
+  // 卡片保存的唯一入口：右上角按钮和「一键抓取本页岗位」走同一条链路，
+  // 保证按钮状态、匹配分角标与统计口径始终一致。
+  // 返回 'saved' | 'failed' | 'stale'（内容脚本与扩展失联，只能刷新页面）| 'skipped'。
+  async function submitJobCard(jobData, card, btn) {
+    if (!extensionContextAlive()) {
+      // 提示刷新而不是「重试」：这种情况下重试永远不会成功
+      markSaveButtonRetryable(btn, '');
+      showToast(t('overlay.refreshRequired'), 'error');
+      return 'stale';
+    }
+
+    btn.disabled = true;
+    btn.textContent = t('overlay.saving');
+    btn.classList.add(`${OVERLAY_PREFIX}-saving`);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'saveJob',
+        jobData,
+      });
+
+      if (response && response.ok) {
+        if (response.data?.created === false) {
+          // 后端认出来是已在库里的职位（详情页补采时很常见）
+          markSaveButtonDone(btn);
+          if (response.data?.score != null) showScoreBadge(card, response.data.score);
+          return 'skipped';
+        }
+        markSaveButtonDone(btn);
+        if (response.data?.score != null) {
+          showScoreBadge(card, response.data.score);
+        }
+        return 'saved';
+      }
+
+      // 把后端的错误码翻成中文原因（如「职位名称和公司为必填项」），
+      // 别再让用户面对一个无信息量的「出错了」
+      const reason = response && (response.code || response.detail)
+        ? (typeof extErrorMessage === 'function' ? extErrorMessage(response) : response.detail)
+        : (response && response.error) || '';
+      markSaveButtonRetryable(btn, reason);
+      return 'failed';
+    } catch (err) {
+      if (/extension context invalidated|message port closed|receiving end does not exist/i.test(err?.message || '')) {
+        markSaveButtonRetryable(btn, '');
+        showToast(t('overlay.refreshRequired'), 'error');
+        return 'stale';
+      }
+      markSaveButtonRetryable(btn, typeof extErrorMessage === 'function' ? extErrorMessage(err) : '');
+      return 'failed';
+    }
   }
 
   function createSaveButton(jobData, card) {
@@ -3084,38 +3991,7 @@
     btn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-
-      btn.disabled = true;
-      btn.textContent = t('overlay.saving');
-      btn.classList.add(`${OVERLAY_PREFIX}-saving`);
-
-      try {
-        const response = await chrome.runtime.sendMessage({
-          type: 'saveJob',
-          jobData,
-        });
-
-        if (response && response.ok) {
-          btn.textContent = t('overlay.saved');
-          btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
-          btn.classList.add(`${OVERLAY_PREFIX}-saved`);
-          btn.disabled = true;
-
-          if (response.data?.score != null) {
-            showScoreBadge(card, response.data.score);
-          }
-        } else {
-          btn.textContent = t('overlay.errorRetry');
-          btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
-          btn.classList.add(`${OVERLAY_PREFIX}-error`);
-          btn.disabled = false;
-        }
-      } catch {
-        btn.textContent = t('overlay.errorRetry');
-        btn.classList.remove(`${OVERLAY_PREFIX}-saving`);
-        btn.classList.add(`${OVERLAY_PREFIX}-error`);
-        btn.disabled = false;
-      }
+      await submitJobCard(jobData, card, btn);
     });
 
     const wrapper = document.createElement('div');
@@ -3138,7 +4014,7 @@
 
     const numScore = Math.round(Number(score));
     badge.textContent = `${numScore}%`;
-    badge.title = `CareerPulse match score: ${numScore}%`;
+    badge.title = t('a11y.matchScoreTitle', { score: numScore });
 
     badge.classList.remove(
       `${OVERLAY_PREFIX}-score-high`,
@@ -3155,16 +4031,28 @@
     }
   }
 
+  // 列表是虚拟滚动的：同一个 <li> 会被回收给别的职位，只看 "已处理" 标记
+  // 会把上一个职位的按钮和匹配分留在新职位上。
+  function resetCardOverlay(card) {
+    card.querySelectorAll(`.${OVERLAY_PREFIX}-actions, .${OVERLAY_PREFIX}-score-badge`)
+      .forEach((el) => el.remove());
+  }
+
   async function processJobCards(config) {
     const cards = document.querySelectorAll(config.listingSelector);
     if (!cards.length) return;
 
     for (const card of cards) {
-      if (card.dataset.cpProcessed) continue;
-      card.dataset.cpProcessed = 'true';
-
       const jobData = parseJobCard(card, config);
       if (!jobData) continue;
+
+      // 签名包含标题与公司：虚拟滚动回收节点、或懒渲染后把内容补齐时，
+      // 都要重新处理（否则按钮挂在旧数据上，点了必然被后端拒掉）。
+      const signature = [jobData.url, jobData.title, jobData.company].join('|');
+      if (card.dataset.cpProcessed === signature) continue;
+      if (card.dataset.cpProcessed) resetCardOverlay(card);
+      card.dataset.cpProcessed = signature;
+      card.dataset.cpProcessedUrl = jobData.url;
 
       try {
         const lookupResp = await chrome.runtime.sendMessage({
@@ -3172,14 +4060,19 @@
           url: jobData.url,
         });
 
-        if (lookupResp && lookupResp.ok && lookupResp.data) {
+        const data = (lookupResp && lookupResp.ok && lookupResp.data) || null;
+        // 后端对未收录的职位返回 {found:false}（HTTP 200），只判断 data 是否存在
+        // 会把每个新职位都画成"已保存"，按钮从此点不动。
+        const found = Boolean(data && (data.found === true || data.job_id != null));
+
+        if (found) {
           const btn = createSaveButton(jobData, card);
           btn.textContent = t('overlay.saved');
           btn.classList.add(`${OVERLAY_PREFIX}-saved`);
           btn.disabled = true;
 
-          if (lookupResp.data.score != null) {
-            showScoreBadge(card, lookupResp.data.score);
+          if (data.score != null) {
+            showScoreBadge(card, data.score);
           }
         } else {
           createSaveButton(jobData, card);
@@ -3197,14 +4090,501 @@
     scanTimer = setTimeout(() => processJobCards(config), SCAN_DEBOUNCE_MS);
   }
 
+  // ─── 一键抓取本页岗位 ─────────────────────────────────────────
+  //
+  // 网页端的「立即抓取」按钮会请求扩展采集（见 app/routers/capture.py），
+  // 这里提供真正的执行体：把**当前页面上已经渲染出来**的卡片一次性全部回传。
+  // 只动用户眼前看得到的内容：不翻页、不滚屏、不发任何平台请求。
+
+  // PRD §5.2：单次会话最多采集 100 条
+  const BULK_CAPTURE_LIMIT = 100;
+  // 并发几路回传：本地服务写一条约 10ms，真正的成本是消息往返。
+  //
+  // 这里**刻意不用 setTimeout 做节流**：用户点网页上的「立即抓取」时，BOSS 标签页
+  // 是隐藏的，而 Chrome 会把隐藏页面的定时器降到 1 秒一次 —— 45 张卡片就会从
+  // 6 秒变成 45 秒，网页端等不到结果只能报超时。改成并发：既不碰定时器，
+  // 又比串行更快。
+  const BULK_CAPTURE_CONCURRENCY = 3;
+  // 进度上报节流（毫秒）：网页端靠它区分「在跑」与「卡住」
+  const BULK_PROGRESS_REPORT_MS = 800;
+
+  let bulkCaptureInFlight = false;
+
+  function collectVisibleJobCards(config, limit = BULK_CAPTURE_LIMIT) {
+    if (!config || !config.listingSelector) return [];
+    const seen = new Set();
+    const entries = [];
+    for (const card of document.querySelectorAll(config.listingSelector)) {
+      const jobData = parseJobCard(card, config);
+      if (!jobData || !jobData.url || seen.has(jobData.url)) continue;
+      seen.add(jobData.url);
+      entries.push({ card, jobData });
+      if (entries.length >= limit) break;
+    }
+    return entries;
+  }
+
+  // 便宜的存在性检查（不走完整解析）：认领请求要带上「本页到底有没有职位卡片」，
+  // 而详情页上的内容脚本也在轮询 —— 让一个采不到东西的标签领走请求，用户只会
+  // 得到一句「没采到职位」，却不知道原因。
+  function hasVisibleCards(config) {
+    if (!config || !config.listingSelector) return false;
+    try {
+      return document.querySelector(config.listingSelector) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  async function captureVisibleJobs(config, options = {}) {
+    const entries = collectVisibleJobCards(config, options.limit || BULK_CAPTURE_LIMIT);
+    const summary = { total: entries.length, saved: 0, skipped: 0, failed: 0, reason: null };
+    if (!entries.length) {
+      // 空手而归也要说清楚为什么：网页据此提示「当前页面不是职位列表页」
+      summary.reason = 'no_listing';
+      return summary;
+    }
+
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+    const concurrency = Math.max(1, Math.min(
+      options.concurrency || BULK_CAPTURE_CONCURRENCY, entries.length
+    ));
+
+    const queue = entries.slice();
+    let stale = false;
+    let lastReport = 0;
+
+    function report(force) {
+      if (!onProgress) return;
+      const now = Date.now();
+      if (!force && now - lastReport < BULK_PROGRESS_REPORT_MS) return;
+      lastReport = now;
+      onProgress({ ...summary });
+    }
+
+    async function worker() {
+      while (!stale && queue.length) {
+        const { card, jobData } = queue.shift();
+        // 已经查过库、显示「已保存」的卡片直接跳过，不重复回传
+        if (isCardSaved(card)) {
+          summary.skipped++;
+          report();
+          continue;
+        }
+        const btn = card.querySelector(`.${OVERLAY_PREFIX}-save-btn`)
+          || createSaveButton(jobData, card);
+        const result = await submitJobCard(jobData, card, btn);
+        if (result === 'saved') summary.saved++;
+        else if (result === 'skipped') summary.skipped++;
+        else if (result === 'stale') {
+          // 扩展上下文已失联：剩下的卡片也不会有救，直接收摊。
+          // 这一张也算失败：它确实没进库。
+          summary.failed++;
+          stale = true;
+          break;
+        } else summary.failed++;
+        report();
+      }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    if (stale) summary.failed += queue.length;
+    report(true);
+    return summary;
+  }
+
+  function bulkSummaryText(summary) {
+    let text = t('overlay.bulkResult', { saved: summary.saved, skipped: summary.skipped });
+    if (summary.failed) text += t('overlay.bulkFailed', { count: summary.failed });
+    return text;
+  }
+
+  async function runVisibleCapture(config, onProgress) {
+    if (bulkCaptureInFlight) return null;
+    if (!extensionContextAlive()) {
+      showToast(t('overlay.refreshRequired'), 'error');
+      return null;
+    }
+    bulkCaptureInFlight = true;
+    let summary = null;
+    try {
+      if (onProgress) onProgress(true);
+      // 页面上的悬浮面板同时变成进度牌：抓取途中显示「已回传 X/N」，
+      // 用户不用等到最后一刻才知道进行到哪儿了。弹窗入口也走这条路，所以同样可见。
+      beginCaptureProgress();
+      summary = await captureVisibleJobs(config, { onProgress: updateCaptureProgress });
+      showToast(
+        summary.total
+          ? bulkSummaryText(summary)
+          : t('overlay.bulkNothing'),
+        summary.saved ? 'success' : 'info'
+      );
+      return summary;
+    } finally {
+      bulkCaptureInFlight = false;
+      if (onProgress) onProgress(false);
+      endCaptureProgress(summary, config);
+    }
+  }
+
+  // 扩展弹窗里的「立即抓取」（popup.js）：与页面左下角按钮共用同一条执行链路，
+  // 只是把统计结果回传给弹窗。采集仍然发生在当前页面：不翻页、不滚屏、不发平台请求。
+  async function captureCurrentPage() {
+    const config = detectJobBoard();
+    if (!config || !config.listingSelector) {
+      return { ok: false, code: 'capture.unsupported_site' };
+    }
+    // 两个入口共用一个开关：页面上已经在抓时，再点一次只会重复回传同一批职位
+    if (bulkCaptureInFlight) return { ok: false, code: 'capture.busy' };
+    const summary = await runVisibleCapture(config);
+    if (!summary) return { ok: false, code: 'capture.busy' };
+    return { ok: true, summary };
+  }
+
+  // ─── 悬浮面板上的「一键抓取」行 ───────────────────────────────
+  //
+  // 抓取入口在常驻面板里（见下面的 Job-board panel），这里只管它的文案与状态：
+  // 空闲时是本页卡片数，抓取途中是「已回传 X/N」，结束后把最终进度留几秒。
+
+  const CAPTURE_RESULT_LINGER_MS = 5000;  // 抓完先把结果停在面板上，再退回计数
+
+  let bulkButtonTimer = null;        // 卡片数重算的防抖
+  let captureProgress = null;        // 抓取途中最近一次进度快照
+  let captureResultSummary = null;   // 抓取结束后停在面板上的最终进度
+  let captureResultTimer = null;
+
+  function captureProgressText(summary) {
+    const done = summary.saved + summary.skipped + summary.failed;
+    return t('overlay.bulkProgress', { done, total: summary.total });
+  }
+
+  // 开始/进度/结束都只是改状态再重绘面板（paintPanel 是幂等的）
+  function beginCaptureProgress() {
+    if (captureResultTimer) { clearTimeout(captureResultTimer); captureResultTimer = null; }
+    captureProgress = null;
+    captureResultSummary = null;
+    paintPanel();
+  }
+
+  // captureVisibleJobs 每回传完几张就回调一次：面板同步成「已回传 X/N」
+  function updateCaptureProgress(progress) {
+    if (!progress) return;
+    captureProgress = progress;
+    paintPanel();
+  }
+
+  function endCaptureProgress(summary, config) {
+    if (captureResultTimer) { clearTimeout(captureResultTimer); captureResultTimer = null; }
+    const hasProgress = Boolean(summary && captureProgress);
+    captureProgress = null;
+    captureResultSummary = hasProgress ? summary : null;
+    paintPanel();
+    if (!hasProgress) return;
+    captureResultTimer = setTimeout(() => {
+      captureResultTimer = null;
+      captureResultSummary = null;
+      syncPanelCapture(config);
+    }, CAPTURE_RESULT_LINGER_MS);
+  }
+
+  // 面板上的抓取按钮：没有卡片时置灰并说明原因，不用用户猜
+  async function runPanelCapture() {
+    const result = await captureCurrentPage();
+    if (!result || result.ok !== false) return;
+    // 真正开抓时的反馈由 runVisibleCapture 负责，这里只补上「没开成」的原因
+    if (result.code === 'capture.busy') showToast(t('errors.captureBusy'), 'info');
+    else if (result.code === 'capture.unsupported_site') showToast(t('errors.captureUnsupportedSite'), 'error');
+  }
+
+  function syncPanelCapture(config) {
+    panelState.cardCount = config && config.listingSelector
+      ? collectVisibleJobCards(config).length
+      : 0;
+    // 页面每次变动都顺带重判一次表单可用性：晚出现的表单要自己把按钮点亮
+    panelState.hasForm = pageHasApplicationForm();
+    paintPanel();
+    // 打开页面时服务还没起来的话，面板会一直停在「无法连接」：低频复检一次
+    if (panelState.connected !== true
+      && Date.now() - lastPanelConnectionCheck > PANEL_CONNECTION_RETRY_MS) {
+      checkPanelConnection();
+    }
+  }
+
+  // 页面是无限滚动的：卡片随时会变多/变少，防抖后重算面板上的数量
+  function schedulePanelSync(config) {
+    if (bulkButtonTimer) clearTimeout(bulkButtonTimer);
+    bulkButtonTimer = setTimeout(() => syncPanelCapture(config), SCAN_DEBOUNCE_MS);
+  }
+
+  // 网页端「立即抓取」→ 服务端建一次采集请求 → 扩展轮询认领并在当前页面执行。
+  // 轮询只在识别出的招聘页面上运行（initJobBoardOverlay 里启动）。
+  const CAPTURE_POLL_MS = 3000;
+
+  let capturePollTimer = null;
+
+  async function pollCaptureRequest(config) {
+    if (bulkCaptureInFlight) return;
+    // 带上「本页有没有职位卡片」：没有的话服务端不会把请求派给这个标签，
+    // 但这次调用仍然算心跳，网页因此能说出「扩展在，只是页面不对」。
+    const hasListing = hasVisibleCards(config);
+    let resp = null;
+    try {
+      resp = await chrome.runtime.sendMessage({ type: 'claimCaptureRequest', hasListing });
+    } catch (err) {
+      // 扩展上下文失联（重载过扩展）→ 停止轮询，刷新页面后会重新启动
+      if (/extension context invalidated|message port closed|receiving end does not exist/i.test(err?.message || '')) {
+        stopCaptureRequestPolling();
+      }
+      return;
+    }
+    if (!resp || !resp.ok || !resp.data) return;
+    // 只认 `pending`：另一个标签认走之后，这里会拿到 pending=false + status=capturing
+    // （心跳式的重复轮询），跟着动手就会把同一批职位抓两遍。
+    if (resp.data.pending !== true || !resp.data.request_id) return;
+
+    const requestId = resp.data.request_id;
+    let summary = { total: 0, saved: 0, skipped: 0, failed: 0, reason: null };
+    bulkCaptureInFlight = true;
+    try {
+      beginCaptureProgress();
+      // 一次采集可能要几十秒（页面卡片多）：把进度报给服务端，网页端就不会
+      // 因为「太久没动静」而把一次正常采集判成超时；面板上顺手也刷一下进度。
+      summary = await captureVisibleJobs(config, {
+        onProgress: (progress) => {
+          updateCaptureProgress(progress);
+          try {
+            chrome.runtime
+              .sendMessage({ type: 'reportCaptureProgress', requestId, summary: progress })
+              .catch(() => {});
+          } catch { /* 进度报不上去不影响本地采集 */ }
+        },
+      });
+    } catch (err) {
+      console.warn('[CareerPulse] capture request failed:', err?.message || err);
+    } finally {
+      bulkCaptureInFlight = false;
+      endCaptureProgress(summary, config);
+    }
+
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'completeCaptureRequest',
+        requestId,
+        summary,
+        pageUrl: window.location.href, // raw business content (当前页面地址)
+      });
+    } catch { /* 回执发不出去不影响本地已保存的职位 */ }
+  }
+
+  function startCaptureRequestPolling(config) {
+    if (capturePollTimer) return;
+    capturePollTimer = setInterval(() => pollCaptureRequest(config), CAPTURE_POLL_MS);
+  }
+
+  function stopCaptureRequestPolling() {
+    if (capturePollTimer) clearInterval(capturePollTimer);
+    capturePollTimer = null;
+  }
+
   function initJobBoardOverlay() {
     const config = detectJobBoard();
     if (!config) return;
 
     processJobCards(config);
+    // 进了支持的招聘站点就把面板浮出来：用户不用再点扩展图标
+    showJobBoardPanel(config);
+    startCaptureRequestPolling(config);
 
-    const observer = new MutationObserver(() => scheduleScan(config));
+    const observer = new MutationObserver((records) => {
+      // 面板自己的重绘（改文案、改计数）也会产生记录：不滤掉的话每次重绘都再排一轮
+      // 扫描 + 重绘，页面停着不动也会每 SCAN_DEBOUNCE_MS 空转一次
+      if (overlayEl && records.every((record) => overlayEl.contains(record.target))) return;
+      scheduleScan(config);
+      schedulePanelSync(config);
+    });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    if (config.captureDetailPage) {
+      // 先装接口嗅探再采：页面早期的接口响应会被重投，采集循环下一轮就能用上
+      initBossApiSniffer(config);
+      captureDetailPage(config);
+      watchDetailNavigation(config);
+    }
+  }
+
+  // ─── Detail-page capture (JD) ─────────────────────────────────
+
+  const DETAIL_CAPTURE_ATTEMPTS = 15;
+  const DETAIL_CAPTURE_INTERVAL_MS = 1000;
+  const PAGE_URL_POLL_MS = 1000;
+
+  let detailCapturedUrl = null;
+  let detailCaptureInFlight = null;
+  let pageUrlTimer = null;
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // 站点改版可能把描述容器的 class 整个换掉；退化为"按小标题找正文"。
+  function findDescriptionByHeading(keywords) {
+    if (!keywords || !keywords.length) return '';
+    const headings = document.querySelectorAll('h1, h2, h3, h4, dt, [class*="title"], [class*="sec-title"]');
+    for (const heading of headings) {
+      const headingText = (heading.textContent || '').trim();
+      if (!headingText || !keywords.some((keyword) => headingText.includes(keyword))) continue;
+      const parent = heading.parentElement;
+      if (!parent) continue;
+      const body = (parent.innerText || parent.textContent || '').trim();
+      if (body.length >= 60) return body;
+    }
+    return '';
+  }
+
+  // class 全换掉之后，「城市·经验·学历」那一行的形态还认得出来：很短、带 ·、
+  // 且含经验或学历词。只在精确选择器落空时才走这条路。
+  function findMetaLineText() {
+    for (const el of document.querySelectorAll('p, div, span, li')) {
+      if (el.querySelector('p, div, span, ul, li')) continue;  // 只看叶子节点
+      const text = (el.textContent || '').replace(/[\u00a0\s]+/g, ' ').trim();
+      if (!text || text.length > 60 || !text.includes('·')) continue;
+      if (!EXPERIENCE_TOKEN_RE.test(text) && !EDUCATION_TOKEN_RE.test(text)) continue;
+      return text;
+    }
+    return '';
+  }
+
+  function extractDetailPageData(config) {
+    const detail = config.detailPage;
+    if (!detail) return null;
+    if (!detail.urlPattern.test(window.location.pathname)) return null;
+
+    const container = queryFirst(document, detail.containerSelector) || document;
+
+    const descriptionEl = queryFirst(container, detail.descriptionSelector, document);
+    let description = (descriptionEl?.innerText || descriptionEl?.textContent || '').trim();
+    if (!description) description = findDescriptionByHeading(detail.descriptionHeadingKeywords);
+    if (!description) return null;
+
+    const rules = detail.normalize || {};
+    const salaryText = textOf(container, detail.salarySelector, document);
+    const rawTitle = textOf(container, detail.titleSelector, document);
+    const rawCompany = textOf(container, detail.companySelector, document);
+    const rawLocation = textOf(container, detail.locationSelector, document);
+
+    // 「北京·朝阳区 ·3-5年 ·本科」这一行同时含地点与经验/学历，按内容分类
+    const metaText = (detail.metaSelector ? textOf(container, detail.metaSelector, document) : '')
+      || findMetaLineText();
+    const metaTags = classifyJobTags(metaText.split('·'));
+    // 标签不绑在 JD 容器里：改版后容器可能只剩一个职位描述区块，标签在另一个区块
+    const tags = classifyJobTags(collectTagTexts(document, detail.tagSelector));
+
+    const stageText = detail.companyStageSelector
+      ? textOf(container, detail.companyStageSelector, document) : '';
+    const sizeText = detail.companySizeSelector
+      ? textOf(container, detail.companySizeSelector, document) : '';
+    const companyBlob = detail.companyBlobSelector
+      ? textOf(container, detail.companyBlobSelector, document) : '';
+    const blobFacts = findCompanyFacts(companyBlob);
+
+    const data = {
+      url: detail.getJobUrl(window.location),
+      description: description.slice(0, 20000),
+    };
+    const title = rules.title ? cleanJobTitle(rawTitle, salaryText) : rawTitle;
+    if (title) data.title = title; // raw business content
+    const company = rules.company ? cleanCompanyName(rawCompany) : rawCompany;
+    if (company) data.company = company; // raw business content
+    // meta 行里剩下的片段就是地点（“北京·朝阳区 ·3-5年 ·本科” → 北京·朝阳区）
+    const location = metaTags.job_labels.slice(0, 2).join('·') || cleanLocation(rawLocation);
+    if (location) data.location = location; // raw business content
+    Object.assign(data, parseSalaryText(salaryText));
+
+    // 平台原文（经验/学历/规模/融资阶段/福利），界面不翻译
+    data.experience_req = metaTags.experience_req || tags.experience_req;
+    data.education_req = metaTags.education_req || tags.education_req;
+    data.company_size = findCompanySize(sizeText) || tags.company_size || blobFacts.company_size;
+    data.company_stage = normalizeCompanyStage(stageText) || tags.company_stage || blobFacts.company_stage;
+    data.job_labels = tags.job_labels;
+    return data;
+  }
+
+  async function captureDetailPage(config, options = {}) {
+    const detail = config.detailPage;
+    if (!detail) return false;
+
+    const attempts = options.attempts || DETAIL_CAPTURE_ATTEMPTS;
+    const intervalMs = options.intervalMs || DETAIL_CAPTURE_INTERVAL_MS;
+    const stableUrl = detail.getJobUrl(window.location);
+    if (!stableUrl || stableUrl === detailCapturedUrl || detailCaptureInFlight === stableUrl) return false;
+
+    detailCaptureInFlight = stableUrl;
+    try {
+      // 详情页正文可能是前端异步拉取渲染的（BOSS 直聘会先出骨架再补 JD），
+      // 只等一次 800ms 就放弃会让大部分职位详情丢掉 JD。
+      let data = null;
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        if (detail.getJobUrl(window.location) !== stableUrl) return false; // 已经跳走
+        // DOM 优先（用户看到的就是这个），采不到字段时由页面接口数据补齐；
+        // class 全改版的页面上 DOM 会整个失效，此时接口数据是唯一来源。
+        data = mergeBossDetailData(
+          extractDetailPageData(config),
+          capturedBossApiJob(config),
+        );
+        if (data) break;
+        if (attempt < attempts - 1) await delay(intervalMs);
+      }
+      if (!data) return false;
+
+      detailCapturedUrl = stableUrl;
+
+      const lookup = await chrome.runtime.sendMessage({
+        type: 'getScoreForUrl',
+        url: stableUrl,
+      });
+
+      const known = lookup && lookup.ok && lookup.data && lookup.data.found !== false && lookup.data.job_id;
+      const payload = {
+        ...data,
+        url: stableUrl,
+        source: config.name,
+      };
+      if (!known && (!payload.title || !payload.company)) {
+        detailCapturedUrl = null;
+        return false;
+      }
+
+      const response = await chrome.runtime.sendMessage({ type: 'saveJob', jobData: payload });
+      if (response && response.ok) {
+        showToast(t('overlay.detailSaved'), 'success');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn('[CareerPulse] captureDetailPage failed:', err.message);
+      detailCapturedUrl = null;
+      return false;
+    } finally {
+      if (detailCaptureInFlight === stableUrl) detailCaptureInFlight = null;
+    }
+  }
+
+  // BOSS 直聘是单页应用：从搜索列表点进详情、或在详情页之间跳转都不会重新加载
+  // content script，只有监听 URL 变化才能补采到 JD。
+  function watchDetailNavigation(config) {
+    if (pageUrlTimer || !config.detailPage) return;
+    let lastDetailUrl = config.detailPage.getJobUrl(window.location);
+
+    pageUrlTimer = setInterval(() => {
+      const detailUrl = config.detailPage.getJobUrl(window.location);
+      if (detailUrl === lastDetailUrl) return;
+      lastDetailUrl = detailUrl;
+      if (detailUrl) {
+        captureDetailPage(config);
+      } else {
+        scheduleScan(config);  // 回到列表页，重新注入按钮
+      }
+    }, PAGE_URL_POLL_MS);
   }
 
   // Run job board overlay detection (separate from the auto-fill badge)
@@ -3278,10 +4658,50 @@
       detectJobBoard,
       parseJobCard,
       createSaveButton,
+      submitJobCard,
       showScoreBadge,
       processJobCards,
       initJobBoardOverlay,
+      collectVisibleJobCards,
+      captureVisibleJobs,
+      hasVisibleCards,
+      BULK_CAPTURE_CONCURRENCY,
+      runVisibleCapture,
+      captureCurrentPage,
+      // 常驻悬浮面板（招聘站点上用来自动展示扩展面板）
+      showJobBoardPanel,
+      renderPanel,
+      paintPanel,
+      checkPanelConnection,
+      syncPanelCapture,
+      runPanelCapture,
+      clampPanelPosition,
+      setPanelCollapsed,
+      PANEL_CAPTURE_BTN_ID,
+      PANEL_POSITION_KEY,
+      PANEL_COLLAPSED_KEY,
+      get panelState() { return panelState; },
+      startCaptureRequestPolling,
+      stopCaptureRequestPolling,
+      pollCaptureRequest,
+      get bulkCaptureInFlight() { return bulkCaptureInFlight; },
+      get capturePolling() { return Boolean(capturePollTimer); },
+      get BULK_CAPTURE_LIMIT() { return BULK_CAPTURE_LIMIT; },
       JOB_BOARD_CONFIGS,
+      extractDetailPageData,
+      captureDetailPage,
+      watchDetailNavigation,
+      initBossApiSniffer,
+      extractBossApiJob,
+      normalizeBossApiJob,
+      mergeBossDetailData,
+      get capturedBossApiJobs() { return bossApiJobs; },
+      parseSalaryText,
+      cleanJobTitle,
+      cleanCompanyName,
+      cleanLocation,
+      queryFirst,
+      textOf,
 
       // Queue fill API
       showQueueBanner,

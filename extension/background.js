@@ -24,12 +24,43 @@ async function apiFetch(path, options = {}) {
       signal: controller.signal,
     });
     if (!resp.ok) {
-      throw new Error(`API ${resp.status}: ${resp.statusText}`);
+      // 后端错误体形如 {code, params, detail}：code 是稳定契约，客户端据此翻成
+      // 中文文案（extErrorMessage）。丢掉 code 就只剩一句「出错了」，用户无从判断。
+      let payload = null;
+      try {
+        payload = await resp.json();
+      } catch { payload = null; }
+      const error = new Error(
+        (payload && (payload.detail || payload.error)) || `API ${resp.status}: ${resp.statusText}`
+      );
+      error.status = resp.status;
+      if (payload && payload.code) {
+        error.code = payload.code;
+        error.params = payload.params || {};
+        error.detail = payload.detail;
+      }
+      throw error;
     }
     return resp;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/**
+ * Shape an API failure for the content script/popup.
+ *
+ * `code` is the stable backend contract (`job.title_and_company_required`) and is
+ * what lets the UI show a real reason instead of a generic "something failed".
+ */
+function apiError(err) {
+  return {
+    ok: false,
+    error: err.message,
+    code: err.code,
+    params: err.params,
+    detail: err.detail,
+  };
 }
 
 async function checkConnection() {
@@ -38,7 +69,7 @@ async function checkConnection() {
     const data = await resp.json();
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -47,7 +78,7 @@ async function getFullProfile() {
     const resp = await apiFetch('/api/profile/full');
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -65,7 +96,7 @@ async function analyzeForm(formHtml, adapterFields, structuredFields) {
     });
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -77,7 +108,7 @@ async function getResumeForJob(jobId) {
     const blob = await resp.blob();
     return { ok: true, data: blob };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -99,7 +130,7 @@ async function downloadDocument(jobId, docType) {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -111,7 +142,7 @@ async function saveLearnedData(data) {
     });
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -120,7 +151,7 @@ async function getCustomQA() {
     const resp = await apiFetch('/api/custom-qa');
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -132,7 +163,7 @@ async function saveJob(jobData) {
     });
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -141,7 +172,7 @@ async function lookupJob(url) {
     const resp = await apiFetch(`/api/jobs/lookup?url=${encodeURIComponent(url)}`);
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -153,7 +184,55 @@ async function markAppliedByUrl(url) {
     });
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
+  }
+}
+
+// 网页端「立即抓取」→ 服务端采集请求 → 内容脚本轮询认领（app/routers/capture.py）。
+// 职位数据仍然只出自用户打开的页面，这里只负责在服务端与内容脚本之间传话。
+async function claimCaptureRequest(message = {}) {
+  try {
+    // has_listing 告诉服务端「这个标签页上有没有职位卡片」：没有的话请求不会被
+    // 派给这个标签（详情页也在轮询），但这次调用仍然算一次心跳。
+    const resp = await apiFetch('/api/capture/claim', {
+      method: 'POST',
+      body: JSON.stringify({ has_listing: message.hasListing !== false }),
+    });
+    return { ok: true, data: await resp.json() };
+  } catch (err) {
+    return apiError(err);
+  }
+}
+
+// 采集过程中的进度心跳：一次采集可能几十秒，网页端靠它区分「在跑」与「卡住」。
+async function reportCaptureProgress(message) {
+  try {
+    const resp = await apiFetch('/api/capture/progress', {
+      method: 'POST',
+      body: JSON.stringify({
+        request_id: message.requestId || null,
+        ...(message.summary || {}),
+      }),
+    });
+    return { ok: true, data: await resp.json() };
+  } catch (err) {
+    return apiError(err);
+  }
+}
+
+async function completeCaptureRequest(message) {
+  try {
+    const resp = await apiFetch('/api/capture/complete', {
+      method: 'POST',
+      body: JSON.stringify({
+        request_id: message.requestId || null,
+        ...(message.summary || {}),
+        page_url: message.pageUrl || null,
+      }),
+    });
+    return { ok: true, data: await resp.json() };
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -202,7 +281,7 @@ async function reportFillStatus(queueItemId, status, details = {}) {
     });
     return { ok: true, data: await resp.json() };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return apiError(err);
   }
 }
 
@@ -393,6 +472,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return await lookupJob(message.url);
         case 'getScoreForUrl':
           return await getScoreForUrl(message.url);
+        case 'claimCaptureRequest':
+          return await claimCaptureRequest(message);
+        case 'reportCaptureProgress':
+          return await reportCaptureProgress(message);
+        case 'completeCaptureRequest':
+          return await completeCaptureRequest(message);
         case 'markAppliedByUrl':
           return await markAppliedByUrl(message.url);
         case 'fillFromQueue':
@@ -418,7 +503,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return { ok: false, code: 'background.unknown_message_type', params: { type: message.type }, error: `Unknown message type: ${message.type}` };
       }
     } catch (err) {
-      return { ok: false, error: err.message };
+      // code/params/detail 一并回传：内容脚本据此把稳定错误码翻成中文原因
+      return apiError(err);
     }
   };
 

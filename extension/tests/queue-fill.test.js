@@ -20,6 +20,7 @@ function loadScript() {
 let api;
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   cleanDOM();
   globalThis.chrome.runtime.sendMessage = vi.fn().mockResolvedValue({ ok: true, data: { mappings: [] } });
   api = loadScript();
@@ -31,6 +32,8 @@ afterEach(() => {
     api.queueContext = null;
     api.removeQueueBanner();
   }
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 // ═══════════════════════════════════════════════════════════════

@@ -3,6 +3,7 @@
   "name": "CareerPulse AutoFill",
   "description": "Auto-fill job applications with your CareerPulse profile",
   "version": "0.2.0",
+  "minimum_chrome_version": "111",
   "permissions": ["activeTab", "scripting", "storage", "downloads"],
   "host_permissions": ["http://localhost:8085/*"],
   "action": {
@@ -19,6 +20,13 @@
       "js": ["i18n.js", "locales/common.js", "locales/extension.js", "error-messages.js", "normalize.js", "ats-adapters.js", "content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://*.zhipin.com/*"],
+      "js": ["boss-page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
       "all_frames": true
     }
   ],

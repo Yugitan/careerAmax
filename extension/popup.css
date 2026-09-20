@@ -90,6 +90,53 @@ body {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: #18181b;
+  color: #e4e4e7;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #27272a;
+  border-color: #52525b;
+}
+
+.btn-secondary:disabled {
+  background: #18181b;
+  color: #52525b;
+  border-color: #27272a;
+  cursor: not-allowed;
+}
+
+/* 置灰「填写申请表」时说明原因：和页面上的常驻面板用同一句文案 */
+.fill-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #a1a1aa;
+  margin-top: -6px;
+}
+
+/* 抓取结果回显（成功/失败），正文短句，与按钮共用同一列 */
+.capture-result {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #a1a1aa;
+}
+
+.capture-result.success {
+  color: #22c55e;
+}
+
+.capture-result.error {
+  color: #f87171;
+}
+
 .settings-section {
   display: flex;
   flex-direction: column;

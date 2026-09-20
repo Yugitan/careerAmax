@@ -1,6 +1,8 @@
 // Mock Chrome extension APIs
 globalThis.chrome = {
   runtime: {
+    // 真实扩展上下文一定带 id；内容脚本用它判断自己是否已因扩展重载而失联
+    id: 'test-extension-id',
     sendMessage: vi.fn().mockResolvedValue({ ok: true, data: { mappings: [] } }),
     onMessage: {
       addListener: vi.fn(),

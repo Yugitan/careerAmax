@@ -68,7 +68,9 @@ describe('web <-> extension translation parity', () => {
         const extensionOnly = Object.keys(ext.en || {})
             .filter((key) => SHARED_NAMESPACES.includes(key.split('.')[0]))
             .filter((key) => (web.en || {})[key] === undefined);
-        const unexpected = extensionOnly.filter((key) => !/^errors\.(queue|background)[A-Z]/.test(key));
+        // queue: 扩展自己的填表队列；background: 后台工作线程；
+        // capture: 内容脚本/弹窗之间的采集状态（网页端不会碰到这两个码）
+        const unexpected = extensionOnly.filter((key) => !/^errors\.(queue|background|capture)[A-Z]/.test(key));
         expect(unexpected).toEqual([]);
     });
 

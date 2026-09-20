@@ -413,7 +413,7 @@ describe('processJobCards', () => {
 
     globalThis.chrome.runtime.sendMessage = vi.fn().mockResolvedValue({
       ok: true,
-      data: { id: 1, score: 92 },
+      data: { found: true, job_id: 1, score: 92 },
     });
 
     await api.processJobCards(config);
@@ -428,7 +428,7 @@ describe('processJobCards', () => {
 
     globalThis.chrome.runtime.sendMessage = vi.fn().mockResolvedValue({
       ok: true,
-      data: { id: 1, score: 88 },
+      data: { found: true, job_id: 1, score: 88 },
     });
 
     await api.processJobCards(config);

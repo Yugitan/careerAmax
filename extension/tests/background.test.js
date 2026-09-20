@@ -219,6 +219,34 @@ describe('onMessage router', () => {
     expect(result.data.id).toBe(1);
   });
 
+  it('passes the backend error code through when a save is rejected', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: () => Promise.resolve({
+        code: 'job.title_and_company_required',
+        params: {},
+        detail: 'title and company are required',
+      }),
+    });
+
+    const result = await sendMessage({ type: 'saveJob', jobData: { title: '' } });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('job.title_and_company_required');
+    expect(result.detail).toBe('title and company are required');
+  });
+
+  it('still reports an error when the failure body is not JSON', async () => {
+    mockFetchFail(502);
+
+    const result = await sendMessage({ type: 'saveJob', jobData: { title: 'Dev' } });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('502');
+  });
+
   it('routes lookupJob', async () => {
     mockFetchOk({ id: 5, title: 'Dev' });
     const result = await sendMessage({ type: 'lookupJob', url: 'https://example.com/job/5' });

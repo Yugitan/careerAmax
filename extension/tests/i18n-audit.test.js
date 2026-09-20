@@ -8,7 +8,7 @@ import { join } from 'path';
 // `i18n-audit-ignore` comment that states why.
 
 const extensionDir = join(import.meta.dirname, '..');
-const AUDITED_FILES = ['popup.js', 'content.js', 'background.js', 'error-messages.js'];
+const AUDITED_FILES = ['popup.js', 'content.js', 'background.js', 'error-messages.js', 'boss-page-bridge.js'];
 
 const SKIP_LINE_PATTERNS = [
     /i18n-audit-ignore/,

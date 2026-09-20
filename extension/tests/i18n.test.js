@@ -115,6 +115,19 @@ describe('extension i18n', () => {
             expect(t('overlay.fillingFields', { done: 2, total: 5 })).toBe('正在填写 2/5 个字段…');
         });
 
+        it('localizes the overlay analysis and badge title copy', () => {
+            resetExtensionI18n('en');
+            expect(t('overlay.analyzingGeneric')).toBe('Analyzing form...');
+            expect(t('overlay.detectedAnalyzing', { name: 'Greenhouse' })).toBe('Detected Greenhouse — analyzing form...');
+            expect(t('overlay.learnSaved', { count: 3 })).toBe('Saved 3 answers');
+            expect(t('a11y.matchScoreTitle', { score: 87 })).toBe('CareerPulse match score: 87%');
+            resetExtensionI18n('zh-CN');
+            expect(t('overlay.analyzingGeneric')).toBe('正在分析表单…');
+            expect(t('overlay.detectedAnalyzing', { name: 'Greenhouse' })).toBe('检测到 Greenhouse — 正在分析表单…');
+            expect(t('overlay.learnSaved', { count: 3 })).toBe('已保存 3 条答案');
+            expect(t('a11y.matchScoreTitle', { score: 87 })).toBe('CareerPulse 匹配分：87%');
+        });
+
         it('uses singular/plural forms from the English catalog', () => {
             resetExtensionI18n('en');
             expect(t('overlay.learnTitle', { count: 1 })).toBe('Save 1 new answer to CareerPulse?');

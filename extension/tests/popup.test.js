@@ -11,6 +11,9 @@ function createPopupDOM() {
         <span class="status-text" id="statusText">Checking...</span>
       </div>
       <button class="btn-primary" id="fillBtn" disabled>Fill Application</button>
+      <p class="fill-hint" id="fillHint" role="status" hidden></p>
+      <button class="btn-secondary" id="captureBtn" disabled>Capture Now</button>
+      <p class="capture-result" id="captureResult" role="status" hidden></p>
       <div class="settings-section">
         <label for="serverUrl">Server URL</label>
         <div class="input-row">
@@ -98,6 +101,52 @@ describe('popup init and connection', () => {
     await vi.waitFor(() => {
       expect(document.getElementById('fillBtn').disabled).toBe(false);
     });
+  });
+
+  // 「填写申请表」的判据与页面上的常驻悬浮面板同源：服务连得上 + 页面上真有表。
+  // 以前弹窗只看连接状态，于是面板置灰、弹窗却亮蓝。
+  it('greys the fill button when the page has no application form', async () => {
+    globalThis.chrome.runtime.sendMessage.mockResolvedValue({ ok: true, data: {} });
+    globalThis.chrome.tabs.sendMessage = vi.fn().mockResolvedValue({ ok: true, hasForm: false });
+    loadPopup();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('fillHint').hidden).toBe(false);
+    });
+    expect(document.getElementById('fillBtn').disabled).toBe(true);
+    expect(document.getElementById('fillBtn').title).toBe('No application form on this page');
+    const hint = document.getElementById('fillHint');
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toBe('No application form on this page');
+    // 服务是连着的：置灰只因为页面没有表
+    expect(document.getElementById('statusDot').classList.contains('connected')).toBe(true);
+  });
+
+  it('keeps the fill button usable when the page reports a form', async () => {
+    globalThis.chrome.runtime.sendMessage.mockResolvedValue({ ok: true, data: {} });
+    globalThis.chrome.tabs.sendMessage = vi.fn().mockResolvedValue({ ok: true, hasForm: true });
+    loadPopup();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('fillBtn').disabled).toBe(false);
+    });
+    expect(document.getElementById('fillHint').hidden).toBe(true);
+    expect(document.getElementById('fillBtn').title).toBe('');
+  });
+
+  it('does not block the fill button when the page cannot be asked', async () => {
+    // 内容脚本不在（chrome:// 页面、扩展刚更新完）：问不到就别把用户挡在门外，
+    // 真的填不了时点击后仍会提示刷新
+    globalThis.chrome.runtime.sendMessage.mockResolvedValue({ ok: true, data: {} });
+    globalThis.chrome.tabs.sendMessage = vi.fn().mockRejectedValue(
+      new Error('Could not establish connection. Receiving end does not exist.')
+    );
+    loadPopup();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('fillBtn').disabled).toBe(false);
+    });
+    expect(document.getElementById('fillHint').hidden).toBe(true);
   });
 
   it('shows disconnected status on error', async () => {
@@ -372,6 +421,166 @@ describe('fill button', () => {
     expect(document.getElementById('fillBtn').disabled).toBe(false);
     expect(closeSpy).not.toHaveBeenCalled();
     closeSpy.mockRestore();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Capture button
+// ═══════════════════════════════════════════════════════════════
+
+describe('capture button', () => {
+  beforeEach(() => {
+    globalThis.chrome = {
+      runtime: {
+        sendMessage: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+      },
+      storage: {
+        local: {
+          get: vi.fn((query, callback) => {
+            const result = { serverUrl: 'http://localhost:8085', language: 'en' };
+            if (typeof callback === 'function') { callback(result); return undefined; }
+            return Promise.resolve(result);
+          }),
+          set: vi.fn((data, callback) => {
+            if (typeof callback === 'function') { callback(); return undefined; }
+            return Promise.resolve(undefined);
+          }),
+        },
+        onChanged: { addListener: vi.fn() },
+      },
+      tabs: {
+        query: vi.fn().mockResolvedValue([{ id: 42 }]),
+        sendMessage: vi.fn().mockResolvedValue({
+          ok: true,
+          summary: { total: 3, saved: 2, skipped: 1, failed: 0, reason: null },
+        }),
+        create: vi.fn(),
+      },
+    };
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('asks the active tab to capture its visible jobs', async () => {
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      expect(globalThis.chrome.tabs.sendMessage).toHaveBeenCalledWith(42, { type: 'startCapture' });
+    });
+  });
+
+  it('shows the capture summary from the page', async () => {
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      const result = document.getElementById('captureResult');
+      expect(result.hidden).toBe(false);
+      expect(result.textContent).toBe('Captured 2 jobs, skipped 1');
+      expect(result.classList.contains('success')).toBe(true);
+    });
+  });
+
+  it('explains an empty page instead of claiming success', async () => {
+    globalThis.chrome.tabs.sendMessage.mockResolvedValue({
+      ok: true,
+      summary: { total: 0, saved: 0, skipped: 0, failed: 0, reason: 'no_listing' },
+    });
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureResult').textContent)
+        .toBe('No jobs on this page — open a job list first');
+    });
+  });
+
+  it('localizes an unsupported site error from the page', async () => {
+    globalThis.chrome.tabs.sendMessage.mockResolvedValue({
+      ok: false,
+      code: 'capture.unsupported_site',
+    });
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      const result = document.getElementById('captureResult');
+      expect(result.textContent).toBe('This page is not a supported job board');
+      expect(result.classList.contains('error')).toBe(true);
+    });
+    // 出错后按钮要能用（用户可以换页面重试）
+    expect(document.getElementById('captureBtn').disabled).toBe(false);
+    expect(document.getElementById('captureBtn').textContent).toBe('Capture Now');
+  });
+
+  it('tells the user to refresh when no content script is present', async () => {
+    globalThis.chrome.tabs.sendMessage.mockRejectedValue(
+      new Error('Could not establish connection. Receiving end does not exist.')
+    );
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureResult').textContent)
+        .toBe('Refresh the page and try again');
+    });
+  });
+
+  it('shows progress copy while the capture runs', async () => {
+    let release;
+    globalThis.chrome.tabs.sendMessage.mockImplementation(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true, summary: { total: 1, saved: 1, skipped: 0, failed: 0 } });
+    }));
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').disabled).toBe(false);
+    });
+
+    document.getElementById('captureBtn').click();
+
+    await vi.waitFor(() => {
+      const btn = document.getElementById('captureBtn');
+      expect(btn.textContent).toBe('Capturing…');
+      expect(btn.disabled).toBe(true);
+    });
+
+    release();
+    await vi.waitFor(() => {
+      expect(document.getElementById('captureBtn').textContent).toBe('Capture Now');
+    });
+  });
+
+  it('stays disabled while the server is unreachable', async () => {
+    globalThis.chrome.runtime.sendMessage.mockResolvedValue({ ok: false, error: 'ECONNREFUSED' });
+    loadPopup();
+    await vi.waitFor(() => {
+      expect(document.getElementById('statusText').textContent).toBe('ECONNREFUSED');
+    });
+
+    expect(document.getElementById('captureBtn').disabled).toBe(true);
   });
 });
 
