@@ -1,0 +1,21 @@
+{
+  "city_code": "beijing",
+  "city_name": "北京",
+  "effective_year": 2025,
+  "updated_at": "2025-07-01",
+  "source_note": "参照 2025 年度北京市社保缴费基数上下限与常见缴费比例整理，仅供测算参考，请以当地社保/公积金中心最新口径为准。",
+  "social_insurance_base_min": 6821,
+  "social_insurance_base_max": 35283,
+  "housing_fund_base_min": 2420,
+  "housing_fund_base_max": 35283,
+  "housing_fund_rate_min": 0.05,
+  "housing_fund_rate_max": 0.12,
+  "housing_fund_rate_default": 0.12,
+  "rates": {
+    "pension": { "employee": 0.08, "employer": 0.16 },
+    "medical": { "employee": 0.02, "employer": 0.098 },
+    "unemployment": { "employee": 0.005, "employer": 0.005 },
+    "injury": { "employee": 0.0, "employer": 0.002 },
+    "maternity": { "employee": 0.0, "employer": 0.008 }
+  }
+}

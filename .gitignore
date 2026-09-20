@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 .env
-data/
+# 只忽略仓库根部的运行期数据（jobfinder.db、resume.txt）；app/data/ 下的城市社保
+# 参数是代码的一部分，必须进仓库 —— 写成 data/ 会连它一起吃掉
+/data/
 *.egg-info/
 .pytest_cache/
 .ptmp/

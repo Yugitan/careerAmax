@@ -51,8 +51,11 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      # --ignore-scripts：pnpm 11 对未审批的依赖构建脚本直接报错退出
+      # (ERR_PNPM_IGNORED_BUILDS: esbuild)，而 esbuild 的平台二进制来自它的
+      # @esbuild/* 可选依赖，不跑 postinstall 也能用 —— 试跑 .ts 测试验证过
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run tests
         run: pnpm exec vitest run --reporter=junit --outputFile=../../test-results/frontend.xml
@@ -80,8 +83,9 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      # 同 frontend：pnpm 11 下必须显式跳过依赖构建脚本
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run tests
         run: pnpm exec vitest run --reporter=junit --outputFile=../test-results/extension.xml
