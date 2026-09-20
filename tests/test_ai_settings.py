@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -177,3 +180,58 @@ async def test_bedrock_masked_credentials_retained_on_save(client):
     assert data["region"] == "us-west-2"
     assert data["has_key"] is True
     assert data["has_secret"] is True
+
+
+@pytest.mark.asyncio
+async def test_ai_probe_has_a_timeout(monkeypatch):
+    """连通性探测必须有超时：它在请求路径上（/api/health），而各家 SDK 的默认
+    超时是 600 秒（OpenAI 兼容还带 2 次重试）—— 探测一挂，用户看到的就是
+    「服务死了」。"""
+    from app import ai_client as mod
+
+    async def never_returns(_client):
+        await asyncio.sleep(3600)
+        return True, "ok"
+
+    monkeypatch.setattr(mod, "_check_ai_reachable", never_returns)
+
+    started = time.monotonic()
+    reachable, detail = await mod.check_ai_reachable(
+        mod.AIClient("deepseek", api_key="k"), timeout=0.05
+    )
+    elapsed = time.monotonic() - started
+
+    assert reachable is False
+    assert "timed out" in detail
+    assert elapsed < 2
+
+
+@pytest.mark.asyncio
+async def test_health_reports_a_hung_provider_without_hanging(monkeypatch, tmp_path):
+    """健康检查要给出结论（unreachable），而不是挂着不返回。"""
+    from app import ai_client as mod
+    from app.main import create_app
+
+    async def never_returns(_client):
+        await asyncio.sleep(3600)
+        return True, "ok"
+
+    monkeypatch.setattr(mod, "_check_ai_reachable", never_returns)
+    monkeypatch.setattr(mod, "AI_PROBE_TIMEOUT_SEC", 0.05)
+
+    db_path = str(tmp_path / "probe.db")
+    app = create_app(db_path=db_path, testing=True)
+    database = Database(db_path)
+    await database.init()
+    app.state.db = database
+    try:
+        app.state.ai_client = mod.AIClient("deepseek", api_key="k")
+        app.state.start_time = time.monotonic()
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/api/health")
+        body = resp.json()
+        assert body["ai_status"] == "unreachable"
+        assert "timed out" in body["ai_detail"]
+    finally:
+        await database.close()

@@ -5,6 +5,7 @@ import logging
 import re
 import struct
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit, urlunsplit
 
 import aiosqlite
 
@@ -29,6 +30,25 @@ def _normalize_posted_date(value) -> str | None:
 def make_dedup_hash(title: str, company: str, url: str) -> str:
     normalized = f"{title.lower().strip()}|{company.lower().strip()}|{url.lower().strip().rstrip('/')}"
     return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def stable_job_url(url: str | None) -> str:
+    """Strip the session noise from a job URL so the same posting has one identity.
+
+    国内平台（BOSS 直聘）的列表卡片与详情页链接都带 `lid` / `securityId` 之类的
+    会话参数，锚点与末尾斜杠也会随入口变化。统一成稳定形式后，扩展先后回传的
+    "卡片"与"详情页 JD"才能落到同一行记录上。
+    """
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    try:
+        parts = urlsplit(raw)
+    except ValueError:
+        return raw
+    if not parts.scheme or not parts.netloc:
+        return raw
+    return urlunsplit((parts.scheme, parts.netloc.lower(), parts.path.rstrip("/"), "", ""))
 
 
 _US_STATES = {
@@ -134,7 +154,8 @@ _COLUMN_ALLOWLISTS = {
         "contact_lookup_done", "apply_url", "salary_estimate_min",
         "salary_estimate_max", "salary_confidence",
         "description_enriched", "enrichment_status", "enrichment_attempts",
-        "last_seen_at",
+        "last_seen_at", "experience_req", "education_req", "company_size",
+        "company_stage", "job_labels",
     },
     "custom_qa": {
         "question_pattern", "category", "answer", "times_used", "last_used",
@@ -173,6 +194,31 @@ def _validate_columns(table: str, columns):
     bad = set(columns) - allowed
     if bad:
         raise ValueError(f"Invalid columns for {table}: {bad}")
+
+
+# 申请状态白名单（铁律）
+#
+# 状态的「值」永远是稳定英文枚举，界面文案只用于显示。中文界面下若把翻译结果
+# 当 value 提交（例如「已申请」），必须在这里被拒绝，否则脏数据会静默落库，
+# 看板、统计与提醒全部失准。
+#
+# The stored value is always the stable enum; the UI label is presentation only.
+APPLICATION_STATUSES = (
+    "interested",
+    "prepared",
+    "applied",
+    "interviewing",
+    "offered",
+    "rejected",
+    "withdrawn",
+)
+
+
+def _validate_status(status):
+    """拒绝任何不在白名单内的申请状态，返回原值便于链式调用。"""
+    if status not in APPLICATION_STATUSES:
+        raise ValueError(f"Invalid application status: {status!r}")
+    return status
 
 
 class Database:
@@ -623,6 +669,13 @@ class Database:
             "last_seen_at": "ALTER TABLE jobs ADD COLUMN last_seen_at TEXT",
             "location_region": "ALTER TABLE jobs ADD COLUMN location_region TEXT",
             "location_classified": "ALTER TABLE jobs ADD COLUMN location_classified INTEGER DEFAULT 0",
+            # 中国版岗位属性（PRD 6.2.1）：值来自招聘平台的原始词汇（业务内容，
+            # 界面不翻译），因此这里存的就是平台口径的字符串，不做英文枚举化。
+            "experience_req": "ALTER TABLE jobs ADD COLUMN experience_req TEXT",
+            "education_req": "ALTER TABLE jobs ADD COLUMN education_req TEXT",
+            "company_size": "ALTER TABLE jobs ADD COLUMN company_size TEXT",
+            "company_stage": "ALTER TABLE jobs ADD COLUMN company_stage TEXT",
+            "job_labels": "ALTER TABLE jobs ADD COLUMN job_labels TEXT DEFAULT '[]'",
         }
         for col, sql in jobs_migrations.items():
             if col not in jobs_columns:
@@ -639,49 +692,60 @@ class Database:
                 await self.db.execute(sql)
 
         # user_profile migrations - add new columns
+        #
+        # ⚠️ 惰性废弃策略（减法清单 S1 / 方案 L1）
+        #
+        # 下表中标注 `# deprecated: US-only` 的列是中国求职场景不需要的美国字段。
+        # 一期**只从界面移除**，列本身继续保留在库里 —— 本文件此前没有任何
+        # DROP COLUMN / DROP TABLE 先例，贸然做表重建风险高。
+        # 保留的代价只是旧库里多几个死列（自用可接受）；收益是升级与回滚都不会丢数据。
+        # 二期做表重建时，连同 eeo_responses / military_service 一并清除。
         profile_cursor = await self.db.execute("PRAGMA table_info(user_profile)")
         profile_columns = {row[1] for row in await profile_cursor.fetchall()}
         profile_migrations = {
-            "middle_name": "ALTER TABLE user_profile ADD COLUMN middle_name TEXT NOT NULL DEFAULT ''",
-            "preferred_name": "ALTER TABLE user_profile ADD COLUMN preferred_name TEXT NOT NULL DEFAULT ''",
-            "phone_country_code": "ALTER TABLE user_profile ADD COLUMN phone_country_code TEXT NOT NULL DEFAULT ''",
-            "phone_type": "ALTER TABLE user_profile ADD COLUMN phone_type TEXT NOT NULL DEFAULT ''",
-            "additional_phone": "ALTER TABLE user_profile ADD COLUMN additional_phone TEXT NOT NULL DEFAULT ''",
-            "address_street1": "ALTER TABLE user_profile ADD COLUMN address_street1 TEXT NOT NULL DEFAULT ''",
-            "address_street2": "ALTER TABLE user_profile ADD COLUMN address_street2 TEXT NOT NULL DEFAULT ''",
-            "address_city": "ALTER TABLE user_profile ADD COLUMN address_city TEXT NOT NULL DEFAULT ''",
-            "address_state": "ALTER TABLE user_profile ADD COLUMN address_state TEXT NOT NULL DEFAULT ''",
-            "address_zip": "ALTER TABLE user_profile ADD COLUMN address_zip TEXT NOT NULL DEFAULT ''",
-            "address_country_code": "ALTER TABLE user_profile ADD COLUMN address_country_code TEXT NOT NULL DEFAULT ''",
-            "address_country_name": "ALTER TABLE user_profile ADD COLUMN address_country_name TEXT NOT NULL DEFAULT ''",
-            "perm_address_street1": "ALTER TABLE user_profile ADD COLUMN perm_address_street1 TEXT NOT NULL DEFAULT ''",
-            "perm_address_street2": "ALTER TABLE user_profile ADD COLUMN perm_address_street2 TEXT NOT NULL DEFAULT ''",
-            "perm_address_city": "ALTER TABLE user_profile ADD COLUMN perm_address_city TEXT NOT NULL DEFAULT ''",
-            "perm_address_state": "ALTER TABLE user_profile ADD COLUMN perm_address_state TEXT NOT NULL DEFAULT ''",
-            "perm_address_zip": "ALTER TABLE user_profile ADD COLUMN perm_address_zip TEXT NOT NULL DEFAULT ''",
-            "perm_address_country_code": "ALTER TABLE user_profile ADD COLUMN perm_address_country_code TEXT NOT NULL DEFAULT ''",
-            "perm_address_country_name": "ALTER TABLE user_profile ADD COLUMN perm_address_country_name TEXT NOT NULL DEFAULT ''",
-            "date_of_birth": "ALTER TABLE user_profile ADD COLUMN date_of_birth TEXT NOT NULL DEFAULT ''",
-            "pronouns": "ALTER TABLE user_profile ADD COLUMN pronouns TEXT NOT NULL DEFAULT ''",
+            # --- 中国版保留 ---
             "website_url": "ALTER TABLE user_profile ADD COLUMN website_url TEXT NOT NULL DEFAULT ''",
-            "drivers_license": "ALTER TABLE user_profile ADD COLUMN drivers_license TEXT NOT NULL DEFAULT ''",
-            "drivers_license_class": "ALTER TABLE user_profile ADD COLUMN drivers_license_class TEXT NOT NULL DEFAULT ''",
-            "drivers_license_state": "ALTER TABLE user_profile ADD COLUMN drivers_license_state TEXT NOT NULL DEFAULT ''",
-            "country_of_citizenship": "ALTER TABLE user_profile ADD COLUMN country_of_citizenship TEXT NOT NULL DEFAULT ''",
-            "authorized_to_work_us": "ALTER TABLE user_profile ADD COLUMN authorized_to_work_us TEXT NOT NULL DEFAULT ''",
-            "requires_sponsorship": "ALTER TABLE user_profile ADD COLUMN requires_sponsorship TEXT NOT NULL DEFAULT ''",
-            "authorization_type": "ALTER TABLE user_profile ADD COLUMN authorization_type TEXT NOT NULL DEFAULT ''",
-            "security_clearance": "ALTER TABLE user_profile ADD COLUMN security_clearance TEXT NOT NULL DEFAULT ''",
-            "clearance_status": "ALTER TABLE user_profile ADD COLUMN clearance_status TEXT NOT NULL DEFAULT ''",
+            "availability_date": "ALTER TABLE user_profile ADD COLUMN availability_date TEXT NOT NULL DEFAULT ''",
+            "willing_to_relocate": "ALTER TABLE user_profile ADD COLUMN willing_to_relocate TEXT NOT NULL DEFAULT ''",
+            # --- 改造为中国口径：月薪 / 到岗时间 ---
             "desired_salary_min": "ALTER TABLE user_profile ADD COLUMN desired_salary_min INTEGER",
             "desired_salary_max": "ALTER TABLE user_profile ADD COLUMN desired_salary_max INTEGER",
             "salary_period": "ALTER TABLE user_profile ADD COLUMN salary_period TEXT NOT NULL DEFAULT ''",
-            "availability_date": "ALTER TABLE user_profile ADD COLUMN availability_date TEXT NOT NULL DEFAULT ''",
             "notice_period": "ALTER TABLE user_profile ADD COLUMN notice_period TEXT NOT NULL DEFAULT ''",
-            "willing_to_relocate": "ALTER TABLE user_profile ADD COLUMN willing_to_relocate TEXT NOT NULL DEFAULT ''",
-            "how_heard_default": "ALTER TABLE user_profile ADD COLUMN how_heard_default TEXT NOT NULL DEFAULT ''",
-            "cover_letter_template": "ALTER TABLE user_profile ADD COLUMN cover_letter_template TEXT NOT NULL DEFAULT ''",
-            "background_check_consent": "ALTER TABLE user_profile ADD COLUMN background_check_consent TEXT NOT NULL DEFAULT ''",
+            # --- deprecated: US-only，界面已移除，二期删列 ---
+            "middle_name": "ALTER TABLE user_profile ADD COLUMN middle_name TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "preferred_name": "ALTER TABLE user_profile ADD COLUMN preferred_name TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "phone_country_code": "ALTER TABLE user_profile ADD COLUMN phone_country_code TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "phone_type": "ALTER TABLE user_profile ADD COLUMN phone_type TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "additional_phone": "ALTER TABLE user_profile ADD COLUMN additional_phone TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_street1": "ALTER TABLE user_profile ADD COLUMN address_street1 TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_street2": "ALTER TABLE user_profile ADD COLUMN address_street2 TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_city": "ALTER TABLE user_profile ADD COLUMN address_city TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_state": "ALTER TABLE user_profile ADD COLUMN address_state TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_zip": "ALTER TABLE user_profile ADD COLUMN address_zip TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_country_code": "ALTER TABLE user_profile ADD COLUMN address_country_code TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "address_country_name": "ALTER TABLE user_profile ADD COLUMN address_country_name TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_street1": "ALTER TABLE user_profile ADD COLUMN perm_address_street1 TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_street2": "ALTER TABLE user_profile ADD COLUMN perm_address_street2 TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_city": "ALTER TABLE user_profile ADD COLUMN perm_address_city TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_state": "ALTER TABLE user_profile ADD COLUMN perm_address_state TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_zip": "ALTER TABLE user_profile ADD COLUMN perm_address_zip TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_country_code": "ALTER TABLE user_profile ADD COLUMN perm_address_country_code TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "perm_address_country_name": "ALTER TABLE user_profile ADD COLUMN perm_address_country_name TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "date_of_birth": "ALTER TABLE user_profile ADD COLUMN date_of_birth TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "pronouns": "ALTER TABLE user_profile ADD COLUMN pronouns TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "drivers_license": "ALTER TABLE user_profile ADD COLUMN drivers_license TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "drivers_license_class": "ALTER TABLE user_profile ADD COLUMN drivers_license_class TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "drivers_license_state": "ALTER TABLE user_profile ADD COLUMN drivers_license_state TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "country_of_citizenship": "ALTER TABLE user_profile ADD COLUMN country_of_citizenship TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "authorized_to_work_us": "ALTER TABLE user_profile ADD COLUMN authorized_to_work_us TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "requires_sponsorship": "ALTER TABLE user_profile ADD COLUMN requires_sponsorship TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "authorization_type": "ALTER TABLE user_profile ADD COLUMN authorization_type TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "security_clearance": "ALTER TABLE user_profile ADD COLUMN security_clearance TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "clearance_status": "ALTER TABLE user_profile ADD COLUMN clearance_status TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "how_heard_default": "ALTER TABLE user_profile ADD COLUMN how_heard_default TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "cover_letter_template": "ALTER TABLE user_profile ADD COLUMN cover_letter_template TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
+            "background_check_consent": "ALTER TABLE user_profile ADD COLUMN background_check_consent TEXT NOT NULL DEFAULT ''",  # deprecated: US-only
         }
         if profile_columns:
             for col, sql in profile_migrations.items():
@@ -745,6 +809,7 @@ class Database:
         )
 
         # Create interview_prep table if not exists
+        # `questions` 是 M9 的结构化题库（JSON 数组），旧四列保留兼容（惰性废弃）
         await self.db.execute("""
             CREATE TABLE IF NOT EXISTS interview_prep (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -753,10 +818,15 @@ class Database:
                 technical_questions TEXT NOT NULL DEFAULT '[]',
                 star_stories TEXT NOT NULL DEFAULT '[]',
                 talking_points TEXT NOT NULL DEFAULT '[]',
+                questions TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
             )
         """)
+        prep_cursor = await self.db.execute("PRAGMA table_info(interview_prep)")
+        prep_columns = {row[1] for row in await prep_cursor.fetchall()}
+        if prep_columns and "questions" not in prep_columns:
+            await self.db.execute("ALTER TABLE interview_prep ADD COLUMN questions TEXT NOT NULL DEFAULT '[]'")
 
         await self.db.execute("""
             CREATE TABLE IF NOT EXISTS interview_rounds (
@@ -837,17 +907,22 @@ class Database:
             await self.db.commit()
 
     async def insert_job(self, title, company, location, salary_min, salary_max,
-                         description, url, posted_date, application_method, contact_email):
+                         description, url, posted_date, application_method, contact_email,
+                         experience_req=None, education_req=None, company_size=None,
+                         company_stage=None, job_labels=None):
         dedup = make_dedup_hash(title, company, url)
         now = datetime.now(timezone.utc).isoformat()
         normalized_date = _normalize_posted_date(posted_date)
+        labels = json.dumps(list(job_labels or []), ensure_ascii=False)
         cursor = await self.db.execute(
             """INSERT OR IGNORE INTO jobs
                (title, company, location, salary_min, salary_max, description, url,
-                posted_date, application_method, contact_email, dedup_hash, created_at, last_seen_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                posted_date, application_method, contact_email, dedup_hash, created_at, last_seen_at,
+                experience_req, education_req, company_size, company_stage, job_labels)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (title, company, location, salary_min, salary_max, description, url,
-             normalized_date, application_method, contact_email, dedup, now, now)
+             normalized_date, application_method, contact_email, dedup, now, now,
+             experience_req, education_req, company_size, company_stage, labels)
         )
         await self.db.commit()
         if cursor.rowcount == 0:
@@ -876,6 +951,32 @@ class Database:
         cursor = await self.db.execute("SELECT * FROM jobs WHERE url = ?", (url,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+    async def find_job_by_url_variants(self, url: str) -> dict | None:
+        """Exact URL match first, then a query-param / trailing-slash tolerant match.
+
+        扩展回传的链接可能带着 BOSS 直聘的会话参数，用户也可能从别处粘贴带参数的
+        链接；只做全等比较会把同一职位当成新职位，于是详情页 JD 无法补写。
+        用路径最后一段（BOSS 的加密职位 ID 就在这里）预筛候选，避免全表扫描。
+        """
+        exact = await self.find_job_by_url(url)
+        if exact:
+            return exact
+
+        target = stable_job_url(url)
+        if not target:
+            return None
+        parts = urlsplit(target)
+        if not parts.netloc:
+            return None
+        tail = parts.path.rsplit("/", 1)[-1] or parts.netloc
+        cursor = await self.db.execute(
+            "SELECT * FROM jobs WHERE url LIKE ? LIMIT 50", (f"%{tail}%",)
+        )
+        for row in await cursor.fetchall():
+            if stable_job_url(row["url"]) == target:
+                return dict(row)
+        return None
 
     async def insert_source(self, job_id, source_name, source_url):
         await self.db.execute(
@@ -1079,6 +1180,7 @@ class Database:
         await self.db.commit()
 
     async def insert_application(self, job_id, status="interested"):
+        _validate_status(status)
         cursor = await self.db.execute(
             "INSERT INTO applications (job_id, status) VALUES (?, ?)", (job_id, status)
         )
@@ -1087,6 +1189,8 @@ class Database:
 
     async def update_application(self, app_id, **kwargs):
         _validate_columns("applications", kwargs.keys())
+        if "status" in kwargs:
+            _validate_status(kwargs["status"])
         sets = ", ".join(f"{k} = ?" for k in kwargs)
         vals = list(kwargs.values())
         vals.append(app_id)
@@ -1099,6 +1203,7 @@ class Database:
         return dict(row) if row else None
 
     async def upsert_application(self, job_id: int, status: str):
+        _validate_status(status)
         now = datetime.now(timezone.utc).isoformat()
         existing = await self.get_application(job_id)
         timestamp_fields = {
@@ -1298,8 +1403,6 @@ class Database:
         d["ats_issues"] = json.loads(d["ats_issues"])
         d["ats_tips"] = json.loads(d["ats_tips"])
         d["exclude_terms"] = json.loads(d.get("exclude_terms", "[]"))
-        d["allowed_regions"] = json.loads(d.get("allowed_regions", '["US","Remote"]'))
-        d["remote_only"] = bool(d.get("remote_only", 0))
         return d
 
     async def save_search_config(self, resume_text: str, search_terms: list[str],
@@ -1366,58 +1469,6 @@ class Database:
         await self.db.executemany(
             "UPDATE jobs SET location_region = ?, location_classified = 1 WHERE id = ?",
             [(region, job_id) for job_id, region in updates]
-        )
-        await self.db.commit()
-
-    async def dismiss_jobs_outside_regions(self, allowed_regions: list[str]) -> int:
-        """Dismiss classified jobs outside allowed regions, respecting active applications."""
-        if not allowed_regions:
-            return 0
-        placeholders = ",".join("?" for _ in allowed_regions)
-        cursor = await self.db.execute(
-            f"""UPDATE jobs SET dismissed = 1
-                WHERE dismissed = 0
-                AND location_classified = 1
-                AND location_region NOT IN ({placeholders})
-                AND id NOT IN (
-                    SELECT job_id FROM applications WHERE status != 'interested'
-                )""",
-            allowed_regions
-        )
-        await self.db.commit()
-        return cursor.rowcount
-
-    async def get_allowed_regions(self) -> list[str]:
-        cursor = await self.db.execute(
-            "SELECT allowed_regions FROM search_config WHERE id = 1"
-        )
-        row = await cursor.fetchone()
-        if not row or not row["allowed_regions"]:
-            return ["US", "Remote"]
-        return json.loads(row["allowed_regions"])
-
-    async def update_allowed_regions(self, regions: list[str]):
-        now = datetime.now(timezone.utc).isoformat()
-        await self.db.execute(
-            "UPDATE search_config SET allowed_regions = ?, updated_at = ? WHERE id = 1",
-            (json.dumps(regions), now)
-        )
-        await self.db.commit()
-
-    async def get_remote_only(self) -> bool:
-        cursor = await self.db.execute(
-            "SELECT remote_only FROM search_config WHERE id = 1"
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return False
-        return bool(row["remote_only"])
-
-    async def set_remote_only(self, enabled: bool):
-        now = datetime.now(timezone.utc).isoformat()
-        await self.db.execute(
-            "UPDATE search_config SET remote_only = ?, updated_at = ? WHERE id = 1",
-            (1 if enabled else 0, now)
         )
         await self.db.commit()
 
@@ -1584,19 +1635,21 @@ class Database:
     async def save_interview_prep(self, job_id: int, prep: dict):
         now = datetime.now(timezone.utc).isoformat()
         await self.db.execute(
-            """INSERT INTO interview_prep (job_id, behavioral_questions, technical_questions, star_stories, talking_points, created_at)
-               VALUES (?, ?, ?, ?, ?, ?)
+            """INSERT INTO interview_prep (job_id, behavioral_questions, technical_questions, star_stories, talking_points, questions, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(job_id) DO UPDATE SET
                behavioral_questions=excluded.behavioral_questions,
                technical_questions=excluded.technical_questions,
                star_stories=excluded.star_stories,
                talking_points=excluded.talking_points,
+               questions=excluded.questions,
                created_at=excluded.created_at""",
             (job_id,
              json.dumps(prep.get("behavioral_questions", [])),
              json.dumps(prep.get("technical_questions", [])),
              json.dumps(prep.get("star_stories", [])),
              json.dumps(prep.get("talking_points", [])),
+             json.dumps(prep.get("questions", []), ensure_ascii=False),
              now)
         )
         await self.db.commit()
@@ -1613,7 +1666,39 @@ class Database:
         d["technical_questions"] = json.loads(d["technical_questions"])
         d["star_stories"] = json.loads(d["star_stories"])
         d["talking_points"] = json.loads(d["talking_points"])
+        d["questions"] = json.loads(d.get("questions") or "[]")
         return d
+
+    async def list_interview_prep_sources(self) -> list[dict]:
+        """有结构化题库的职位列表，供「复制题库」选择来源（M9）。"""
+        cursor = await self.db.execute(
+            """SELECT ip.job_id AS job_id, j.title AS title, j.company AS company
+               FROM interview_prep ip JOIN jobs j ON j.id = ip.job_id
+               WHERE ip.questions IS NOT NULL AND ip.questions != '[]'
+               ORDER BY ip.created_at DESC LIMIT 50"""
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+
+    async def update_interview_question(self, job_id: int, index: int, patch: dict) -> dict | None:
+        """更新单题的作答草稿/熟练状态/要点；返回更新后的题目，越界或不存在返回 None。"""
+        prep = await self.get_interview_prep(job_id)
+        if not prep:
+            return None
+        questions = prep.get("questions") or []
+        if index < 0 or index >= len(questions):
+            return None
+        question = dict(questions[index])
+        if isinstance(patch.get("user_draft"), str):
+            question["user_draft"] = patch["user_draft"]
+        if isinstance(patch.get("star_hint"), str):
+            question["star_hint"] = patch["star_hint"]
+        if isinstance(patch.get("key_points"), list):
+            question["key_points"] = [str(p) for p in patch["key_points"]]
+        if patch.get("status") in ("todo", "drafted", "mastered"):
+            question["status"] = patch["status"]
+        questions[index] = question
+        await self.save_interview_prep(job_id, {**prep, "questions": questions})
+        return question
 
     # --- Interview Rounds ---
 

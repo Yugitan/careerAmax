@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Query, Request
+from app.database import APPLICATION_STATUSES
 from app.errors import AppError
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,14 @@ async def apply_to_job(request: Request, job_id: int):
 @router.post("/jobs/{job_id}/application")
 async def update_application(request: Request, job_id: int, status: str = Query(...), notes: str = Query("")):
     db = request.app.state.db
+    # 状态必须是稳定英文枚举：界面把翻译结果当 value 提交时（中文下会传「已申请」），
+    # 在这里直接拒绝，避免脏数据静默落库。
+    if status not in APPLICATION_STATUSES:
+        raise AppError(
+            "job.invalid_status",
+            status_code=400,
+            params={"status": status, "allowed": ", ".join(APPLICATION_STATUSES)},
+        )
     app_row = await db.get_application(job_id)
     if not app_row:
         await db.insert_application(job_id, status)

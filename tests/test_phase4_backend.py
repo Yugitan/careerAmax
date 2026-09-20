@@ -208,28 +208,29 @@ async def test_api_analyze_career_no_ai(client, app):
 # --- 4.5 Offer Calculator ---
 
 def test_calculate_total_comp():
+    # 中国口径：月薪 × 薪数 + 年终奖 + 股权折年 + 签字费/补贴。
     result = calculate_total_comp({
-        "base": 150000, "equity": 30000, "bonus": 15000,
-        "pto_days": 20, "health_value": 12000,
-        "retirement_match": 4, "relocation": 5000,
+        "base": 30000, "months_per_year": 14,
+        "bonus": 20000, "equity": 50000, "relocation": 10000,
     })
-    assert result["base"] == 150000
-    assert result["total_cash"] == 165000
-    assert result["retirement_value"] == 6000
-    assert result["total_comp"] == 218000
+    assert result["base"] == 30000
+    assert result["months_per_year"] == 14
+    assert result["total_cash"] == 30000 * 14 + 20000 + 10000
+    assert result["total_comp"] == 30000 * 14 + 20000 + 50000 + 10000
+    assert result["annual_net_income"] > 0
 
 
 def test_compare_offers():
     offers = [
-        {"id": 1, "base": 150000, "equity": 30000, "bonus": 15000, "pto_days": 20,
-         "health_value": 12000, "retirement_match": 4, "relocation": 0, "location": "SF"},
-        {"id": 2, "base": 130000, "equity": 50000, "bonus": 10000, "pto_days": 25,
-         "health_value": 15000, "retirement_match": 6, "relocation": 10000, "location": "Austin"},
+        {"id": 1, "base": 30000, "months_per_year": 14, "equity": 50000,
+         "bonus": 20000, "relocation": 0, "location": "上海"},
+        {"id": 2, "base": 35000, "months_per_year": 13, "equity": 30000,
+         "bonus": 15000, "relocation": 50000, "location": "北京"},
     ]
     result = compare_offers(offers)
     assert len(result) == 2
-    assert result[0]["vs_best"] == 0  # Best offer
-    assert result[1]["vs_best"] < 0  # Worse offer
+    assert result[0]["vs_best"] == 0  # 年总包最高
+    assert result[1]["vs_best"] < 0   # 年总包较低
 
 
 @pytest.mark.asyncio

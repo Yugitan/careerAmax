@@ -10,11 +10,8 @@ from fastapi.responses import JSONResponse, Response
 
 from app.ai_client import check_ai_reachable
 from app.database import Database
-from app.scheduler import (
-    run_enrichment_cycle,
-    run_location_classification,
-    run_scrape_cycle,
-)
+from app.errors import AppError
+from app.scheduler import run_scrape_cycle
 from app.scrapers import ALL_SCRAPERS
 
 logger = logging.getLogger(__name__)
@@ -76,7 +73,14 @@ async def _mirror_scoring_progress(app, progress: dict) -> None:
 
 
 async def _scrape_and_score(app, task_id: str) -> None:
-    """Phase pipeline. Router owns phase/active — scheduler only updates counters."""
+    """阶段状态机：scraping → scoring → done/error。
+
+    中国版一期不再有服务端爬虫（`ALL_SCRAPERS` 为空），本流程由扩展回传的职位
+    触发 —— 复用同一套去重/入库/打分链路（PRD §14.2）。原先的 enriching 与
+    classifying 两个阶段随美国模块一并移除。
+
+    Router owns phase/active — the scheduler only updates counters.
+    """
     progress = app.state.scrape_progress
     bg_db = app.state.bg_db
     mirror_task: asyncio.Task | None = None
@@ -98,15 +102,7 @@ async def _scrape_and_score(app, task_id: str) -> None:
             force=True,
         )
 
-        _set_phase(progress, "enriching", current="Fetching job details")
-        await asyncio.wait_for(run_enrichment_cycle(bg_db), timeout=600)
-
         ai_client = getattr(app.state, "ai_client", None)
-        _set_phase(progress, "classifying", current="Classifying locations")
-        await asyncio.wait_for(
-            run_location_classification(bg_db, ai_client), timeout=600
-        )
-
         if ai_client:
             reachable, detail = await asyncio.wait_for(
                 check_ai_reachable(ai_client), timeout=15
@@ -230,6 +226,12 @@ async def trigger_scrape(request: Request):
             status_code=409,
         )
 
+    # 中国版：服务端无爬虫（ALL_SCRAPERS 为空），职位数据由浏览器扩展回传。
+    # 空转一次只会让用户看到「0 数据」的假完成，这里直接给出可行动的错误码，
+    # 前端据此提示安装/使用扩展。
+    if not ALL_SCRAPERS:
+        raise AppError("scrape.no_server_scrapers", status_code=409)
+
     task_id = uuid.uuid4().hex
     app.state.scrape_progress = _fresh_state(task_id)
     app.state.scrape_task = asyncio.create_task(_scrape_and_score(app, task_id))
@@ -276,13 +278,6 @@ async def scrape_progress(request: Request):
     return {**progress, "server_now": now}
 
 
-@router.post("/jobs/enrich")
-async def enrich_jobs(request: Request):
-    bg_db = getattr(request.app.state, "bg_db", request.app.state.db)
-    enriched = await run_enrichment_cycle(bg_db, limit=50)
-    return {"enriched": enriched}
-
-
 @router.post("/score")
 async def trigger_score(request: Request):
     app = request.app
@@ -309,6 +304,27 @@ async def score_progress(request: Request):
     if not progress:
         return {"active": False, "scored": 0, "total": 0}
     return progress
+
+
+@router.get("/ingest-stats")
+async def ingest_stats(request: Request):
+    """扩展回传统计：按来源汇总职位数与最近回传时间。
+
+    中国版没有服务端爬虫，「立即抓取」不再是数据入口；这个接口给前端展示
+    扩展回传链路的健康度（有没有装扩展、最近有没有成功回传）。
+    """
+    db: Database = request.app.state.db
+    cursor = await db.db.execute(
+        """SELECT s.source_name AS source,
+                  COUNT(DISTINCT s.job_id) AS jobs,
+                  MAX(j.created_at) AS last_captured_at
+           FROM sources s
+           INNER JOIN jobs j ON j.id = s.job_id
+           GROUP BY s.source_name
+           ORDER BY jobs DESC"""
+    )
+    rows = [dict(r) for r in await cursor.fetchall()]
+    return {"sources": rows}
 
 
 @router.post("/rescore-failed")

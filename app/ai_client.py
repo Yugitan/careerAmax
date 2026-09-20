@@ -89,7 +89,25 @@ def _resolve_ollama_url(url: str) -> str:
     return url
 
 
+# 国内 provider 复用 OpenAI 兼容协议（PRD M3）：中文能力强、国内网络可达。
+# 它们与 openai/google/openrouter 共用同一条请求路径，无需额外依赖。
 OPENAI_COMPAT_PROVIDERS = {
+    "deepseek": {
+        "base_url": "https://api.deepseek.com/v1",
+        "default_model": "deepseek-chat",
+    },
+    "qwen": {
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "default_model": "qwen-plus",
+    },
+    "kimi": {
+        "base_url": "https://api.moonshot.cn/v1",
+        "default_model": "moonshot-v1-32k",
+    },
+    "zhipu": {
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "default_model": "glm-4-plus",
+    },
     "openai": {
         "base_url": "https://api.openai.com/v1",
         "default_model": "gpt-4o",
@@ -104,11 +122,100 @@ OPENAI_COMPAT_PROVIDERS = {
     },
 }
 
-ALL_PROVIDERS = ["anthropic", "bedrock", "ollama", "openai", "google", "openrouter"]
+# 国内 provider 排在前面：设置页的选项顺序即新用户的默认选择（DeepSeek 优先）
+ALL_PROVIDERS = [
+    "deepseek", "qwen", "kimi", "zhipu", "ollama",
+    "anthropic", "openai", "google", "openrouter", "bedrock",
+]
+
+# 申请密钥入口（PRD M3：设置页每个 provider 提供申请入口链接）
+PROVIDER_APPLY_URLS = {
+    "deepseek": "https://platform.deepseek.com/api_keys",
+    "qwen": "https://bailian.console.aliyun.com/",
+    "kimi": "https://platform.moonshot.cn/console/api-keys",
+    "zhipu": "https://open.bigmodel.cn/usercenter/apikeys",
+    "openai": "https://platform.openai.com/api-keys",
+    "anthropic": "https://console.anthropic.com/settings/keys",
+    "google": "https://aistudio.google.com/app/apikey",
+    "openrouter": "https://openrouter.ai/keys",
+    "ollama": "https://ollama.com/download",
+}
 
 
-async def check_ai_reachable(client: "AIClient") -> tuple[bool, str]:
-    """Quick connectivity check for the configured AI provider. Returns (reachable, detail)."""
+def provider_defaults() -> dict[str, dict[str, str]]:
+    """设置页预填数据：Base URL、默认模型名与申请密钥入口（单一数据源）。"""
+    defaults: dict[str, dict[str, str]] = {
+        key: {
+            "base_url": cfg["base_url"],
+            "default_model": cfg["default_model"],
+            "apply_url": PROVIDER_APPLY_URLS.get(key, ""),
+        }
+        for key, cfg in OPENAI_COMPAT_PROVIDERS.items()
+    }
+    defaults["ollama"] = {
+        "base_url": "http://localhost:11434",
+        "default_model": "qwen2.5:14b",
+        "apply_url": PROVIDER_APPLY_URLS["ollama"],
+    }
+    defaults["anthropic"] = {
+        "base_url": "",
+        "default_model": "claude-sonnet-4-20250514",
+        "apply_url": PROVIDER_APPLY_URLS["anthropic"],
+    }
+    defaults["bedrock"] = {
+        "base_url": "",
+        "default_model": "us.anthropic.claude-sonnet-4-6",
+        "apply_url": "",
+    }
+    return defaults
+
+
+# 连通性测试失败原因码（PRD M3）：前端按 reason 映射为中文原因
+AI_ERROR_REASONS = ("invalid_key", "quota_exceeded", "model_not_found", "unreachable", "unknown")
+
+
+def classify_ai_error(exc: BaseException) -> str:
+    """把各 provider 的原始报错归类为可翻译的稳定原因码。"""
+    status = getattr(exc, "status_code", None)  # openai/anthropic 异常自带 status_code
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+    text = f"{exc}".lower()
+    invalid_key_markers = (
+        "invalid_api_key", "invalid api key", "incorrect api key", "api key not valid",
+        "authentication", "unauthorized", "permission denied",
+    )
+    if status in (401, 403) or any(marker in text for marker in invalid_key_markers):
+        return "invalid_key"
+    if status == 402 or "insufficient" in text or "quota" in text or "balance" in text:
+        return "quota_exceeded"
+    if status == 404 or "model_not_found" in text or "does not exist" in text or "unknown model" in text:
+        return "model_not_found"
+    if isinstance(exc, httpx.TransportError) or "connection" in text or "timeout" in text or "unreachable" in text:
+        return "unreachable"
+    return "unknown"
+
+
+AI_PROBE_TIMEOUT_SEC = 5.0
+
+
+async def check_ai_reachable(client: "AIClient",
+                             timeout: float = AI_PROBE_TIMEOUT_SEC) -> tuple[bool, str]:
+    """Quick connectivity check for the configured AI provider. Returns (reachable, detail).
+
+    必须有超时：这里调的是各家 SDK，而 OpenAI 兼容 SDK（国内四家都走这条路）默认
+    超时 600 秒、默认重试 2 次 —— 供应商网络不顺时，一个 `/api/health` 就会挂着近
+    半小时。健康检查在**请求路径**上（`GET /api/health`，扩展的弹窗也在调），
+    探测卡住会让用户以为整个服务死了。
+    """
+    try:
+        return await asyncio.wait_for(_check_ai_reachable(client), timeout=timeout)
+    except asyncio.TimeoutError:
+        return False, f"{client.provider} timed out after {timeout:.0f}s"
+
+
+async def _check_ai_reachable(client: "AIClient") -> tuple[bool, str]:
     try:
         if client.provider == "ollama":
             url = f"{_resolve_ollama_url(client.base_url).rstrip('/')}/api/tags"
@@ -163,7 +270,7 @@ class AIClient:
         if self.provider == "bedrock":
             return "us.anthropic.claude-sonnet-4-6"
         if self.provider == "ollama":
-            return "llama3"
+            return "qwen2.5:14b"
         if self.provider in OPENAI_COMPAT_PROVIDERS:
             return OPENAI_COMPAT_PROVIDERS[self.provider]["default_model"]
         return ""

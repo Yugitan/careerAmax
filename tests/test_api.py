@@ -27,6 +27,34 @@ async def client(app):
 
 
 @pytest.mark.asyncio
+async def test_static_assets_must_revalidate(tmp_path):
+    """前端脚本必须每次回源校验。
+
+    没有 Cache-Control 时，浏览器会按启发式规则自行缓存 JS，升级后就会出现
+    「新的 app.js + 旧的 api.js」的错配（用户看到 `api.xxx is not a function`，
+    而服务端文件其实是新的）。
+    """
+    from starlette.applications import Starlette
+
+    from app.main import NoCacheStaticFiles
+
+    static_dir = tmp_path / "static"
+    (static_dir / "js").mkdir(parents=True)
+    (static_dir / "js" / "api.js").write_text("const api = {};\n", encoding="utf-8")
+
+    mounted = Starlette()
+    mounted.mount("/static", NoCacheStaticFiles(directory=str(static_dir)), name="static")
+    transport = ASGITransport(app=mounted)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/static/js/api.js")
+
+    assert resp.status_code == 200
+    assert "no-cache" in resp.headers["cache-control"]
+    # 回源校验依然会命中 ETag（304），所以这不增加流量
+    assert resp.headers.get("etag")
+
+
+@pytest.mark.asyncio
 async def test_health(client):
     resp = await client.get("/api/health")
     assert resp.status_code == 200
@@ -64,7 +92,21 @@ async def test_get_job_not_found(client):
 
 
 @pytest.mark.asyncio
-async def test_trigger_scrape(client):
+async def test_trigger_scrape(client, monkeypatch):
+    # 中国版 ALL_SCRAPERS 为空，trigger_scrape 返回可翻译的 409 错误码
+    # （流水线状态机的行为由 test_scrape_robust.py 用假爬虫覆盖）。
+    from app.routers import scraping as scraping_router
+
+    class _FakeScraper:
+        source_name = "fake"
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def scrape(self):
+            return []
+
+    monkeypatch.setattr(scraping_router, "ALL_SCRAPERS", [_FakeScraper], raising=True)
     resp = await client.post("/api/scrape")
     assert resp.status_code == 202
     body = resp.json()
@@ -378,3 +420,64 @@ async def test_upload_resume_pdf(client, app):
     data = resp.json()
     assert data["ok"] is True
     assert data["resume_length"] > 0
+
+
+@pytest.mark.asyncio
+async def test_upload_resume_docx_extracts_paragraphs_and_tables(client, app):
+    """中文简历常用 DOCX（含表格排版），必须真解析出文字而不是二进制乱码。"""
+    app.state._anthropic_client = None
+    app.state.testing = True
+    import io
+    from docx import Document
+
+    document = Document()
+    document.add_paragraph("张三 后端工程师")
+    table = document.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "手机"
+    table.rows[0].cells[1].text = "13800138000"
+    buffer = io.BytesIO()
+    document.save(buffer)
+
+    files = {
+        "file": (
+            "resume.docx",
+            buffer.getvalue(),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    }
+    resp = await client.post("/api/resume/upload", files=files)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["resume_length"] == len("张三 后端工程师\n手机\t13800138000")
+
+
+@pytest.mark.asyncio
+async def test_upload_resume_rejects_legacy_doc(client, app):
+    app.state._anthropic_client = None
+    app.state.testing = True
+    import io
+
+    files = {"file": ("resume.doc", io.BytesIO(b"\xd0\xcf\x11\xe0binary"), "application/msword")}
+    resp = await client.post("/api/resume/upload", files=files)
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["code"] == "resume.legacy_format"
+    assert body["params"] == {"ext": ".doc"}
+
+
+@pytest.mark.asyncio
+async def test_upload_resume_rejects_image_only_pdf(client, app):
+    app.state._anthropic_client = None
+    app.state.testing = True
+    import fitz
+    import io
+
+    doc = fitz.open()
+    doc.new_page()  # 空白页 = 无文本层（扫描件）
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    files = {"file": ("scan.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+    resp = await client.post("/api/resume/upload", files=files)
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "resume.no_text_layer"

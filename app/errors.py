@@ -41,6 +41,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "job.invalid_event_type": "Invalid event_type: {event_type}",
     "job.url_required": "url is required",
     "job.invalid_transition": "{error}",
+    "job.invalid_status": "Invalid application status: {status}. Allowed: {allowed}",
 
     # --- AI providers ---
     "ai.not_configured": "No AI provider configured. Go to Settings → AI to set one up.",
@@ -63,6 +64,9 @@ ERROR_MESSAGES: dict[str, str] = {
     "resume.name_required": "Resume name is required",
     "resume.name_empty": "Resume name cannot be empty",
     "resume.unsupported_file_type": "Unsupported file type: {ext}. Allowed: {allowed}",
+    "resume.legacy_format": "Legacy format {ext} is not supported — save the file as .docx and upload again",
+    "resume.parse_failed": "Could not read the {ext} file — it may be corrupted or password protected",
+    "resume.no_text_layer": "No text found in the file. If it is a scanned document, upload a version with selectable text",
     "resume.file_too_large": "File too large ({size} bytes). Maximum: {max_mb}MB",
 
     # --- tailoring / generated documents ---
@@ -100,9 +104,11 @@ ERROR_MESSAGES: dict[str, str] = {
     "view.name_empty": "View name cannot be empty",
     "settings.search_terms_invalid": "search_terms must be a list",
     "settings.exclude_terms_invalid": "exclude_terms must be a list",
-    "settings.allowed_regions_invalid": "allowed_regions must be a list",
-    "settings.remote_only_invalid": "remote_only must be a boolean",
     "settings.source_config_required": "source_name and interval_hours required",
+
+    # --- salary ---
+    "salary.invalid_input": "Invalid take-home pay input",
+    "salary.offers_required": "At least one offer is required for comparison",
 
     # --- email ---
     "email.smtp_not_configured": "SMTP not configured",
@@ -117,10 +123,16 @@ ERROR_MESSAGES: dict[str, str] = {
     # --- interviews ---
     "interview.round_not_found": "Interview round not found",
     "interview.interviewer_name_required": "No interviewer name to promote",
+    "interview.question_not_found": "Question {index} not found in this question bank",
+    "interview.source_required": "source_job_id is required",
+    "interview.source_empty": "The source job has no question bank to copy",
 
     # --- calendar ---
     "calendar.token_required": "Token required",
     "calendar.invalid_token": "Invalid token",
+
+    # --- scraping (China edition: no server-side scrapers) ---
+    "scrape.no_server_scrapers": "Jobs are captured by the browser extension while you browse — there are no server-side scrapers. Open jobs on BOSS Zhipin with the extension installed to save them.",
 
     # --- generic validation ---
     "validation.no_fields_to_update": "No fields to update",

@@ -10,7 +10,7 @@ def test_default_model_anthropic():
 
 def test_default_model_ollama():
     client = AIClient("ollama")
-    assert client.model == "llama3"
+    assert client.model == "qwen2.5:14b"
 
 
 def test_default_base_url_ollama():
@@ -33,6 +33,60 @@ def test_default_model_openrouter():
     client = AIClient("openrouter", api_key="test")
     assert client.model == "anthropic/claude-sonnet-4"
     assert "openrouter.ai" in client.base_url
+
+
+# --- 国内 provider（PRD M3）---
+
+@pytest.mark.parametrize("provider,model,base_url_part", [
+    ("deepseek", "deepseek-chat", "api.deepseek.com"),
+    ("qwen", "qwen-plus", "dashscope.aliyuncs.com"),
+    ("kimi", "moonshot-v1-32k", "api.moonshot.cn"),
+    ("zhipu", "glm-4-plus", "open.bigmodel.cn"),
+])
+def test_domestic_provider_defaults(provider, model, base_url_part):
+    client = AIClient(provider, api_key="test")
+    assert provider in ALL_PROVIDERS
+    assert client.model == model
+    assert base_url_part in client.base_url
+
+
+def test_domestic_providers_share_openai_compat_path():
+    from app.ai_client import OPENAI_COMPAT_PROVIDERS
+    for provider in ("deepseek", "qwen", "kimi", "zhipu"):
+        assert provider in OPENAI_COMPAT_PROVIDERS
+
+
+@pytest.mark.parametrize("exc,expected", [
+    (Exception("something odd happened"), "unknown"),
+    (Exception("Invalid API key provided: sk-x"), "invalid_key"),
+    (Exception("You exceeded your current quota"), "quota_exceeded"),
+    (Exception("model_not_found: no such model"), "model_not_found"),
+    (Exception("Connection error: connect ECONNREFUSED"), "unreachable"),
+])
+def test_classify_ai_error(exc, expected):
+    from app.ai_client import classify_ai_error
+    assert classify_ai_error(exc) == expected
+
+
+def test_classify_ai_error_uses_status_code():
+    import httpx
+    from app.ai_client import classify_ai_error
+
+    request = httpx.Request("GET", "https://api.deepseek.com/v1/models")
+    for status, expected in [(401, "invalid_key"), (402, "quota_exceeded"), (404, "model_not_found")]:
+        response = httpx.Response(status, request=request)
+        error = httpx.HTTPStatusError("boom", request=request, response=response)
+        assert classify_ai_error(error) == expected
+
+
+def test_provider_defaults_covers_every_provider():
+    from app.ai_client import provider_defaults
+    defaults = provider_defaults()
+    assert set(defaults) == set(ALL_PROVIDERS)
+    # 国内 provider 必须带申请密钥入口，便于设置页引导
+    for provider in ("deepseek", "qwen", "kimi", "zhipu"):
+        assert defaults[provider]["apply_url"].startswith("https://")
+        assert defaults[provider]["base_url"].startswith("https://")
 
 
 # --- Bedrock provider tests ---

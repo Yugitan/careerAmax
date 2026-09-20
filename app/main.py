@@ -8,6 +8,21 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+
+class NoCacheStaticFiles(StaticFiles):
+    """静态资源强制回源校验（自托管应用：升级后不能拿旧 JS 跑新代码）。
+
+    只带 ETag/Last-Modified 时，浏览器会按启发式规则把 JS 自行缓存一段时间，
+    于是升级后可能出现「新的 app.js + 旧的 api.js」这种错配 —— 表现是
+    `api.xxx is not a function`，而服务端文件其实是新的，用户怎么刷新都没用。
+    命中 ETag 时仍是 304，回源校验的成本可以忽略。
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
 import time as _time
 from datetime import datetime, timezone
 
@@ -64,6 +79,7 @@ async def lifespan(app: FastAPI):
     # Stale-state recovery: a crashed previous run must never leave active=true.
     app.state.scrape_progress = None
     app.state.scrape_task = None
+    app.state.capture_request = None
     app.state.db = Database(db_path)
     await app.state.db.init()
     await app.state.db.migrate_resume_from_search_config()
@@ -89,8 +105,7 @@ async def lifespan(app: FastAPI):
 
     if not testing:
         from app.config import Settings
-        from app.scrapers import ALL_SCRAPERS
-        from app.scheduler import run_scrape_cycle, run_enrichment_cycle, run_maintenance_cycle, run_reminder_check, run_digest_cycle, run_alert_check, run_job_embedding_cycle, run_context_embedding_cycle, run_location_classification
+        from app.scheduler import run_maintenance_cycle, run_reminder_check, run_digest_cycle, run_alert_check
 
         settings = Settings()
 
@@ -139,26 +154,8 @@ async def lifespan(app: FastAPI):
 
         scheduler = AsyncIOScheduler()
 
-        async def scheduled_scrape():
-            try:
-                bg_db = app.state.bg_db
-                config = await bg_db.get_search_config()
-                terms = config["search_terms"] if config else []
-                keys = await bg_db.get_scraper_keys()
-                scrapers = [s(search_terms=terms, scraper_keys=keys) for s in ALL_SCRAPERS]
-                await run_scrape_cycle(bg_db, scrapers, search_terms=terms, scraper_keys=keys)
-            except Exception:
-                logger.exception("Scheduled scrape failed")
-
-        async def scheduled_enrichment():
-            try:
-                await run_enrichment_cycle(app.state.bg_db)
-            except Exception:
-                logger.exception("Scheduled enrichment failed")
-
         async def scheduled_scoring():
             try:
-                await run_location_classification(app.state.bg_db, app.state.ai_client)
                 await app.state.score_unscored(app.state.bg_db)
             except Exception:
                 logger.exception("Scheduled scoring failed")
@@ -192,23 +189,16 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.exception("Scheduled alert check failed")
 
-        async def scheduled_embedding():
-            try:
-                await run_job_embedding_cycle(app.state.bg_db, app.state.embedding_client)
-                await run_context_embedding_cycle(app.state.bg_db, app.state.embedding_client)
-            except Exception:
-                logger.exception("Scheduled embedding failed")
-
-        scheduler.add_job(
-            scheduled_scrape, "interval",
-            hours=settings.scrape_interval_hours,
-            id="scrape_cycle",
-        )
-        scheduler.add_job(
-            scheduled_enrichment, "interval",
-            hours=2,
-            id="enrichment_cycle",
-        )
+        # 定时任务：中国版一期只保留与国别无关的维护类任务。
+        #
+        # 已移除：`scrape_cycle` 与 `enrichment_cycle`（招聘数据改由浏览器扩展在
+        # 用户浏览 BOSS 直聘时回传，PRD 决策 D1）、`run_location_classification`
+        # （美国 region 分类）。
+        # 已停用：`embedding_cycle`（语义检索一期不做，减法清单 S3）—— 函数保留，
+        # 二期可重新注册。
+        #
+        # US-only scheduled jobs were removed with the China rewrite — see
+        # `docs/plans/2026-09-10-china-subtraction-plan.md` §2.2.1.
         scheduler.add_job(
             scheduled_scoring, "interval",
             hours=1,
@@ -224,6 +214,8 @@ async def lifespan(app: FastAPI):
             hours=12,
             id="reminder_check",
         )
+        # 邮件摘要：减法清单 S2「隐藏」—— 代码保留、界面去入口，因此任务继续注册；
+        # 未配置 SMTP 时 `run_digest_cycle` 自身会跳过。
         scheduler.add_job(
             scheduled_digest, "cron",
             hour=8,
@@ -233,11 +225,6 @@ async def lifespan(app: FastAPI):
             scheduled_alert_check, "interval",
             hours=1,
             id="alert_check",
-        )
-        scheduler.add_job(
-            scheduled_embedding, "interval",
-            hours=2,
-            id="embedding_cycle",
         )
         scheduler.start()
         app.state.scheduler = scheduler
@@ -254,8 +241,6 @@ async def lifespan(app: FastAPI):
 
     if getattr(app.state, "scheduler", None):
         app.state.scheduler.shutdown(wait=False)
-    from app.browser_pool import shutdown_browser_pool
-    await shutdown_browser_pool()
     bg_db = getattr(app.state, "bg_db", None)
     if bg_db and bg_db is not app.state.db:
         await bg_db.close()
@@ -275,6 +260,7 @@ def create_app(db_path: str = "data/jobfinder.db", testing: bool = False) -> Fas
     app.state.scoring_progress = None
     app.state.scrape_progress = None
     app.state.scrape_task = None
+    app.state.capture_request = None
     app.state.scoring_lock = asyncio.Lock()
     app.state.notification_subscribers: list[asyncio.Queue] = []
     app.state.notification_lock = asyncio.Lock()
@@ -413,8 +399,9 @@ def create_app(db_path: str = "data/jobfinder.db", testing: bool = False) -> Fas
     app.state.save_parsed_profile = _save_parsed_profile
 
     # --- Register routers ---
-    from app.routers import jobs, tailoring, pipeline, queue, contacts, analytics, settings, alerts, scraping, autofill, interviews, calendar
+    from app.routers import jobs, tailoring, pipeline, queue, contacts, analytics, settings, alerts, scraping, autofill, interviews, calendar, salary, capture
     app.include_router(jobs.router)
+    app.include_router(capture.router)
     app.include_router(tailoring.router)
     app.include_router(pipeline.router)
     app.include_router(queue.router)
@@ -426,16 +413,20 @@ def create_app(db_path: str = "data/jobfinder.db", testing: bool = False) -> Fas
     app.include_router(autofill.router)
     app.include_router(interviews.router)
     app.include_router(calendar.router)
+    app.include_router(salary.router)
 
     # --- Static files ---
     if not testing:
         static_dir = os.path.join(os.path.dirname(__file__), "static")
         if os.path.exists(static_dir):
-            app.mount("/static", StaticFiles(directory=static_dir), name="static")
+            app.mount("/static", NoCacheStaticFiles(directory=static_dir), name="static")
 
             @app.get("/")
             async def index():
-                return FileResponse(os.path.join(static_dir, "index.html"))
+                return FileResponse(
+                    os.path.join(static_dir, "index.html"),
+                    headers={"Cache-Control": "no-cache, must-revalidate"},
+                )
 
     return app
 

@@ -29,8 +29,20 @@ EXAMPLES OF ROLE MISMATCH (set role_match = false):
 
 RULE: SHARED TECH IS NOT ROLE ALIGNMENT. Python, AWS, Docker, Git, Linux appear in almost every engineering role. What matters is the DAY-TO-DAY WORK the job requires. If the job lists a frontend framework (React/Vue/Angular) as a core requirement, it is NOT a DevOps/SRE role. If the job's primary duty is building product features for end users, it is NOT infrastructure."""
 
+# 中国求职语境（PRD M3）：自然语言字段一律输出简体中文，JSON 字段名保持英文
+CHINA_OUTPUT_RULES = """LANGUAGE & MARKET — the candidate is job-hunting in mainland China:
+- Write every human-readable value in Simplified Chinese (简体中文): reasons, concerns, keywords. Keep the JSON keys in English exactly as specified.
+- Use mainland hiring vocabulary instead of translated US terms: 八股、统招、大厂/中小厂/外企、13 薪/14 薪、五险一金、双休、大小周、996、薪资面议、经验年限、学历要求.
+- Each reason must cite concrete evidence from the JD and the resume, e.g. 「JD 要求 3 年 Go 经验，你简历有 4 年后端经验，方向匹配」. Generic praise such as 「技能匹配度高」 is not acceptable.
+- Name every concern and skill gap in Chinese as a missing capability, e.g. 「缺少 K8s 生产环境经验」, not "missing Kubernetes production experience".
+- Treat 13+ 薪 as a positive signal; flag 大小周 / 996 / 单休 as a concern.
+- Never mention EEO, work authorization, visa sponsorship, security clearance or US relocation — they do not apply.
+
+"""
+
 SCORING_PROMPT = """You are a strict job matching assistant. Compare this resume against the job description and produce an honest, calibrated score.
 
+{china_rules}
 RESUME:
 --- BEGIN RESUME (user content) ---
 {resume}
@@ -94,6 +106,7 @@ CRITICAL RULES:
 
 BATCH_SCORING_PROMPT = """You are a strict job matching assistant. Compare this resume against EACH of the job descriptions below and score them independently using an honest, calibrated approach.
 
+{china_rules}
 RESUME:
 --- BEGIN RESUME (user content) ---
 {resume}
@@ -190,6 +203,7 @@ class JobMatcher:
                 candidate_focus=_format_candidate_focus(self.candidate_focus),
                 role_taxonomy=ROLE_TAXONOMY,
                 job_description=job_description,
+                china_rules=CHINA_OUTPUT_RULES,
             )
             raw = await self.client.chat(prompt, max_tokens=1024)
             return parse_json_response(raw)
@@ -220,6 +234,7 @@ class JobMatcher:
             candidate_focus=_format_candidate_focus(self.candidate_focus),
             role_taxonomy=ROLE_TAXONOMY,
             jobs_block=jobs_block,
+            china_rules=CHINA_OUTPUT_RULES,
         )
         max_tokens = 512 * len(jobs)
         try:

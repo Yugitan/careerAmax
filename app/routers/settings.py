@@ -283,8 +283,7 @@ async def get_search_config(request: Request):
         return {"resume_text": "", "search_terms": [], "job_titles": [],
                 "key_skills": [], "seniority": "", "summary": "",
                 "ats_score": 0, "ats_issues": [], "ats_tips": [],
-                "exclude_terms": [], "allowed_regions": ["US", "Remote"],
-                "remote_only": False, "updated_at": None}
+                "exclude_terms": [], "updated_at": None}
     return config
 
 
@@ -308,41 +307,12 @@ async def update_exclude_terms(request: Request):
     return {"ok": True, "exclude_terms": terms}
 
 
-@router.get("/search-config/allowed-regions")
-async def get_allowed_regions(request: Request):
-    regions = await request.app.state.db.get_allowed_regions()
-    return {"allowed_regions": regions}
-
-
-@router.post("/search-config/allowed-regions")
-async def update_allowed_regions(request: Request):
-    body = await request.json()
-    regions = body.get("allowed_regions", [])
-    if not isinstance(regions, list):
-        raise AppError("settings.allowed_regions_invalid", status_code=400)
-    await request.app.state.db.update_allowed_regions(regions)
-    return {"ok": True, "allowed_regions": regions}
-
-
-@router.get("/search-config/remote-only")
-async def get_remote_only(request: Request):
-    enabled = await request.app.state.db.get_remote_only()
-    return {"remote_only": enabled}
-
-
-@router.post("/search-config/remote-only")
-async def update_remote_only(request: Request):
-    body = await request.json()
-    enabled = body.get("remote_only", False)
-    if not isinstance(enabled, bool):
-        raise AppError("settings.remote_only_invalid", status_code=400)
-    await request.app.state.db.set_remote_only(enabled)
-    return {"ok": True, "remote_only": enabled}
-
-
 @router.get("/ai-settings")
 async def get_ai_settings(request: Request):
+    from app.ai_client import provider_defaults
     settings = await request.app.state.db.get_ai_settings()
+    # 设置页预填：Base URL / 默认模型 / 申请密钥入口（PRD M3）
+    defaults = provider_defaults()
     if not settings:
         env_key = getattr(getattr(request.app.state, "settings", None), "anthropic_api_key", "") or ""
         return {
@@ -350,6 +320,7 @@ async def get_ai_settings(request: Request):
             "api_key": _mask_key(env_key),
             "model": "", "base_url": "", "region": "",
             "has_key": bool(env_key), "updated_at": None,
+            "provider_defaults": defaults,
         }
     is_bedrock = settings["provider"] == "bedrock"
     return {
@@ -361,6 +332,7 @@ async def get_ai_settings(request: Request):
         "has_key": bool(settings["api_key"]),
         "has_secret": bool(settings["base_url"]) if is_bedrock else None,
         "updated_at": settings["updated_at"],
+        "provider_defaults": defaults,
     }
 
 
@@ -446,7 +418,9 @@ async def test_ai_connection(request: Request):
         cause = e.__cause__ or e.__context__
         if cause:
             detail = f"{detail} — {type(cause).__name__}: {cause}"
-        return {"ok": False, "error": detail,
+        from app.ai_client import classify_ai_error
+        reason = classify_ai_error(e)  # 稳定原因码，前端映射为中文提示（PRD M3）
+        return {"ok": False, "error": detail, "reason": reason,
                 "code": "ai.connection_failed", "params": {"error": detail}}
 
 
@@ -607,23 +581,58 @@ async def update_scraper_schedule(request: Request):
 
 
 _MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
-_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".doc", ".docx", ".rtf"}
+# 解析格式（PRD M5）：PDF 文本层 / DOCX / TXT / MD
+_ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
+# 旧式二进制容器：明确拒绝并提示另存为 .docx，而不是解码出乱码（障碍：假解析）
+_LEGACY_EXTENSIONS = {".doc", ".rtf"}
+# 抽取到的文本短于此长度，基本可判定为无文本层（扫描件）
+_MIN_RESUME_TEXT = 20
+
+
+def _extract_docx_text(content: bytes) -> str:
+    """抽取 DOCX 正文；同时读表格单元格（中文简历常用表格排版）。"""
+    import io
+
+    from docx import Document
+
+    document = Document(io.BytesIO(content))
+    lines = [p.text.strip() for p in document.paragraphs]
+    for table in document.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            if any(cells):
+                lines.append("\t".join(cells))
+    return "\n".join(line for line in lines if line)
 
 
 @router.post("/resume/upload")
 async def upload_resume(request: Request, file: UploadFile = File(...)):
     filename = (file.filename or "").lower()
     ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
+    if ext in _LEGACY_EXTENSIONS:
+        raise AppError("resume.legacy_format", status_code=400, params={"ext": ext})
     if ext not in _ALLOWED_EXTENSIONS:
         raise AppError("resume.unsupported_file_type", status_code=400, params={"ext": ext, "allowed": ", ".join(sorted(_ALLOWED_EXTENSIONS))})
     content = await file.read()
     if len(content) > _MAX_UPLOAD_SIZE:
         raise AppError("resume.file_too_large", status_code=400, params={"size": len(content), "max_mb": _MAX_UPLOAD_SIZE // (1024*1024)})
-    if filename.endswith(".pdf"):
+    if ext == ".pdf":
         import fitz
         doc = fitz.open(stream=content, filetype="pdf")
-        resume_text = "\n".join(page.get_text() for page in doc)
-        doc.close()
+        try:
+            resume_text = "\n".join(page.get_text() for page in doc)
+        finally:
+            doc.close()
+        if len(resume_text.strip()) < _MIN_RESUME_TEXT:
+            raise AppError("resume.no_text_layer", status_code=400)
+    elif ext == ".docx":
+        try:
+            resume_text = _extract_docx_text(content)
+        except Exception as exc:
+            raise AppError("resume.parse_failed", status_code=400, params={"ext": ext},
+                           detail=f"Failed to read {ext}: {exc}")
+        if len(resume_text.strip()) < _MIN_RESUME_TEXT:
+            raise AppError("resume.no_text_layer", status_code=400)
     else:
         resume_text = content.decode("utf-8", errors="replace")
 

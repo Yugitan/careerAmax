@@ -77,6 +77,17 @@ async def client(app):
         yield ac
 
 
+@pytest.fixture(autouse=True)
+def _fake_scrapers_registered(monkeypatch):
+    """流水线行为测试需要一个非空的爬虫注册表。
+
+    中国版 `ALL_SCRAPERS` 为空（职位数据由扩展回传），trigger_scrape 会直接
+    返回 scrape.no_server_scrapers 错误码；这些用例通过 monkeypatch 注入一个
+    假爬虫，使阶段状态机仍可被测试。
+    """
+    monkeypatch.setattr(scraping_router, "ALL_SCRAPERS", [_FastFakeScraper], raising=True)
+
+
 async def _wait_for(predicate, timeout=5.0, interval=0.02):
     loop = asyncio.get_event_loop()
     deadline = loop.time() + timeout
@@ -163,8 +174,6 @@ async def test_scrape_concurrent_click_returns_409(app, client, monkeypatch):
         return 0
 
     monkeypatch.setattr(scraping_router, "run_scrape_cycle", _blocking_scrape)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _noop)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _noop)
 
     first = await client.post("/api/scrape")
     assert first.status_code == 202
@@ -200,8 +209,6 @@ async def test_scrape_cancel(app, client, monkeypatch):
         return 0
 
     monkeypatch.setattr(scraping_router, "run_scrape_cycle", _blocking_scrape)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _noop)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _noop)
 
     resp = await client.post("/api/scrape")
     assert resp.status_code == 202
@@ -235,8 +242,8 @@ async def test_cancel_returns_404_when_idle(app, client):
 
 @pytest.mark.asyncio
 async def test_scrape_phase_transitions(app, client, monkeypatch):
-    """Phases must progress scraping → enriching → classifying → done (no
-    AI client in test env → scoring is skipped)."""
+    """阶段必须按 scraping → scoring → done 推进（测试环境无 AI 客户端，
+    因此 scoring 会被跳过）。中国版已移除 enriching / classifying 两个阶段。"""
     observed_phases: list[str] = []
 
     def _record_phase():
@@ -247,24 +254,16 @@ async def test_scrape_phase_transitions(app, client, monkeypatch):
     async def _scrape(*args, **kwargs):
         _record_phase()
 
-    async def _enrich(*args, **kwargs):
-        _record_phase()
-        return 0
-
-    async def _classify(*args, **kwargs):
-        _record_phase()
-        return 0
-
     monkeypatch.setattr(scraping_router, "run_scrape_cycle", _scrape)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _enrich)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _classify)
 
     resp = await client.post("/api/scrape")
     assert resp.status_code == 202
 
     await asyncio.wait_for(app.state.scrape_task, timeout=5.0)
 
-    assert observed_phases[:3] == ["scraping", "enriching", "classifying"]
+    assert observed_phases[:1] == ["scraping"]
+    assert "enriching" not in observed_phases
+    assert "classifying" not in observed_phases
     progress = app.state.scrape_progress
     assert progress["phase"] == "done"
     assert progress["active"] is False
@@ -278,32 +277,20 @@ async def test_scrape_phase_transitions(app, client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_scrape_premature_done_regression(app, client, monkeypatch):
-    """`active` must be true across every intermediate phase. The old
-    bug set active=False at the end of run_scrape_cycle, so /progress
-    would report done before enrichment, classification, or scoring
-    actually ran."""
+    """`active` 必须在所有中间阶段都为 true。旧 bug 在 run_scrape_cycle 结束时
+    就把 active 置为 False，导致 /progress 在打分真正跑完之前就报 done。"""
     seen = []
 
     async def _scrape(*args, **kwargs):
         seen.append(("scraping", app.state.scrape_progress["active"]))
 
-    async def _enrich(*args, **kwargs):
-        seen.append(("enriching", app.state.scrape_progress["active"]))
-        return 0
-
-    async def _classify(*args, **kwargs):
-        seen.append(("classifying", app.state.scrape_progress["active"]))
-        return 0
-
     monkeypatch.setattr(scraping_router, "run_scrape_cycle", _scrape)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _enrich)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _classify)
 
     resp = await client.post("/api/scrape")
     assert resp.status_code == 202
     await asyncio.wait_for(app.state.scrape_task, timeout=5.0)
 
-    assert [name for name, _ in seen] == ["scraping", "enriching", "classifying"]
+    assert [name for name, _ in seen] == ["scraping"]
     assert all(active is True for _, active in seen)
     assert app.state.scrape_progress["active"] is False
     assert app.state.scrape_progress["phase"] == "done"
@@ -315,20 +302,11 @@ async def test_scrape_premature_done_regression(app, client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_scrape_error_in_phase(app, client, monkeypatch):
-    """An exception inside enrichment must land us in phase=error with the
-    error recorded on the progress state."""
-    async def _scrape(*args, **kwargs):
-        return None
+    """采集阶段抛出的异常必须落到 phase=error，并记录在 progress 上。"""
+    async def _scrape_boom(*args, **kwargs):
+        raise RuntimeError("scrape exploded")
 
-    async def _enrich_boom(*args, **kwargs):
-        raise RuntimeError("enrichment exploded")
-
-    async def _classify(*args, **kwargs):
-        return 0
-
-    monkeypatch.setattr(scraping_router, "run_scrape_cycle", _scrape)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _enrich_boom)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _classify)
+    monkeypatch.setattr(scraping_router, "run_scrape_cycle", _scrape_boom)
 
     resp = await client.post("/api/scrape")
     assert resp.status_code == 202
@@ -337,7 +315,7 @@ async def test_scrape_error_in_phase(app, client, monkeypatch):
     progress = app.state.scrape_progress
     assert progress["phase"] == "error"
     assert progress["active"] is False
-    assert any("enrichment exploded" in e or "RuntimeError" in e for e in progress["errors"])
+    assert any("scrape exploded" in e or "RuntimeError" in e for e in progress["errors"])
 
 
 # ---------------------------------------------------------------------------
@@ -378,8 +356,6 @@ async def test_progress_includes_server_now_and_task_id(app, client, monkeypatch
         return 0
 
     monkeypatch.setattr(scraping_router, "run_scrape_cycle", _blocking)
-    monkeypatch.setattr(scraping_router, "run_enrichment_cycle", _noop)
-    monkeypatch.setattr(scraping_router, "run_location_classification", _noop)
 
     started = await client.post("/api/scrape")
     task_id = started.json()["task_id"]

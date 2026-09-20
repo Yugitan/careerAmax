@@ -1,23 +1,20 @@
-from app.scrapers.hackernews import HackerNewsScraper
-from app.scrapers.remotive import RemotiveScraper
-from app.scrapers.usajobs import USAJobsScraper
-from app.scrapers.linkedin import LinkedInScraper
-from app.scrapers.dice import DiceScraper
-from app.scrapers.arbeitnow import ArbeitnowScraper
-from app.scrapers.jobicy import JobicyScraper
-from app.scrapers.indeed import IndeedScraper
-from app.scrapers.remoteok import RemoteOKScraper
-from app.scrapers.himalayas import HimalayasScraper
-from app.scrapers.wellfound import WellfoundScraper
-from app.scrapers.builtin import BuiltInScraper
-from app.scrapers.greenhouse import GreenhouseScraper
-from app.scrapers.adzuna import AdzunaScraper
+"""招聘源注册表。
 
-ALL_SCRAPERS = [
-    HackerNewsScraper, RemotiveScraper, USAJobsScraper,
-    LinkedInScraper, DiceScraper,
-    ArbeitnowScraper, JobicyScraper, IndeedScraper,
-    RemoteOKScraper, HimalayasScraper,
-    WellfoundScraper, BuiltInScraper,
-    GreenhouseScraper, AdzunaScraper,
-]
+中国版一期只有 BOSS 直聘（zhipin.com）一个平台，且**采集由浏览器扩展在用户
+已登录的会话里完成**（PRD 决策 D1 / D8），服务端不再集中爬取。因此这里不再
+注册任何服务端爬虫：`ALL_SCRAPERS` 保持为空。
+
+`app/scrapers/base.py` 的契约（重试退避、按域限流、UA 轮换、`JobListing`
+数据形状）保留下来，供扩展回传链路复用。
+
+US job boards were removed as part of the China rewrite — see
+`docs/plans/2026-09-10-china-subtraction-plan.md` §2.2. Extension-captured
+listings enter through the extension bridge, not through this registry.
+"""
+
+from app.scrapers.base import BaseScraper, JobListing
+
+# 服务端爬虫注册表：一期为空 —— 采集改由扩展在用户浏览时回传。
+ALL_SCRAPERS: list[type[BaseScraper]] = []
+
+__all__ = ["ALL_SCRAPERS", "BaseScraper", "JobListing"]
