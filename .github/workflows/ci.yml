@@ -1,10 +1,11 @@
 name: CI
 
+# `local` 是个人开发分支：CI 只在 test（测试）与 prod（生产）上跑。
 on:
   push:
-    branches: [main]
+    branches: [test, prod]
   pull_request:
-    branches: [main]
+    branches: [test, prod]
 
 jobs:
   backend:
