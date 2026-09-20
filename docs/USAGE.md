@@ -1,6 +1,6 @@
 # CareerPulse 使用文档
 
-CareerPulse 是一个自托管的求职管理工具：它可以抓取多个招聘网站的职位，根据简历进行 AI 匹配和评分，生成针对职位的简历与求职信，并通过 Chrome 扩展辅助填写申请表单。
+CareerPulse 是一个自托管的求职作战台：你在招聘平台上正常浏览，浏览器扩展把职位（含 JD 全文）回传到本地服务，AI 根据简历进行匹配和评分，生成针对职位的中文简历与求职信，并通过 CRM 管道管理每一份申请。
 
 本文面向第一次部署和使用 CareerPulse 的用户。项目介绍、架构说明和完整 API 列表请参考根目录的 [README.md](../README.md)。
 
@@ -10,7 +10,7 @@ CareerPulse 是一个自托管的求职管理工具：它可以抓取多个招�
 
 - Docker Engine
 - Docker Compose v2（命令为 `docker compose`）
-- Chrome 或 Chromium（仅使用自动填表扩展时需要）
+- Chrome 或 Chromium（使用浏览器扩展时需要）
 
 本地运行需要：
 
@@ -63,32 +63,32 @@ JOBFINDER_PORT=8090 uv run uvicorn app.main:create_app --factory --reload --host
 
 ### 3.1 填写个人资料
 
-进入 **Settings → Profile**，填写姓名、邮箱、电话、地点、链接等信息；在 **Work History** 中补充工作经历、教育背景、技能、证书和语言。
+进入 **设置 → 个人资料**，填写姓名、邮箱、电话、地点等信息；在 **工作经历** 中补充工作经历、教育背景、技能、证书和语言。
 
 这些信息会用于简历分析、职位匹配和浏览器扩展自动填表。请先保存资料，再使用自动填表功能。
 
 ### 3.2 配置 AI
 
-进入 **Settings → AI & Integrations**，选择一个 AI Provider，然后点击 **Test Connection**。
+进入 **设置 → AI 服务商**，选择一个 AI Provider，然后点击 **测试连接**。
 
 支持的 Provider：
 
 | Provider | 必需配置 | 适用场景 |
 | --- | --- | --- |
 | Anthropic | API Key | Claude 模型 |
+| AWS Bedrock | AWS 凭证和 Region | AWS 环境 |
 | OpenAI | API Key | GPT 模型 |
 | Google | API Key | Gemini 模型 |
 | OpenRouter | API Key | 多种第三方模型 |
-| AWS Bedrock | AWS 凭证和 Region | AWS 环境 |
 | Ollama | 本地 Ollama 地址和模型 | 完全本地运行 |
 
-AI 用于简历分析、职位评分、应用材料生成、表单字段映射等功能。没有配置 AI 时，应用仍可以保存资料和职位，但无法完成这些 AI 操作。
+AI 用于简历分析、职位评分、申请材料生成、表单字段映射等功能。没有配置 AI 时，应用仍可以保存资料和职位，但无法完成这些 AI 操作。
 
 使用 Ollama 时，默认地址为 `http://localhost:11434`。如果 CareerPulse 在 Docker 中运行，程序会自动将这个地址转换为 `host.docker.internal`，前提是宿主机上的 Ollama 正在运行并监听可访问地址。
 
 ### 3.3 上传简历
 
-进入 **Settings → Profile** 或首次启动向导，上传简历。支持：
+进入 **设置 → 简历管理** 或首次启动向导，上传简历。支持：
 
 - PDF
 - TXT
@@ -109,68 +109,62 @@ AI 用于简历分析、职位评分、应用材料生成、表单字段映射�
 
 ### 3.4 设置求职搜索条件
 
-进入 **Settings → Job Search**，检查或修改：
+进入 **设置 → 求职意向**，检查或修改：
 
 - 搜索关键词和目标职位
 - 排除关键词
-- 允许的地区
-- 是否只看远程职位
-- 薪资和时薪过滤条件
-- Clearance/Visa 相关职位过滤条件
 
-也可以在 **Jobs** 页面使用搜索框、分数、工作方式、雇佣类型、地点、地区、发布时间和 clearance 筛选器，并保存为 Saved View 或 Job Alert。
+也可以在职位列表使用搜索框、匹配分、工作方式、雇佣类型和发布时间筛选器，并保存为 Saved View 或 Job Alert。
 
 ## 4. 日常使用流程
 
 推荐的工作流如下：
 
-1. 在 **Jobs** 页面点击 **Scrape Now**，抓取职位并进行后续处理。
-2. 等待抓取、详情补全、地点分类和 AI 评分完成。
-3. 按匹配分数、工作方式、地点和发布时间筛选职位。
-4. 点击职位卡片查看职位详情、匹配理由、技能缺口、薪资和公司信息。
-5. 点击 **Prepare Application** 生成针对该职位的简历和求职信。
-6. 下载 PDF 或 DOCX，打开职位原始链接完成申请。
-7. 在职位详情或 **Pipeline** 中更新申请状态、记录备注和跟进事件。
+1. 安装 Chrome 扩展（见第 5 节），在招聘平台的职位页上把职位保存进 CareerPulse。
+2. 等待 AI 评分完成（也可以在 Jobs 页面手动触发重新评分）。
+3. 按匹配分、工作方式、发布时间等筛选职位，结合匹配理由与技能缺口判断值不值得聊。
+4. 点击职位卡片查看职位详情、匹配理由、技能缺口和薪资信息（月薪人民币口径）。
+5. 点击 **准备申请** 生成针对该职位的简历和求职信，下载 PDF 或 DOCX。
+6. 在职位详情或 **看板（Pipeline）** 中更新申请状态、记录备注和跟进事件。
 
 ### 4.1 主要页面
 
 | 页面 | 用途 |
 | --- | --- |
-| Jobs | 浏览、筛选、比较、保存和准备职位 |
-| Dashboard | 查看职位统计、申请转化、技能缺口和预测 |
-| Pipeline | 按申请阶段管理职位 |
-| Calendar | 查看面试轮次和申请相关日程，可订阅 iCal |
-| Queue | 批量准备申请材料并按顺序处理 |
-| Network | 管理招聘经理、面试官和其他联系人 |
-| Calculator | 比较 W2、1099、C2C 和不同 offer 的收入 |
-| Settings | 管理个人资料、简历、搜索条件、集成和数据 |
+| 职位列表 | 浏览、筛选、比较、保存和准备职位 |
+| 统计 | 查看申请漏斗、转化率、技能缺口和预测 |
+| 看板 | 按申请阶段拖拽管理职位 |
+| 日历 | 查看面试轮次和申请相关日程，可订阅 iCal |
+| 待联系清单 | 挑出待沟通职位，扩展按顺序带你逐个处理 |
+| 人脉 | 管理招聘经理、面试官和其他联系人 |
+| 设置 | 管理个人资料、简历、求职意向、提醒和数据 |
 
-### 4.2 申请队列
+### 4.2 待联系清单
 
-在职位详情中点击 **Add to Queue**，然后进入 **Queue** 页面批量准备申请材料。队列会按顺序处理，并在每个申请页面等待人工确认；CareerPulse 不会自动提交申请。
+在职位列表中把职位加入待联系清单，然后从扩展按顺序逐个打开和处理。CareerPulse **不会自动提交**任何申请；每一步都需要你确认。
 
 ### 4.3 面试和 Offer
 
-申请后可以在职位详情中记录多个面试轮次、面试官、时间和结果。面试官可以保存到 **Network**。Offer 信息可以在 Dashboard 中录入并使用 Offer Comparison 比较总薪酬和生活成本差异。
+申请后可以在职位详情中记录多个面试轮次、面试官、时间和结果。面试官可以一键存入 **人脉** CRM。Offer 信息可以在统计页录入并使用 Offer 对比功能比较总包（月薪、年终奖、股权、签字费、年假）。
 
-## 5. Chrome 自动填表扩展
+## 5. Chrome 扩展
 
-扩展支持 Workday、Greenhouse、Lever、iCIMS、Taleo、Google Forms 等常见表单，也会在部分招聘网站显示保存按钮和匹配分数。
+扩展负责在招聘平台页面上回传职位、显示匹配分角标和保存按钮，并用 AI 辅助填写申请表单。
 
 ### 安装
 
 1. 确认 CareerPulse 正在运行。
 2. 在 Chrome 打开 `chrome://extensions/`。
-3. 打开右上角的 **Developer mode**。
-4. 点击 **Load unpacked**。
+3. 打开右上角的 **开发者模式**。
+4. 点击 **加载已解压的扩展程序**。
 5. 选择仓库中的 `extension/` 目录。
 
 ### 使用
 
-1. 打开职位申请页面。
+1. 打开招聘平台的职位页或申请表单。
 2. 点击浏览器工具栏中的 CareerPulse 图标。
 3. 确认 Server URL，默认是 `http://localhost:8085`。
-4. 点击 **Fill Application**。
+4. 点击 **填表**。
 5. 检查自动填写结果：绿色字段通常置信度较高，黄色字段需要人工确认。
 6. 仔细检查所有字段后，再由用户手动提交表单。
 
@@ -178,27 +172,26 @@ AI 用于简历分析、职位评分、应用材料生成、表单字段映射�
 
 如果使用远程 CareerPulse 地址，需要将该地址加入 `extension/manifest.json` 的 `host_permissions`，然后在 `chrome://extensions/` 中重新加载扩展。
 
+### 悬浮面板与按钮状态
+
+打开支持的招聘站点（如 BOSS 直聘）时，页面上会自己浮出一块面板，不用再去点工具栏图标：连接状态、**填写申请表**、**一键抓取**、打开设置都在这里。面板可以拖（表头就是把手）、可以收起，位置与收起状态记在本地，下次打开还在原地；点 ✕ 只关掉当前这个页面。
+
+**「填写申请表」什么时候是灰的**，只有两种情况：
+
+1. 连不上 CareerPulse —— 面板顶部的状态行是红点，服务起来后面板会自己复检；
+2. 当前页面确实没有可填写的申请表（招聘列表页，或者 BOSS 这类只能聊天沟通的页面）—— 按钮置灰并说明「本页没有可填写的申请表」。
+
+工具栏弹窗里的按钮与面板同一判据、同一时刻一致。如果表单是点了「立即申请」之后才出现的，页面一变，按钮会自己变蓝，不需要刷新或重开面板。
+
+**「一键抓取」这一行同时是进度牌**：抓取途中显示「已回传 X/N」，抓完把最终结果留几秒，再退回「抓取本页 N 个岗位」；页面上没有职位列表时置灰，并提示先打开列表页。网页上的「立即抓取」、面板这一行、弹窗里的「立即抓取」共用同一条执行链路，看到的进度一致。
+
 ## 6. 可选集成
 
-### 6.1 招聘网站 API Key
+### 6.1 邮件和每日摘要
 
-进入 **Settings → AI & Integrations → Scraper API Keys**，可以配置：
+在 **设置 → 集成** 中填写 SMTP Host、Port、用户名、密码、发件地址和收件地址，然后点击 **发送测试邮件** 验证配置。
 
-- USAJobs API Key 和注册邮箱
-- Adzuna App ID 和 App Key
-- JSearch/RapidAPI Key
-
-这些配置是可选的；没有 Key 时，其他不依赖该 Key 的来源仍可运行。
-
-### 6.2 邮件和每日摘要
-
-在 **Settings → AI & Integrations → Email & Digest Settings** 中填写 SMTP Host、Port、用户名、密码、发件地址和收件地址，然后点击 **Send Test Email** 验证配置。
-
-配置完成后可以启用每日或每周职位摘要，并设置发送时间和最低匹配分数。发送时间以运行 CareerPulse 的服务器时间为准。
-
-### 6.3 语义搜索和相似职位
-
-在 **Embedding Settings** 中选择 OpenAI 或 Ollama 的 embedding 模型并保存，然后使用 **Backfill Embeddings** 为已有职位生成向量。该功能是可选的，适合需要语义搜索和相似职位推荐的场景。
+配置完成后可以启用每日职位摘要，并设置发送时间和最低匹配分。发送时间以运行 CareerPulse 的服务器时间为准。未配置 SMTP 时，摘要任务会自动跳过。
 
 ## 7. 自动任务
 
@@ -206,16 +199,13 @@ AI 用于简历分析、职位评分、应用材料生成、表单字段映射�
 
 | 任务 | 默认频率 |
 | --- | --- |
-| 抓取职位 | 每 6 小时，可通过 `JOBFINDER_SCRAPE_INTERVAL_HOURS` 修改 |
-| 补全职位详情 | 每 2 小时 |
 | AI 评分 | 每 1 小时 |
 | 数据维护 | 每 24 小时 |
 | 跟进提醒 | 每 12 小时 |
-| 邮件摘要 | 每天 08:00，启用后生效 |
+| 邮件摘要 | 每天 08:00，配置 SMTP 后生效 |
 | Job Alert 检查 | 每 1 小时 |
-| Embedding 生成 | 每 2 小时，启用后生效 |
 
-手动点击 **Scrape Now** 会立即启动一次抓取、补全和评分流程。抓取期间可以在页面中查看进度或取消任务。
+> 职位数据由浏览器扩展在用户浏览时回传，服务端不再定时集中抓取。
 
 ## 8. 配置文件和数据
 
@@ -225,15 +215,11 @@ AI 用于简历分析、职位评分、应用材料生成、表单字段映射�
 | --- | --- | --- |
 | `JOBFINDER_DB_PATH` | `data/jobfinder.db` | SQLite 数据库路径 |
 | `JOBFINDER_RESUME_PATH` | `data/resume.txt` | 默认简历文本路径 |
-| `JOBFINDER_SCRAPE_INTERVAL_HOURS` | `6` | 自动抓取间隔 |
-| `JOBFINDER_MIN_SALARY` | `150000` | 年薪职位最低薪资过滤值 |
-| `JOBFINDER_MIN_HOURLY_RATE` | `95` | 时薪职位最低时薪过滤值 |
 | `JOBFINDER_HOST` | `0.0.0.0` | 服务监听地址 |
 | `JOBFINDER_PORT` | `8085` | 服务端口 |
-| `JOBFINDER_ANTHROPIC_API_KEY` | 空 | Anthropic API Key，可改在网页中配置 |
-| `JOBFINDER_USAJOBS_API_KEY` | 空 | USAJobs API Key |
+| `JOBFINDER_ANTHROPIC_API_KEY` | 空 | 默认 AI Key，可改在网页中配置其他服务商 |
 
-优先使用网页 Settings 保存 AI、爬虫 Key、邮件和 Profile 配置；`.env` 适合部署时设置基础环境变量。
+优先使用网页设置保存 AI 和资料配置；`.env` 适合部署时设置基础环境变量。
 
 ## 9. 备份和恢复
 
@@ -253,7 +239,7 @@ cp -a data data.backup
 docker compose start
 ```
 
-网页的 **Settings → Data Management** 还支持导出 Profile JSON 和职位 CSV。数据库备份建议保留多份，并与 `.env` 分开保护；不要将包含 API Key 的 `.env` 提交到 Git。
+网页的 **设置 → 数据管理** 还支持导出 Profile JSON 和职位 CSV。数据库备份建议保留多份，并与 `.env` 分开保护；不要将包含 API Key 的 `.env` 提交到 Git。
 
 ## 10. API 和健康检查
 
@@ -267,7 +253,6 @@ docker compose start
 
 ```bash
 curl http://localhost:8085/api/health
-curl -X POST http://localhost:8085/api/scrape
 curl http://localhost:8085/api/scrape/progress
 curl -o jobs.csv http://localhost:8085/api/export/csv
 ```
@@ -296,13 +281,6 @@ npm install
 npx vitest run
 ```
 
-如果需要浏览器自动化相关能力，可安装可选依赖和 Chromium：
-
-```bash
-uv sync --extra playwright
-uv run playwright install chromium
-```
-
 ## 12. 常见问题
 
 ### 页面打不开
@@ -317,13 +295,9 @@ curl http://localhost:8085/api/health
 
 如果端口冲突，修改 `docker-compose.yml` 左侧端口，例如 `8090:8085`，然后访问 <http://localhost:8090>。
 
-### 职位抓取为空
-
-确认 **Settings → Job Search** 中已经有搜索词；检查过滤条件是否过窄；然后查看日志中各 scraper 的错误。部分招聘网站有反爬或访问限制，单个来源失败不会阻止其他来源继续运行。
-
 ### 职位没有匹配分数
 
-确认已经上传简历并在 **AI & Integrations** 中配置 AI Provider。可以点击 **Test Connection**，修复连接后再点击 **Scrape Now** 或重新评分。
+确认已经上传简历并在 **AI 服务商** 中配置 AI Provider。可以点击 **测试连接**，修复连接后在职位列表触发重新评分。
 
 ### Ollama 无法连接
 
@@ -338,8 +312,8 @@ curl http://localhost:11434/api/tags
 
 ### 扩展提示无法连接服务器
 
-确认扩展中的 Server URL 与 CareerPulse 地址一致，先在浏览器访问该地址的 `/api/health`。修改扩展代码或 Manifest 后，需要在 `chrome://extensions/` 点击 **Reload**。
+确认扩展中的 Server URL 与 CareerPulse 地址一致，先在浏览器访问该地址的 `/api/health`。修改扩展代码或 Manifest 后，需要在 `chrome://extensions/` 点击 **重新加载**。
 
 ### 需要清空数据
 
-优先使用 **Settings → Data Management**。API 还提供 `POST /api/clear-jobs` 和 `POST /api/clear-all`；后者是完整重置，会删除所有资料、职位和配置，执行前请先备份 `data/`。
+优先使用 **设置 → 数据管理**。API 还提供 `POST /api/clear-jobs` 和 `POST /api/clear-all`；后者是完整重置，会删除所有资料、职位和配置，执行前请先备份 `data/`。

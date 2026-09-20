@@ -2,462 +2,261 @@
 
 [![CI](https://github.com/tcpsyn/CareerPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/tcpsyn/CareerPulse/actions/workflows/ci.yml)
 
-CareerPulse is a self-hosted job search automation platform. It scrapes 14 job boards, scores listings against your resume with AI, generates tailored resumes and cover letters, auto-fills ATS forms via a Chrome extension, and tracks your pipeline from first contact to offer — all running on your own hardware.
+CareerPulse 是一个**说中文、面向中国求职市场**的自托管求职作战台：你在招聘平台上正常浏览，浏览器扩展把职位回传到本地服务，AI 按你的简历打分匹配，生成中文简历与求职信，并把每一份申请从「感兴趣」到「offer」全程管理起来。
 
-Your data stays on your machine. No SaaS subscription, no resume uploaded to a third-party server, no profile data leaving your network. Use Ollama for fully local AI inference, or bring your own API key for cloud providers.
+**数据完全留在你自己的电脑上。** 不做 SaaS、不代投、不集中爬取平台数据。
 
-中文使用文档：[`docs/USAGE.md`](docs/USAGE.md)
+- 中文使用文档：[`docs/USAGE.md`](docs/USAGE.md)
+- 产品定位与决策记录：[`docs/plans/2026-09-10-careerpulse-china-market-prd.md`](docs/plans/2026-09-10-careerpulse-china-market-prd.md)
 
-## Features
+## 功能特性
 
-- **Multi-source scraping** — 14 sources with built-in exponential backoff, per-domain rate limiting, and randomized UA rotation: LinkedIn, Dice, Remotive, Hacker News, USA Jobs, Arbeitnow, Jobicy, Indeed, RemoteOK, Himalayas, Wellfound, BuiltIn, Greenhouse, Adzuna
-- **AI-powered matching** — Scores jobs 0-100 against your resume with match reasons, concerns, and skill gap analysis. Supports 5 AI providers: Anthropic, OpenAI, Google Gemini, OpenRouter, or Ollama for fully local inference
-- **Chrome extension autofill** — Auto-fills job applications on any ATS (Workday, Greenhouse, Lever, iCIMS, Taleo, Google Forms) using AI
-- **Comprehensive profile** — Personal info, work history, education, skills, certifications, languages, references, EEO responses
-- **Resume analysis** — Extracts skills, suggests job titles, rates ATS compatibility
-- **Application prep** — Generates tailored resumes and cover letters per job
-- **ATS-optimized PDFs** — Tailored resume and cover letter downloads (PDF + DOCX); filenames sanitized to ASCII with company and job title
-- **Hiring manager lookup** — Searches the web for hiring contact info when not in the listing
-- **Direct apply links** — Scrapes actual "Apply" button URLs from job pages
-- **Salary estimation** — AI-powered salary range estimates when not listed
-- **Company research** — Auto-fetches company descriptions, Glassdoor ratings, and website links
-- **Smart deduplication** — Flags similar listings from the same company with one-click dismiss
-- **Application timeline** — Auto-tracked events for every action (status changes, prep, downloads)
-- **Learning loop** — After form submission, extension prompts to save new data back to CareerPulse
-- **Custom Q&A bank** — Store answers to common application questions for reuse
-- **Region & clearance filters** — Filter by US, Europe, UK, Canada, LATAM, APAC; hide clearance/visa-required jobs
-- **One-click apply tracking** — "Mark as Applied" button with automatic timestamp
-- **Job freshness tracking** — `last_seen_at` updated each scrape cycle; jobs stay fresh as long as scrapers still find them. Feed hides stale jobs by default with a "Show stale" toggle. Jobs not seen in 30+ days are auto-dismissed daily.
-- **Daily digest** — Summary of new high-scoring matches with copy-to-clipboard
-- **CSV export** — Export your entire job pipeline to a spreadsheet
-- **Keyboard shortcuts** — Power-user navigation (j/k, ?, /, d, p, o, s)
-- **Guided onboarding** — 4-step first-run wizard covers profile setup, resume upload, and AI provider configuration
-- **Drag-and-drop pipeline** — Move applications between stages visually; fallback click-to-move for accessibility
-- **Skill gap analysis** — Matching surfaces specific skills your resume is missing for each job
-- **Mobile-responsive UI** — Hamburger nav and touch-friendly layout work across screen sizes
-- **Configurable AI backend** — 5 providers: Anthropic, OpenAI, Google Gemini, OpenRouter, or Ollama. Ollama runs entirely on your hardware — no API keys, no data egress
-- **Job filters** — Score threshold, work type, employment type, location, keyword search, exclude terms
-- **Automated scheduling** — Periodic scraping with APScheduler
-- **Persistent data** — SQLite database survives restarts via Docker volume mount
-- **Tabbed settings** — Profile, Work History, Job Search, AI & Integrations, Data Management
-- **Server-side saved views** — Filter presets saved and synced across devices
-- **Job comparison view** — Side-by-side comparison of 2-3 jobs (score, salary, location, match reasons)
-- **DOCX export** — Download tailored resumes and cover letters as Word documents alongside PDF
-- **Multiple resume versions** — Manage and store multiple resumes, select which to use per application
-- **Interview round tracking** — Log interview rounds per application (type, interviewer, date, outcome); promote interviewers to contacts in the CRM
-- **Calendar view** — Monthly grid + agenda view of all interview rounds and application events; subscribe via iCal to sync to Google Calendar, Outlook, or Apple Calendar
-- **Interview detail panel** — Slide-out panel per application showing round history, outcome logging, and embedded salary calculator
-- **External job entry** — Manually add jobs from any source not covered by scrapers via the extension overlay or API
-- **Application response tracking** — Log interview invites, rejections, and ghosted outcomes; analytics dashboard
-- **Job board overlay extension** — Save buttons and match score badges injected directly on LinkedIn, Indeed, Dice, and Glassdoor pages
-- **Auto-track applications** — Extension detects form submissions and automatically marks jobs as applied
-- **Job alerts** — Saved search alerts notify you when new high-scoring matches appear
-- **Bulk application queue** — Queue jobs for batch preparation with an approval workflow before submission
-- **Follow-up automation** — AI-drafted follow-up emails with configurable templates and auto-send
-- **Application success prediction** — AI predicts response probability based on your application history
-- **Networking contact CRM** — Track contacts, interactions, and referrals linked to jobs
-- **Career trajectory intelligence** — AI suggests stretch and pivot roles based on your career arc
-- **Offer comparison calculator** — Total compensation analysis with cost-of-living normalization
-- **Salary calculator** — W2/1099/C2C take-home comparison with federal + state tax estimation, animated Chart.js visualizations
-- **Intelligent queue orchestration** — Extension auto-fills queued applications sequentially; never auto-submits
-- **Custom Q&A autofill** — Extension fills skipped fields using your Q&A bank with fuzzy matching
+### 数据获取（D1：扩展回传，不做服务端爬取）
 
-## Quick Start
+- **浏览器扩展回传** — 在招聘平台页面上把职位（含 JD 全文）一键保存到 CareerPulse，服务端不集中爬取
+- **平台页内注入** — 匹配分角标、保存按钮、申请队列横幅直接注入平台页面
+- **自动标记已投递** — 扩展检测到表单提交后自动在 CareerPulse 里把该职位标记为已申请
+- **外部职位录入** — 支持任意平台的职位通过扩展浮层或 API 手动录入
 
-### Docker (recommended)
+### AI 能力
+
+- **AI 匹配打分** — 按简历 0-100 打分，给出匹配理由、顾虑点和技能差距分析
+- **中文简历/求职信生成** — 按职位定制，支持 PDF 与 DOCX 输出
+- **多服务商 AI** — 国内优先：DeepSeek（默认）、通义千问、Kimi、智谱 GLM；保留 Anthropic、Bedrock、OpenAI、Google Gemini、OpenRouter，以及 Ollama（本地推理，无需 API Key、数据不出网）。设置页提供申请入口、Base URL/模型预填与一键连通性测试（失败给出中文原因）
+- **面试题库与模拟面试** — 按 JD + 简历生成四类中文题目（基础八股 / 项目深挖 / 场景设计 / HR 面），每题可写作答草稿、AI 补要点、标记熟练度，支持逐题模拟面试与薄弱点报告，也可从同类岗位复制题库
+- **面试准备** — 按职位生成面试准备材料，记录面试轮次与结果
+- **申请成功率预测** — 基于历史申请数据预测回复概率
+- **职业轨迹分析** — AI 给出进阶/转型方向建议
+- **Offer 对比** — 月薪口径的总包对比（月薪、年终奖、股权、签字费、年假）
+
+### 申请管理
+
+- **拖拽式看板** — 在「感兴趣 → 已准备 → 已投递 → 面试中 → 已拿 offer / 已拒绝 / 已撤回」各阶段间拖拽流转
+- **面试轮次记录** — 每份申请记录多轮面试（轮次、面试官、时间、结果）；面试官可一键存入人脉 CRM
+- **日历视图** — 月历 + 列表展示面试与截止日期；提供 iCal 订阅（Google / Outlook / Apple 日历）
+- **人脉 CRM** — 记录联系人、互动历史与内推关系，并关联到职位
+- **待联系清单** — 从 CareerPulse 勾选待沟通职位，扩展按顺序带你逐个填写
+- **职位提醒** — 保存搜索条件，有新的高分职位时推送站内通知
+- **跟进提醒** — 长时间没有回应的申请自动进入待跟进列表
+
+### 界面
+
+- **简体中文优先** — 默认 `zh-CN`，可切换英文；界面文案全部走 `t(key, params)`，不做浏览器语言探测
+- **人民币月薪口径** — 金额一律按月薪（元）展示，支持万/K 显示，**不做币种换算**
+- **引导式上手** — 首次运行 4 步向导：资料 → 简历 → AI 服务商 → 录入职位
+- **快捷键与响应式** — 键盘导航（j/k、/、? 等），移动端汉堡菜单
+- **CSV 导出 / 看板统计** — 申请漏斗、回复率、分数校准等分析视图
+
+## 快速开始
+
+### Docker（推荐）
 
 ```bash
 cp .env.example .env
-# Edit .env if you want to set an API key via env var (optional — can configure from UI)
+# API Key 可以不填，之后在设置界面配置
 docker compose up -d --build
 ```
 
-Open http://localhost:8085
+打开 http://localhost:8085
 
-### Local
+### 本地运行
 
 ```bash
 cp .env.example .env
-# uv auto-manages the virtualenv and dependencies
+# uv 自动管理虚拟环境和依赖
 uv run uvicorn app.main:create_app --factory --reload --host 0.0.0.0 --port 8085
 ```
 
-## Configuration
+## 配置
 
-All env vars use the `JOBFINDER_` prefix. Everything can also be configured from the Settings UI.
+所有环境变量使用 `JOBFINDER_` 前缀，均可在设置界面代替：
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `JOBFINDER_ANTHROPIC_API_KEY` | (empty) | Anthropic API key (or set via UI) |
-| `JOBFINDER_USAJOBS_API_KEY` | (empty) | USA Jobs API key (optional) |
-| `JOBFINDER_DB_PATH` | `data/jobfinder.db` | SQLite database path |
-| `JOBFINDER_RESUME_PATH` | `data/resume.txt` | Default resume file path |
-| `JOBFINDER_SCRAPE_INTERVAL_HOURS` | `6` | Auto-scrape interval |
-| `JOBFINDER_MIN_SALARY` | `150000` | Minimum annual salary filter (FTE roles) |
-| `JOBFINDER_MIN_HOURLY_RATE` | `95` | Minimum hourly rate filter (contract roles) |
-| `JOBFINDER_HOST` | `0.0.0.0` | Server bind host |
-| `JOBFINDER_PORT` | `8085` | Server port |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `JOBFINDER_ANTHROPIC_API_KEY` | 空 | AI 服务的 API Key（也可在界面配置其他服务商） |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | 空 | Bedrock 服务商的 AWS 凭证（也可用 `~/.aws/credentials` 等） |
+| `JOBFINDER_DB_PATH` | `data/jobfinder.db` | SQLite 数据库路径 |
+| `JOBFINDER_RESUME_PATH` | `data/resume.txt` | 默认简历文件路径 |
+| `JOBFINDER_HOST` | `0.0.0.0` | 服务监听地址 |
+| `JOBFINDER_PORT` | `8085` | 服务端口 |
 
-### AI Backend
+### AI 服务商
 
-Configure from **Settings > AI Provider**:
+在 **设置 → AI 服务商** 中配置：
 
-- **Anthropic** — API key required. Model dropdown: Claude Opus 4, Sonnet 4, Haiku 4.5, and 3.5 variants (hardcoded list).
-- **OpenAI** — API key required. Model dropdown: GPT-4o, GPT-4o-mini, GPT-4-turbo, o1, o3-mini (hardcoded list).
-- **Google (Gemini)** — API key required. Model dropdown: Gemini 2.5 Pro/Flash, 2.0 Flash, 1.5 Pro/Flash (hardcoded list).
-- **OpenRouter** — API key required. Model list fetched live from the OpenRouter API.
-- **Ollama** — No API key. Model list fetched live from your local Ollama server (`/api/tags`). Set the Ollama URL (defaults to `http://localhost:11434`). When running in Docker, localhost URLs are automatically rewritten to reach the host.
+- **DeepSeek** — 需 API Key，默认服务商，中文与性价比最优
+- **通义千问 / Kimi / 智谱 GLM** — 需 API Key；长简历/长 JD 建议 Kimi（32k/128k）
+- **Ollama** — 本地推理，无需 Key；模型列表从本地 Ollama 服务获取（默认 `http://localhost:11434`，Docker 部署时自动把 localhost 改写为宿主机地址）
+- **Anthropic / Bedrock / OpenAI / Google (Gemini) / OpenRouter** — 需自行解决网络访问；Bedrock 使用 AWS 凭证（环境变量、`~/.aws/credentials` 或实例角色均可）
 
-OpenAI, Google, and OpenRouter use the OpenAI-compatible API format. Recommended Ollama models: `qwen2.5:32b`, `Qwen2.5-Coder:32b`, or `qwen2.5:14b-instruct-q4_K_M`.
+> 每个服务商都可一键「测试连接」，失败时显示中文原因（密钥无效 / 额度不足 / 模型名错误 / 网络不可达）与原始报错。
 
-## Usage
+## 使用流程
 
-1. **Upload resume** — Settings > Upload & Analyze (PDF, TXT, or MD)
-2. **Review analysis** — ATS score, suggested job titles, extracted skills, auto-generated search terms
-3. **Scrape jobs** — Dashboard > Scrape Now (or wait for auto-scrape)
-4. **Browse matches** — Jobs feed sorted by match score, filtered by type/location
-5. **Prepare applications** — Click a job > Prepare Application for tailored resume + cover letter
+1. **完善资料** — 设置 → 个人资料 / 工作经历（扩展填表的数据来源）
+2. **上传简历** — 设置 → 简历管理（PDF、TXT 或 MD），AI 自动提取技能并给出求职意向建议
+3. **安装扩展** — 见下文，在招聘平台页面上把职位保存进 CareerPulse
+4. **看匹配** — 职位按匹配分排序，结合匹配理由与技能差距决定值不值得聊
+5. **准备材料** — 职位详情 → 准备申请，生成定制简历 + 求职信
+6. **管流程** — 拖拽看板推进阶段，记录面试轮次，到期自动提醒跟进
 
-## Chrome Extension (AutoFill)
+## Chrome 扩展
 
-The CareerPulse AutoFill extension auto-fills job application forms on any ATS using AI to map your profile data to form fields.
+扩展负责把你在招聘平台上看的职位回传到 CareerPulse，并用 AI 辅助填写申请表单。
 
-### Install
+### 安装
 
-1. Make sure CareerPulse is running (default: `http://localhost:8085`)
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable **Developer mode** (toggle in top right)
-4. Click **Load unpacked** and select the `extension/` folder from this repo
-5. The CareerPulse icon appears in your toolbar
+1. 确保 CareerPulse 正在运行（默认 `http://localhost:8085`）
+2. Chrome 打开 `chrome://extensions/`
+3. 右上角开启**开发者模式**
+4. 点击**加载已解压的扩展程序**，选择本仓库的 `extension/` 目录
+5. 工具栏出现 CareerPulse 图标即安装成功
 
-### Usage
+### 使用
 
-1. Navigate to any job application form (Workday, Greenhouse, Lever, etc.)
-2. Click the CareerPulse extension icon
-3. Click **Fill Application** — the extension reads the form, sends it to CareerPulse's AI, and fills fields
-4. Review filled fields: green = confident, yellow = needs review
-5. After submitting, the extension prompts you to save any new data back to your profile
+1. 打开任意招聘平台的职位页或申请表单
+2. 点击 CareerPulse 扩展图标
+3. 点击**填表** — 扩展读取表单，交给 CareerPulse 的 AI 映射字段并填写
+4. 检查填写结果：绿色 = 有把握，黄色 = 建议人工确认
+5. 提交后，扩展会提示把新填写的答案存回你的资料库
 
-### How it works
+### 工作原理
 
-- Content script extracts all form fields (labels, placeholders, options, aria attributes)
-- Sends sanitized form HTML to `POST /api/autofill/analyze`
-- AI maps your full profile (personal info, work history, education, skills, EEO, custom Q&A) to form fields
-- Fields are filled iteratively — handles dynamic/conditional forms (up to 5 passes)
-- Skipped fields are filled from your Q&A bank using fuzzy matching
-- React-compatible filling using native property descriptor setters
-- Works across iframes (common in Workday, iCIMS)
-- Country code dropdowns detected and excluded from phone number fills
-- Phone numbers normalized to consistent format; fallback guard prevents over-filling
-- Race/ethnicity dropdowns matched via lookup table normalization
-- **Job board overlay** — Injects a Save button and AI match score badge on LinkedIn, Indeed, Dice, and Glassdoor job listings; saved jobs sync directly to CareerPulse
-- **Auto-track applied** — Detects form submissions and automatically marks the job as applied in CareerPulse
-- **Queue fill orchestration** — Fills queued applications sequentially in the background; presents each form for review before moving to the next; never auto-submits
+- 内容脚本提取所有表单字段（label、placeholder、选项、aria 属性，含 Shadow DOM 与 iframe）
+- 表单 HTML 发送到 `POST /api/autofill/analyze`，AI 把你的资料映射到字段
+- 迭代式填写，兼容动态/条件表单（最多 2 轮）
+- 跳过的字段从自定义问答库中模糊匹配补填
+- 使用原生属性 setter 兼容 React 表单
+- 电话/区号下拉框识别与防误填
+- **匹配分角标** — 在平台职位列表上直接显示 AI 匹配分
+- **自动标记已投递** — 检测表单提交后自动更新状态
+- **队列填表** — 待联系清单里的职位按顺序逐个填写，每份都停下来等你确认，**绝不自动提交**
 
-### Configuration
+### 配置
 
-Click the extension popup gear icon or visit **Settings > AI & Integrations** in CareerPulse to configure the server URL (defaults to `http://localhost:8085`).
+点击扩展弹窗中的设置，配置 CareerPulse 服务器地址（默认 `http://localhost:8085`）。
 
-The extension requires profile data in CareerPulse. Fill out your profile in **Settings > Profile** and **Settings > Work History** before using autofill.
+扩展需要 CareerPulse 中已有你的资料数据，请先在 **设置 → 个人资料 / 工作经历** 中填写完整。
 
-## Architecture
+## 架构
 
 ```
 FastAPI (async)
-├── app/main.py — create_app factory + lifespan (378 lines)
-│   └── Dual DB connections: app.state.db (requests) + app.state.bg_db (background tasks)
-├── app/routers/ — 12 APIRouter modules
+├── app/main.py — create_app 工厂 + lifespan
+│   └── 双数据库连接：app.state.db（请求）+ app.state.bg_db（后台任务）
+├── app/routers/ — 12 个 APIRouter 模块
 │   ├── jobs.py, tailoring.py, pipeline.py, queue.py, contacts.py
 │   ├── analytics.py, settings.py, alerts.py, scraping.py, autofill.py
-│   └── interviews.py (rounds CRUD + promote-to-contact), calendar.py (events + iCal feed)
-│       scraping.py: supports force=True to bypass scraper schedule check
-├── app/scrapers/ — 14 active sources with retry/backoff, UA rotation, rate limiting
-├── app/database.py — SQLite via aiosqlite (37 tables, FK enforcement, WAL mode)
-│   └── jobs.last_seen_at updated each scrape cycle; drives freshness filtering and 30-day auto-dismiss
-├── AIClient (Anthropic | OpenAI | Google | OpenRouter | Ollama)
-│   ├── JobMatcher (scoring)
-│   ├── ResumeAnalyzer (analysis + ATS)
-│   ├── Tailor (resume + cover letter + DOCX)
-│   ├── AutoFill analyzer (form field mapping)
-│   ├── Predictor (application success probability)
-│   ├── CareerAdvisor (trajectory + role suggestions)
-│   ├── OfferCalculator (total comp + cost-of-living)
-│   └── FollowUp (email drafting + auto-send)
-├── APScheduler (8 background jobs)
-├── Vanilla JS SPA
-│   ├── app/static/js/app.js — router, mobile nav
-│   ├── app/static/js/api.js — API client
-│   ├── app/static/js/utils.js — HTML sanitization, shared helpers
-│   ├── app/static/js/onboarding.js — 4-step first-run wizard
-│   ├── app/static/js/salary-calculator.js — W2/1099/C2C calculator
-│   ├── app/static/js/interview-panel.js — interview detail slide-out + salary calculator
+│   └── interviews.py（面试轮次 + 存为人脉）, calendar.py（日程 + iCal 订阅）
+├── app/database.py — SQLite via aiosqlite（37+ 张表，外键约束，WAL 模式）
+│   └── jobs.last_seen_at 每轮回传时更新，驱动新鲜度过滤与 30 天自动隐藏
+├── AIClient（DeepSeek | Qwen | Kimi | 智谱 | Anthropic | Bedrock | OpenAI | Google | OpenRouter | Ollama）
+│   ├── JobMatcher（打分，输出中文理由）
+│   ├── ResumeAnalyzer（简历分析 + ATS 分）
+│   ├── Tailor（定制简历 + 求职信 + DOCX）
+│   ├── InterviewPrep（四类中文题库 + 补要点）
+│   ├── AutoFill 分析器（表单字段映射）
+│   ├── Predictor（申请成功率）
+│   ├── CareerAdvisor（职业轨迹）
+│   └── OfferCalculator（Offer 对比）
+├── APScheduler（4 个后台任务：打分 / 维护 / 提醒 / 摘要）
+├── 原生 JS SPA
+│   ├── app/static/js/i18n.js — 双语核心（默认 zh-CN）
+│   ├── app/static/js/app.js — SPA 路由、移动端导航
+│   ├── app/static/js/api.js — API 客户端
+│   ├── app/static/js/utils.js — HTML 消毒与工具函数
+│   ├── app/static/js/onboarding.js — 4 步引导向导
+│   ├── app/static/js/interview-panel.js — 面试详情抽屉
+│   ├── app/static/js/interview-prep.js — M9 面试题库面板（草稿 / 模拟面试 / 薄弱点报告）
 │   └── app/static/js/views/ — feed, detail, pipeline, queue, stats, settings, network, triage, calendar
-└── Chrome Extension (autofill + overlay + queue fill)
+└── Chrome 扩展（回传 + 填表 + 队列填表）
 ```
 
-### Scrapers
+### 数据模型
 
-| Source | Method | Notes |
-|--------|--------|-------|
-| LinkedIn | Google search | Rate-limited (30-90s delay) |
-| Dice | Google search | Rate-limited (30-90s delay) |
-| Remotive | REST API | Category-based filtering |
-| Hacker News | Algolia + HTML | "Who is Hiring" threads |
-| USA Jobs | REST API | Requires API key |
-| Arbeitnow | REST API | Client-side keyword filtering |
-| Jobicy | REST API | Tag-based filtering |
-| Indeed | RSS feed | Keyword + location filtering |
-| RemoteOK | REST API | Client-side keyword filtering |
-| Himalayas | REST API | Paginated, client-side keyword filtering |
-| Wellfound | HTML scrape | May encounter 403s (aggressive bot protection) |
-| BuiltIn | HTML scrape | Category-based, remote-only paths |
-| Greenhouse | REST API | Scrapes curated list of known company boards |
-| Adzuna | REST API | Requires Adzuna API key (optional) |
+SQLite 核心表：`jobs`、`sources`、`job_scores`、`applications`、`app_events`、`search_config`、`ai_settings`、`user_profile`、`work_history`、`education`、`certifications`、`skills`、`languages`、`user_references`、`custom_qa`、`autofill_history`、`saved_views`、`resumes`、`job_alerts`、`application_queue`、`contacts`、`contact_interactions`、`job_contacts`、`career_suggestions`、`offers`、`interview_rounds`、`interview_prep`、`reminders`、`ical_tokens` 等。启动时自动迁移表结构。
 
-Jobs are deduplicated by SHA-256 hash of normalized title + company + URL.
+### 后台任务
 
-All scrapers share a base class with: exponential backoff on retryable errors (429/5xx), per-domain rate limiting, randomized user-agent rotation, and `Retry-After` header respect.
+| 任务 | 间隔 | 说明 |
+|------|------|------|
+| 打分 | 每 1h | 对未打分的职位跑 AI 匹配 |
+| 维护 | 每 24h | 清理已忽略职位与过期数据 |
+| 提醒检查 | 每 12h | 对长时间无回应的申请生成跟进提醒 |
+| 邮件摘要 | 每天 8 点 | 发送新职位摘要（配置了 SMTP 才生效） |
 
-### Database
-
-SQLite with tables: `jobs`, `sources`, `job_scores`, `applications`, `app_events`, `search_config`, `ai_settings`, `user_profile`, `companies`, `scraper_keys`, `work_history`, `education`, `certifications`, `skills`, `languages`, `user_references`, `military_service`, `eeo_responses`, `custom_qa`, `autofill_history`, `saved_views`, `resumes`, `job_alerts`, `application_queue`, `follow_up_templates`, `contacts`, `contact_interactions`, `job_contacts`, `career_suggestions`, `offers`. Schema auto-migrates on startup (37 tables).
-
-## Background Jobs
-
-The app runs these scheduled jobs automatically:
-
-| Job | Interval | Description |
-|-----|----------|-------------|
-| Scrape | Every 6h (configurable) | Fetches new listings from all enabled sources |
-| Enrichment | Every 2h | Fills missing data (company info, apply links) |
-| Scoring | Every 1h | Scores any unscored jobs against your resume |
-| Maintenance | Every 24h | Prunes dismissed jobs and stale data |
-| Reminder check | Every 12h | Fires follow-up reminders for active applications |
-| Digest | Daily at 8am | Sends email digest of top new matches (if configured) |
-| Alert check | Every 1h | Evaluates saved search alerts for new matches |
-| Embedding | Every 2h | Generates semantic embeddings for similarity search |
+> 职位数据不再由服务端定时爬取 —— 中国版改为**浏览器扩展在用户浏览时回传**（PRD 决策 D1），服务端的爬虫调度与富化任务已移除。
 
 ## API
 
-The full REST API is auto-documented at:
+完整 REST API 自动文档：
+
 - **Swagger UI**: http://localhost:8085/docs
 - **ReDoc**: http://localhost:8085/redoc
 
-### Jobs
-- `GET /api/jobs` — List with filters (`sort`, `limit`, `offset`, `min_score`, `search`, `source`, `work_type`, `employment_type`, `location`)
-- `GET /api/jobs/:id` — Detail with score, sources, application
-- `POST /api/jobs/:id/dismiss` — Dismiss job
-- `POST /api/jobs/:id/prepare` — Generate tailored resume + cover letter
-- `GET /api/jobs/:id/resume.pdf` — Download tailored resume as PDF
-- `GET /api/jobs/:id/cover-letter.pdf` — Download cover letter as PDF
-- `POST /api/jobs/:id/email` — Draft application email
-- `POST /api/jobs/:id/application` — Update status/notes
-- `POST /api/jobs/:id/events` — Add timeline note
-- `POST /api/jobs/:id/find-contact` — Search for hiring manager contact
-- `POST /api/jobs/:id/find-apply-link` — Scrape direct apply URL
-- `POST /api/jobs/:id/estimate-salary` — AI salary estimation
+主要分组：
 
-### Configuration
-- `GET /api/search-config` — Resume analysis and search terms
-- `POST /api/search-config/terms` — Update search terms
-- `POST /api/search-config/exclude-terms` — Update exclude terms
-- `POST /api/resume/upload` — Upload + analyze resume (multipart)
+| 分组 | 代表端点 |
+|------|----------|
+| 职位 | `GET /api/jobs`、`GET /api/jobs/:id`、`POST /api/jobs/save-external`（扩展回传）、`POST /api/jobs/lookup`、`POST /api/jobs/mark-applied-by-url`、`GET /api/companies/:name`（本地缓存） |
+| 准备材料 | `POST /api/jobs/:id/prepare`、`GET /api/jobs/:id/resume.pdf`、`GET /api/jobs/:id/cover-letter.pdf`（另有 `.docx`）、`POST /api/resume/upload`（`.pdf`/`.docx`/`.txt`/`.md`） |
+| 面试题库 | `POST/GET /api/jobs/:id/interview-prep`、`PUT /api/jobs/:id/interview-prep/questions/:index`、`POST .../questions/:index/expand`、`POST .../copy`、`GET /api/interview-prep/sources` |
+| 申请管道 | `POST /api/jobs/:id/apply`、`POST /api/jobs/:id/application`、`POST /api/jobs/:id/response`、`GET /api/pipeline`、`GET /api/reminders`、`GET/POST /api/follow-up-templates` |
+| 待联系清单 | `POST /api/queue/add`、`GET /api/queue`、`POST /api/queue/:id/fill-status`（扩展回报填写状态）、`DELETE /api/queue/:id` |
+| 面试 | `GET/POST /api/jobs/:id/interviews`、`PUT/DELETE /api/interviews/:id`、`POST /api/interviews/:id/save-contact` |
+| 日历 | `GET /api/calendar`、`GET /api/calendar/token`、`GET /api/calendar.ics` |
+| 人脉 | `GET/POST /api/contacts`、`PUT/DELETE /api/contacts/:id`、`GET/POST /api/contacts/:id/interactions`、`GET/POST /api/jobs/:id/contacts` |
+| 分析 | `GET /api/stats`、`GET /api/analytics`、`GET /api/skill-gaps`、`GET /api/jobs/:id/predict-success`、`GET /api/offers/compare`、`POST /api/career/analyze`、`GET /api/export/csv` |
+| 提醒通知 | `GET/POST /api/alerts`、`GET /api/notifications`、`GET /api/notifications/stream`（SSE） |
+| 设置 | `GET/POST /api/profile`、`GET/PUT /api/profile/full`、`POST /api/profile/learn`、`GET/POST /api/ai-settings`、`GET/POST /api/search-config/*`、简历版本、自定义问答、保存的过滤器 |
+| 填表 | `POST /api/autofill/analyze`、`GET /api/autofill/history`、`GET/POST/DELETE /api/custom-qa` |
+| 抓取/打分 | `POST /api/scrape`、`GET /api/scrape/progress`、`POST /api/scrape/cancel`、`POST /api/score`、`GET /api/score/progress` |
+| 运维 | `GET /api/health`、`POST /api/clear-jobs`、`POST /api/clear-all`、`POST /api/dismiss-stale` |
 
-### AI Settings
-- `GET /api/ai-settings` — Current provider/model (keys masked)
-- `POST /api/ai-settings` — Save provider config
-- `GET /api/ai-settings/models` — List available Ollama models
-- `POST /api/ai-settings/test` — Test AI connection
+## 国际化（i18n）
 
-### Profile
-- `GET /api/profile` — Get basic user profile
-- `POST /api/profile` — Save user profile fields
-- `GET /api/profile/full` — Complete structured profile (personal, work history, education, skills, etc.)
-- `PUT /api/profile/full` — Update full profile
-- `POST /api/profile/learn` — Save new data learned from autofill
+界面提供**简体中文（默认）**与英文两种语言。
 
-### Profile CRUD
-- `POST /api/work-history` — Add/update work experience
-- `DELETE /api/work-history/:id` — Delete work experience
-- `POST /api/education` — Add/update education
-- `DELETE /api/education/:id` — Delete education
-- `POST /api/certifications` — Add/update certification
-- `DELETE /api/certifications/:id` — Delete certification
-- `POST /api/skills` — Add/update skill
-- `DELETE /api/skills/:id` — Delete skill
-- `POST /api/languages` — Add/update language
-- `DELETE /api/languages/:id` — Delete language
-- `POST /api/references` — Add/update reference
-- `DELETE /api/references/:id` — Delete reference
+- Web：主题按钮旁的 `中文 / EN` 切换；存储在 `localStorage`（`careerpulse_lang`）。切换时重渲染当前视图，有未保存的表单会先确认。
+- Chrome 扩展：弹窗与填表浮层各有语言切换；存储在 `chrome.storage.local`（`language`），与 Web 互相独立。
+- 两端都不做浏览器语言自动探测，默认 `zh-CN`。
+- 所有界面文案走 `t(key, params)`（`app/static/js/i18n.js` / `extension/i18n.js`）。职位描述、公司名、AI 输出和邮件正文保持原文；金额保持人民币月薪口径，不做币种换算。
+- 后端错误返回稳定错误码：`{ "code": "resume.not_found", "params": {} }`，由客户端翻译。
 
-### AutoFill (Extension)
-- `POST /api/autofill/analyze` — AI analyzes form HTML, returns field mappings with selectors, values, and confidence
-- `GET /api/autofill/history` — List past autofill sessions
-- `GET /api/custom-qa` — List custom Q&A bank
-- `POST /api/custom-qa` — Add/update Q&A entry
-- `DELETE /api/custom-qa/:id` — Delete Q&A entry
+完整契约、术语表与维护规则见 [`docs/i18n.md`](docs/i18n.md)。
 
-### Companies
-- `GET /api/companies/:name` — Get/fetch company info (cached)
-
-### Scraper Keys
-- `GET /api/scraper-keys` — Get configured scraper keys (masked)
-- `POST /api/scraper-keys` — Save scraper API keys
-
-### Saved Views
-- `GET /api/saved-views` — List saved filter presets
-- `POST /api/saved-views` — Create saved view
-- `PUT /api/saved-views/:id` — Update saved view
-- `DELETE /api/saved-views/:id` — Delete saved view
-
-### Resumes
-- `GET /api/resumes` — List resume versions
-- `POST /api/resumes` — Create resume version
-- `PUT /api/resumes/:id` — Update resume
-- `DELETE /api/resumes/:id` — Delete resume
-- `POST /api/resumes/:id/set-default` — Set default resume
-
-### Response Tracking
-- `POST /api/jobs/:id/response` — Log application response (invite, rejection, ghosted)
-- `GET /api/analytics/response-rates` — Response rate analytics dashboard
-
-### External Jobs
-- `POST /api/jobs/save-external` — Save job captured from extension overlay
-- `GET /api/jobs/lookup` — Lookup job by URL
-- `POST /api/jobs/mark-applied-by-url` — Auto-track applied job by URL
-
-### Alerts
-- `GET /api/alerts` — List job alerts
-- `POST /api/alerts` — Create alert
-- `PUT /api/alerts/:id` — Update alert
-- `DELETE /api/alerts/:id` — Delete alert
-
-### Application Queue
-- `POST /api/queue/add` — Add job to application queue
-- `GET /api/queue` — List queued applications
-- `POST /api/queue/prepare-all` — Batch prepare all queued applications
-- `POST /api/queue/:id/approve` — Approve queued application
-- `DELETE /api/queue/:id` — Remove from queue
-- `POST /api/queue/:id/submit-for-review` — Submit for review
-- `POST /api/queue/:id/reject` — Reject queued application
-- `POST /api/queue/approve-all` — Approve all queued applications
-- `POST /api/queue/reject-all` — Reject all queued applications
-- `GET /api/queue/events` — SSE progress stream
-- `POST /api/queue/:id/fill-status` — Extension reports autofill status
-
-### Follow-Up Templates
-- `GET /api/follow-up-templates` — List templates
-- `POST /api/follow-up-templates` — Create template
-- `PUT /api/follow-up-templates/:id` — Update template
-- `DELETE /api/follow-up-templates/:id` — Delete template
-
-### Contacts (CRM)
-- `GET /api/contacts` — List contacts
-- `POST /api/contacts` — Create contact
-- `PUT /api/contacts/:id` — Update contact
-- `DELETE /api/contacts/:id` — Delete contact
-- `GET /api/contacts/:id/interactions` — List interactions for contact
-- `POST /api/contacts/:id/interactions` — Log interaction
-- `GET /api/jobs/:id/contacts` — List contacts linked to job
-- `POST /api/jobs/:id/contacts` — Link contact to job
-- `DELETE /api/jobs/:id/contacts` — Unlink contact from job
-
-### Interviews
-- `GET /api/jobs/:id/interviews` — List interview rounds for an application
-- `POST /api/jobs/:id/interviews` — Add interview round (type, interviewer, date, notes, outcome)
-- `PUT /api/interviews/:id` — Update interview round
-- `DELETE /api/interviews/:id` — Delete interview round
-- `POST /api/interviews/:id/promote-contact` — Create a CRM contact from the interviewer
-
-### Calendar
-- `GET /api/calendar/events` — List calendar events (interviews + deadlines) with date range filter
-- `GET /api/calendar/ical` — iCal feed for subscribing in external calendars (Google, Outlook, Apple)
-
-### Career Advisor
-- `POST /api/career/analyze` — Trigger career trajectory analysis
-- `GET /api/career/suggestions` — List AI-generated role suggestions
-- `POST /api/career/suggestions/:id/accept` — Accept a suggestion
-
-### Offers
-- `GET /api/offers` — List offers
-- `POST /api/offers` — Create offer
-- `PUT /api/offers/:id` — Update offer
-- `DELETE /api/offers/:id` — Delete offer
-- `GET /api/offers/compare` — Side-by-side offer comparison with cost-of-living normalization
-
-### Predictions
-- `GET /api/jobs/:id/predict-success` — AI-predicted response probability for a job
-
-### Operations
-- `GET /api/stats` — Job counts by status
-- `GET /api/digest` — Daily digest of new high-scoring jobs
-- `GET /api/export/csv` — Export jobs to CSV
-- `POST /api/scrape` — Trigger scrape cycle (background); `?force=true` bypasses schedule check
-- `GET /api/scrape/progress` — Scrape progress
-- `POST /api/dismiss-stale` — Auto-dismiss all jobs not seen by scrapers in 30+ days
-- `POST /api/score` — Trigger scoring (background)
-- `GET /api/score/progress` — Scoring progress
-- `POST /api/clear-jobs` — Delete all jobs, scores, and applications (keeps config)
-- `POST /api/clear-all` — Factory reset (deletes everything)
-- `GET /api/health` — Health check
-
-## Internationalization
-
-The interface ships in **Simplified Chinese (default)** and **English**.
-
-- Web: the `中文 / EN` control next to the theme button; the choice is stored in
-  `localStorage` (`careerpulse_lang`). Switching re-renders the current view and
-  asks before discarding unsaved form edits.
-- Chrome extension: the popup and the autofill overlay each expose their own
-  language control; the choice is stored in `chrome.storage.local` (`language`),
-  independent from the web app.
-- No browser-language auto detection; both sides default to `zh-CN`.
-- All interface copy goes through `t(key, params)` from `app/static/js/i18n.js`
-  (web) or `extension/i18n.js` (extension). Job descriptions, company names, AI
-  output and email bodies stay in their original language; amounts stay USD.
-- Backend errors return stable codes: `{ "code": "resume.not_found", "params": {} }`
-  — the client translates them.
-
-Full contract, glossary and maintenance rules: [`docs/i18n.md`](docs/i18n.md).
-
-## Testing
+## 测试
 
 ```bash
-# Backend (679 tests)
+# 后端（445 项）
 uv run pytest
 
-# Frontend (233 tests)
+# 前端（210 项）
 cd app/static && npx vitest run
 
-# Extension (506 tests)
+# 扩展（509+ 项）
 cd extension && npx vitest run
 ```
 
-**Total: 1,418 tests** across backend, frontend, and extension. Frontend and
-extension suites include the i18n unit tests, the web ⇄ extension key parity
-check and the static hardcoded-copy audits.
-
-Backend covers: scrapers, database, API endpoints, matcher, tailor, resume analyzer, AI client, contact finder, apply link finder, salary estimator, company research, digest, profile CRUD, autofill, custom Q&A, saved views, response tracking, alerts, application queue, follow-up templates, contacts CRM, career advisor, offers, predictions, interview rounds, and calendar events.
+前端与扩展套件包含 i18n 单元测试、web ⇄ 扩展的翻译键一致性校验，以及静态硬编码文案审计（在已迁移文件里新增硬编码英文文案会导致构建失败）。
 
 ## CI
 
-GitHub Actions runs 3 parallel test suites on every push and PR to `main` (`.github/workflows/ci.yml`):
+GitHub Actions 在每次 push / PR 到 `main` 时并行跑 3 个测试套件（`.github/workflows/ci.yml`）：
 
-| Job | Runner | Command |
-|-----|--------|---------|
-| Backend Tests | ubuntu-latest | `uv run pytest` |
-| Frontend Tests | ubuntu-latest | `npx vitest run` (in `app/static/`) |
-| Extension Tests | ubuntu-latest | `npx vitest run` (in `extension/`) |
+| 任务 | Runner | 命令 |
+|------|--------|------|
+| 后端测试 | ubuntu-latest | `uv run pytest` |
+| 前端测试 | ubuntu-latest | `npx vitest run`（`app/static/`） |
+| 扩展测试 | ubuntu-latest | `npx vitest run`（`extension/`） |
 
-Results are uploaded as artifacts (`test-results/*.xml`).
+测试结果以构件上传（`test-results/*.xml`）。
 
-## Tech Stack
+## 技术栈
 
-- **Backend**: Python 3.12+, FastAPI, aiosqlite, httpx
-- **Frontend**: Vanilla JS SPA (14 modules, no build step), Vitest for tests
-- **Extension**: Chrome Manifest V3 (content script + service worker)
-- **AI**: Anthropic SDK / OpenAI SDK / Ollama REST API
-- **Scraping**: feedparser, BeautifulSoup4, httpx
-- **Scheduling**: APScheduler
-- **PDF**: PyMuPDF
-- **DOCX**: python-docx
+- **后端**: Python 3.12+、FastAPI、aiosqlite、httpx
+- **前端**: 原生 JS SPA（无构建步骤），Vitest 测试
+- **扩展**: Chrome Manifest V3（content script + service worker），Vitest 测试
+- **AI**: Anthropic SDK（含 Bedrock）/ OpenAI SDK / Ollama REST API
+- **调度**: APScheduler
+- **文档**: PyMuPDF（PDF）、python-docx（DOCX）
