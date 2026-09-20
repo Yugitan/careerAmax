@@ -1,6 +1,6 @@
 # CareerPulse
 
-[![CI](https://github.com/tcpsyn/CareerPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/tcpsyn/CareerPulse/actions/workflows/ci.yml)
+[![CI](https://github.com/Yugitan/careerAmax/actions/workflows/ci.yml/badge.svg)](https://github.com/Yugitan/careerAmax/actions/workflows/ci.yml)
 
 CareerPulse 是一个**说中文、面向中国求职市场**的自托管求职作战台：你在招聘平台上正常浏览，浏览器扩展把职位回传到本地服务，AI 按你的简历打分匹配，生成中文简历与求职信，并把每一份申请从「感兴趣」到「offer」全程管理起来。
 

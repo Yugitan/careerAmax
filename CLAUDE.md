@@ -99,10 +99,13 @@ Language checklist per interface change (see `docs/i18n.md`):
 - both default to `zh-CN`, never auto-detect the browser locale, and store the
   setting separately from each other
 
-CI runs all three suites in parallel on push/PR to main: `.github/workflows/ci.yml`
+CI runs all three suites in parallel on push/PR to `test` and `prod` (not on the
+personal `local` branch): `.github/workflows/ci.yml`
 
 ## Git Remote
-- **GitHub**: `https://github.com/tcpsyn/CareerPulse.git` (origin)
+- **GitHub**: `https://github.com/Yugitan/careerAmax.git` (origin)
+- **Branches**: `local`（开发）→ `test`（测试）→ `prod`（生产，远端默认分支）。CI 只跑
+  `test` 与 `prod`；`main` 已退休，不要在它上面工作。
 
 ## i18n Maintenance Rules
 

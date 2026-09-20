@@ -16,8 +16,8 @@ const APP_ROUTES = ['#/', '#/stats', '#/pipeline', '#/calendar', '#/queue', '#/n
 // already in the footer. Anything else would be an invented destination.
 const ALLOWED_LINKS = [
     /^#\/(?:stats|pipeline|calendar|queue|network|calculator|settings)?$/,
-    /^https:\/\/github\.com\/tcpsyn\/CareerPulse$/,
-    /^https:\/\/github\.com\/tcpsyn\/CareerPulse\/blob\/main\/docs\/USAGE\.md$/,
+    /^https:\/\/github\.com\/Yugitan\/careerAmax$/,
+    /^https:\/\/github\.com\/Yugitan\/careerAmax\/blob\/prod\/docs\/USAGE\.md$/,
     /^https:\/\/careerpulse\.macneilmediagroup\.com$/,
     /^https:\/\/macneilmediagroup\.com$/,
     /^\/docs$/,
