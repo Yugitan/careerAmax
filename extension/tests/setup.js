@@ -97,3 +97,29 @@ export function ensureExtensionI18n() {
 // Every extension test gets the i18n module in English: the extension forces the
 // interface language like the web tests do (see docs/i18n.md).
 ensureExtensionI18n();
+
+// ─── 定时器泄漏护栏 ─────────────────────────────────────────────
+// content.js 会排一串定时器（防抖扫描 1.5s、角标 500ms、抓取结果停留 5s、采集轮询
+// 3s…）。测试文件之间 jsdom 会被拆掉，队列里剩的定时器一旦触发就跑在没有 window 的
+// 环境上，抛 `ReferenceError: window is not defined` —— vitest 把它记成 unhandled
+// error，于是「测试全过」却退出码 1（实测约 1/4 概率，CI 因此红）。这里统一登记，
+// 每个用例结束时清掉；测试自己 await 的 setTimeout 不受影响（清已触发的 id 是空操作）。
+import { afterEach } from 'vitest';
+
+const pendingTimers = new Set();
+for (const name of ['setTimeout', 'setInterval']) {
+  const real = globalThis[name];
+  globalThis[name] = (...args) => {
+    const id = real(...args);
+    pendingTimers.add(id);
+    return id;
+  };
+}
+
+afterEach(() => {
+  for (const id of pendingTimers) {
+    clearTimeout(id);
+    clearInterval(id);
+  }
+  pendingTimers.clear();
+});

@@ -1,6 +1,30 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import vm from 'vm';
+import { afterEach } from 'vitest';
+
+// ─── 定时器泄漏护栏 ─────────────────────────────────────────────
+// 视图里有一堆防抖/轮询定时器（feed 的刷新、footer 的 resize、面试面板…）。测试文件
+// 之间 jsdom 会被拆掉，队列里剩的定时器一旦触发就跑在没有 window 的环境上，抛
+// `ReferenceError: window is not defined` —— vitest 记成 unhandled error，于是
+// 「测试全过」却退出码 1。这里统一登记，每个用例结束时清掉（清已触发的 id 是空操作）。
+const pendingTimers = new Set();
+for (const name of ['setTimeout', 'setInterval']) {
+    const real = globalThis[name];
+    globalThis[name] = (...args) => {
+        const id = real(...args);
+        pendingTimers.add(id);
+        return id;
+    };
+}
+
+afterEach(() => {
+    for (const id of pendingTimers) {
+        clearTimeout(id);
+        clearInterval(id);
+    }
+    pendingTimers.clear();
+});
 
 const jsDir = join(import.meta.dirname, '..', 'js');
 const localesDir = join(jsDir, 'locales');
